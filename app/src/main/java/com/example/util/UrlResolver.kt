@@ -39,7 +39,7 @@ object UrlResolver {
     /**
      * Resolves raw text from the address bar into either a normalized web URL or search URL.
      */
-    fun resolve(input: String, searchEngine: SearchEngine = SearchEngine.DUCKDUCKGO): ResolvedUrl {
+    fun resolve(input: String, searchEngine: SearchEngine = SearchEngine.GOOGLE): ResolvedUrl {
         val trimmed = input.trim()
         if (trimmed.isEmpty()) {
             return ResolvedUrl(url = VELOCITY_HOME, type = ResolvedType.INTERNAL)

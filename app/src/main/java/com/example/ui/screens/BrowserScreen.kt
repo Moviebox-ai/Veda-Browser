@@ -271,6 +271,8 @@ fun BrowserScreen(
                 } else {
                     // Real WebView Container keyed to active tab
                     androidx.compose.runtime.key(currentTab.id) {
+                        var lastLoadedUrl by remember(currentTab.id) { mutableStateOf<String?>(null) }
+
                         AndroidView(
                             factory = { ctx ->
                                 val (webClient, chromeClient) = viewModel.createClientsForTab(currentTab.id, ctx)
@@ -287,8 +289,13 @@ fun BrowserScreen(
                                     viewModel.requestDownloadConfirmation(url, contentDisposition, mimeType, contentLength)
                                 }
 
-                                if (webView.url.isNullOrEmpty() || webView.url != currentTab.url) {
-                                    webView.loadUrl(currentTab.url)
+                                if (!currentTab.url.startsWith("velocity:") && currentTab.url.isNotEmpty()) {
+                                    if (webView.url.isNullOrEmpty() || webView.url == "about:blank") {
+                                        lastLoadedUrl = currentTab.url
+                                        webView.loadUrl(currentTab.url)
+                                    } else {
+                                        lastLoadedUrl = webView.url
+                                    }
                                 }
                                 webView
                             },
@@ -300,8 +307,17 @@ fun BrowserScreen(
                                 // Update text zoom if setting changed
                                 webView.settings.textZoom = settings.textZoom
 
-                                if (!currentTab.url.startsWith("velocity:") && currentTab.url.isNotEmpty() && webView.url != currentTab.url) {
-                                    webView.loadUrl(currentTab.url)
+                                // Only load if currentTab.url is a new destination that hasn't been requested yet
+                                if (!currentTab.url.startsWith("velocity:") && currentTab.url.isNotEmpty()) {
+                                    if (lastLoadedUrl == null) {
+                                        lastLoadedUrl = currentTab.url
+                                        if (webView.url.isNullOrEmpty() || webView.url == "about:blank") {
+                                            webView.loadUrl(currentTab.url)
+                                        }
+                                    } else if (currentTab.url != lastLoadedUrl && currentTab.url != webView.url) {
+                                        lastLoadedUrl = currentTab.url
+                                        webView.loadUrl(currentTab.url)
+                                    }
                                 }
                             },
                             modifier = Modifier

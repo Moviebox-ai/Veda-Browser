@@ -44,7 +44,7 @@ enum class SearchEngine(
 
     companion object {
         fun fromId(id: String): SearchEngine {
-            return entries.find { it.id.equals(id, ignoreCase = true) } ?: DUCKDUCKGO
+            return entries.find { it.id.equals(id, ignoreCase = true) } ?: GOOGLE
         }
     }
 }

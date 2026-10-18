@@ -57,12 +57,8 @@ class VelocityApplication : Application() {
             }
         }
 
-        // Clean up any corrupt legacy cache directories created by previous runs.
-        // Specifically, 'HTTP Cache/Code Cache' was an invalid nested directory structure
-        // that causes Chromium's SimpleBackend to fail with:
-        // "Simple Cache Backend: cache directory inaccessible right after creation; path: .../HTTP Cache/Code Cache/js"
-        // and "Unable to create cache". Removing the corrupted folder allows Chromium to natively create its cache.
-        cleanCorruptCacheIfPresent()
+        // Initialize System Notification channels for downloads and file uploads
+        com.example.util.DownloadNotificationHelper.createChannels(this)
 
         // Enable WebView debugging only for debug builds
         if (BuildConfig.DEBUG) {
@@ -77,7 +73,7 @@ class VelocityApplication : Application() {
         tabManager = TabManager(webViewManager)
 
         browserRepository = BrowserRepositoryImpl(database, preferences)
-        downloadRepository = DownloadRepositoryImpl(database)
+        downloadRepository = DownloadRepositoryImpl(database, this)
         suggestionService = SearchSuggestionService()
         networkMonitor = NetworkMonitor(this)
         speedTestManager = com.example.data.network.SpeedTestManager()

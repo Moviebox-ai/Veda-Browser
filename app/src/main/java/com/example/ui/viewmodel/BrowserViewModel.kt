@@ -53,6 +53,7 @@ class BrowserViewModel(
     val speedTestState = speedTestManager.state
 
     var onShowFileChooserHandler: ((android.webkit.ValueCallback<Array<android.net.Uri>>?, android.webkit.WebChromeClient.FileChooserParams?) -> Boolean)? = null
+    var onRequestNotificationPermission: (() -> Unit)? = null
 
     val isOnline: StateFlow<Boolean> = networkMonitor.isOnline
 
@@ -126,6 +127,7 @@ class BrowserViewModel(
     val activeSslError = MutableStateFlow<String?>(null)
     val sslProceedCallback = MutableStateFlow<(() -> Unit)?>(null)
     val sslCancelCallback = MutableStateFlow<(() -> Unit)?>(null)
+    val navigationEvent = MutableStateFlow<String?>(null)
 
     // Full screen HTML5 video custom view
     val customFullScreenView = MutableStateFlow<View?>(null)
@@ -346,6 +348,7 @@ class BrowserViewModel(
 
     fun confirmDownload(context: android.content.Context) {
         val pending = pendingDownload.value ?: return
+        onRequestNotificationPermission?.invoke()
         viewModelScope.launch(Dispatchers.IO) {
             downloadRepo.enqueueDownload(
                 context = context,

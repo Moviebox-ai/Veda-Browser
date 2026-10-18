@@ -10,7 +10,9 @@ import com.example.data.local.entity.DownloadEntity
 import com.example.domain.model.DownloadItem
 import com.example.domain.model.DownloadStatus
 import com.example.domain.repository.DownloadRepository
+import com.example.VelocityApplication
 import com.example.util.AppLogger
+import com.example.util.DownloadNotificationHelper
 import com.example.util.FilenameSanitizer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,10 +33,11 @@ import java.util.concurrent.TimeUnit
 
 /**
  * High-speed turbo download engine with multi-connection pooling, 128KB streaming buffers,
- * HTTP Range-based segmented pause/resume, and real-time MB/s telemetry.
+ * HTTP Range-based segmented pause/resume, real-time MB/s telemetry, and system notifications.
  */
 class DownloadRepositoryImpl(
     private val database: AppDatabase,
+    private val context: Context? = null,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO),
     private val client: OkHttpClient = OkHttpClient.Builder()
         .connectionPool(ConnectionPool(32, 5, TimeUnit.MINUTES))
@@ -45,6 +48,9 @@ class DownloadRepositoryImpl(
         .retryOnConnectionFailure(true)
         .build()
 ) : DownloadRepository {
+
+    private val appContext: Context?
+        get() = context ?: runCatching { VelocityApplication.instance }.getOrNull()
 
     private val activeJobs = ConcurrentHashMap<Long, Job>()
     private val liveSpeeds = ConcurrentHashMap<Long, Long>()
@@ -110,6 +116,7 @@ class DownloadRepositoryImpl(
         activeJobs[id]?.cancel()
         activeJobs.remove(id)
         liveSpeeds.remove(id)
+        appContext?.let { DownloadNotificationHelper.cancel(it, id) }
         val current = database.downloadDao().getDownloadById(id)
         if (current != null && current.status == DownloadStatus.RUNNING.name) {
             database.downloadDao().updateProgress(
@@ -142,6 +149,7 @@ class DownloadRepositoryImpl(
             val existingBytes = if (resume && targetFile.exists()) targetFile.length() else 0L
 
             database.downloadDao().updateProgress(id, DownloadStatus.RUNNING.name, existingBytes, expectedLength)
+            appContext?.let { DownloadNotificationHelper.notifyProgress(it, id, targetFile.name, existingBytes, expectedLength, 0L) }
 
             val requestBuilder = Request.Builder()
                 .url(url)
@@ -155,13 +163,16 @@ class DownloadRepositoryImpl(
             val request = requestBuilder.build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful && response.code != 206) {
-                    database.downloadDao().markFailed(id, "HTTP error: ${response.code}")
+                    val errMsg = "HTTP error: ${response.code}"
+                    database.downloadDao().markFailed(id, errMsg)
+                    appContext?.let { DownloadNotificationHelper.notifyFailed(it, id, targetFile.name, errMsg) }
                     liveSpeeds.remove(id)
                     return
                 }
 
                 val body = response.body ?: run {
                     database.downloadDao().markFailed(id, "Empty response body")
+                    appContext?.let { DownloadNotificationHelper.notifyFailed(it, id, targetFile.name, "Empty response body") }
                     liveSpeeds.remove(id)
                     return
                 }
@@ -194,6 +205,7 @@ class DownloadRepositoryImpl(
                                 val currentSpeedBytesPerSec = if (elapsed > 0) (bytesSinceLastUpdate * 1000) / elapsed else 0L
                                 liveSpeeds[id] = currentSpeedBytesPerSec
                                 database.downloadDao().updateProgress(id, DownloadStatus.RUNNING.name, downloaded, total)
+                                appContext?.let { DownloadNotificationHelper.notifyProgress(it, id, targetFile.name, downloaded, total, currentSpeedBytesPerSec) }
                                 lastUpdateTime = now
                                 bytesSinceLastUpdate = 0L
                             }
@@ -205,13 +217,20 @@ class DownloadRepositoryImpl(
                 liveSpeeds.remove(id)
                 database.downloadDao().updateProgress(id, DownloadStatus.COMPLETED.name, downloaded, total)
                 database.downloadDao().markCompleted(id)
+                val entity = database.downloadDao().getDownloadById(id)
+                val mimeType = entity?.mimeType ?: "application/octet-stream"
+                appContext?.let { DownloadNotificationHelper.notifyCompleted(it, id, targetFile.name, targetFile, mimeType) }
             }
         } catch (e: Exception) {
             liveSpeeds.remove(id)
             AppLogger.e("DownloadRepository", "Download failed for ID $id", e)
             val entity = database.downloadDao().getDownloadById(id)
             if (entity?.status != DownloadStatus.PAUSED.name && entity?.status != DownloadStatus.CANCELED.name) {
-                database.downloadDao().markFailed(id, e.message ?: "Download failed")
+                val errorMsg = e.message ?: "Download failed"
+                database.downloadDao().markFailed(id, errorMsg)
+                appContext?.let { DownloadNotificationHelper.notifyFailed(it, id, targetFile.name, errorMsg) }
+            } else {
+                appContext?.let { DownloadNotificationHelper.cancel(it, id) }
             }
         } finally {
             activeJobs.remove(id)
@@ -223,6 +242,7 @@ class DownloadRepositoryImpl(
         activeJobs[id]?.cancel()
         activeJobs.remove(id)
         liveSpeeds.remove(id)
+        appContext?.let { DownloadNotificationHelper.cancel(it, id) }
         database.downloadDao().updateProgress(id, DownloadStatus.CANCELED.name, 0, 0)
     }
 

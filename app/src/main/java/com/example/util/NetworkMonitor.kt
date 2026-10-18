@@ -48,8 +48,19 @@ class NetworkMonitor(context: Context) {
 
     private fun checkInitialConnectivity(): Boolean {
         val cm = connectivityManager ?: return true
-        val activeNetwork = cm.activeNetwork ?: return false
-        val caps = cm.getNetworkCapabilities(activeNetwork) ?: return false
-        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        val activeNetwork = cm.activeNetwork
+        if (activeNetwork != null) {
+            val caps = cm.getNetworkCapabilities(activeNetwork)
+            if (caps != null && (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) || caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED))) {
+                return true
+            }
+        }
+        @Suppress("DEPRECATION")
+        val networkInfo = cm.activeNetworkInfo
+        if (networkInfo != null && networkInfo.isConnectedOrConnecting) {
+            return true
+        }
+        // Default to true so web browsing is never blocked by delayed capability broadcasts
+        return true
     }
 }

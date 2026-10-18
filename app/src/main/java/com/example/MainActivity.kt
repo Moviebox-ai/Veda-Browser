@@ -6,15 +6,22 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.webkit.ValueCallback
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.core.content.ContextCompat
+import com.example.util.AppLogger
+import com.example.util.DownloadNotificationHelper
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -40,12 +47,44 @@ class MainActivity : ComponentActivity() {
 
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
 
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        AppLogger.d("MainActivity", "POST_NOTIFICATIONS granted: $isGranted")
+    }
+
+    fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
+    private fun getFileNameFromUri(uri: Uri): String {
+        var name = uri.lastPathSegment ?: "file"
+        if (uri.scheme == "content") {
+            try {
+                contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1 && cursor.moveToFirst()) {
+                        val displayName = cursor.getString(nameIndex)
+                        if (!displayName.isNullOrBlank()) {
+                            name = displayName
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+        return name
+    }
+
     private val fileChooserLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         val uris: Array<Uri>? = if (result.resultCode == Activity.RESULT_OK) {
             val data = result.data
-            if (data?.clipData != null) {
+            val selectedUris = if (data?.clipData != null) {
                 val count = data.clipData!!.itemCount
                 val uriList = mutableListOf<Uri>()
                 for (i in 0 until count) {
@@ -57,6 +96,12 @@ class MainActivity : ComponentActivity() {
             } else {
                 null
             }
+
+            if (!selectedUris.isNullOrEmpty()) {
+                val firstFileName = selectedUris.firstOrNull()?.let { getFileNameFromUri(it) } ?: "file"
+                DownloadNotificationHelper.notifyUpload(this@MainActivity, selectedUris.size, firstFileName)
+            }
+            selectedUris
         } else {
             null
         }
@@ -68,8 +113,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // Create notification channels and request notification permissions on Android 13+
+        DownloadNotificationHelper.createChannels(this)
+        requestNotificationPermissionIfNeeded()
+
+        // Allow viewModel to request notification permission when downloads start
+        viewModel.onRequestNotificationPermission = {
+            requestNotificationPermissionIfNeeded()
+        }
+
         // Wire up high-speed file upload handler for WebView
         viewModel.onShowFileChooserHandler = { callback, params ->
+            requestNotificationPermissionIfNeeded()
             fileChooserCallback?.onReceiveValue(null)
             fileChooserCallback = callback
             val intent = params?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
@@ -107,6 +162,11 @@ class MainActivity : ComponentActivity() {
     private fun handleIntent(intent: Intent?) {
         if (intent == null) return
 
+        val navTarget = intent.getStringExtra("navigate_to")
+        if (!navTarget.isNullOrBlank()) {
+            viewModel.navigationEvent.value = navTarget
+        }
+
         when (intent.action) {
             Intent.ACTION_VIEW -> {
                 intent.dataString?.let { url ->
@@ -138,6 +198,14 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun VelocityNavHost(viewModel: BrowserViewModel) {
     val navController = rememberNavController()
+
+    val navEvent by viewModel.navigationEvent.collectAsStateWithLifecycle()
+    LaunchedEffect(navEvent) {
+        if (navEvent == "downloads") {
+            navController.navigate(Screen.Downloads.route)
+            viewModel.navigationEvent.value = null
+        }
+    }
 
     val tabs by viewModel.tabs.collectAsStateWithLifecycle()
     val activeTabId by viewModel.activeTabId.collectAsStateWithLifecycle()

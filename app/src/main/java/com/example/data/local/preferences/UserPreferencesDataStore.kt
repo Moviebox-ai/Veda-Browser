@@ -15,8 +15,8 @@ import kotlinx.coroutines.flow.map
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "velocity_settings")
 
 data class BrowserSettings(
-    val searchEngineId: String = "duckduckgo",
-    val customSearchEngineTemplate: String = "https://duckduckgo.com/?q=%s",
+    val searchEngineId: String = "google",
+    val customSearchEngineTemplate: String = "https://www.google.com/search?q=%s",
     val contentBlockerEnabled: Boolean = true,
     val javascriptEnabled: Boolean = true,
     val desktopModeDefault: Boolean = false,
@@ -49,8 +49,8 @@ class UserPreferencesDataStore(private val context: Context) {
 
     val settingsFlow: Flow<BrowserSettings> = context.dataStore.data.map { preferences ->
         BrowserSettings(
-            searchEngineId = preferences[PreferencesKeys.SEARCH_ENGINE] ?: "duckduckgo",
-            customSearchEngineTemplate = preferences[PreferencesKeys.CUSTOM_SEARCH_TEMPLATE] ?: "https://duckduckgo.com/?q=%s",
+            searchEngineId = preferences[PreferencesKeys.SEARCH_ENGINE] ?: "google",
+            customSearchEngineTemplate = preferences[PreferencesKeys.CUSTOM_SEARCH_TEMPLATE] ?: "https://www.google.com/search?q=%s",
             contentBlockerEnabled = preferences[PreferencesKeys.CONTENT_BLOCKER] ?: true,
             javascriptEnabled = preferences[PreferencesKeys.JAVASCRIPT_ENABLED] ?: true,
             desktopModeDefault = preferences[PreferencesKeys.DESKTOP_MODE_DEFAULT] ?: false,
