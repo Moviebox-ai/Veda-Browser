@@ -85,8 +85,9 @@ class TabWebViewManager(
                 allowFileAccessFromFileURLs = false
                 allowUniversalAccessFromFileURLs = false
 
-                // Enforce strict HTTPS / Block mixed content
-                mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                // Allow compatibility mode for mixed content so modern websites load completely
+                mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                javaScriptCanOpenWindowsAutomatically = true
 
                 // Performance & Cache
                 cacheMode = if (isPrivate) WebSettings.LOAD_NO_CACHE else WebSettings.LOAD_DEFAULT

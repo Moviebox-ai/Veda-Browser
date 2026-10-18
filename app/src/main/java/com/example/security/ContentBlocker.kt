@@ -64,8 +64,8 @@ class ContentBlocker {
         return WebResourceResponse(
             "text/plain",
             "UTF-8",
-            200,
-            "OK",
+            204,
+            "No Content",
             emptyMap(),
             ByteArrayInputStream(ByteArray(0))
         )

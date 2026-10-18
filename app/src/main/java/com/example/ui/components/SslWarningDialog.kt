@@ -31,7 +31,8 @@ import com.example.ui.theme.DangerRed
 @Composable
 fun SslWarningDialog(
     errorMessage: String?,
-    onBackToSafety: () -> Unit
+    onBackToSafety: () -> Unit,
+    onProceedAnyway: (() -> Unit)? = null
 ) {
     AlertDialog(
         onDismissRequest = onBackToSafety,
@@ -67,7 +68,7 @@ fun SslWarningDialog(
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "Your connection to this website is not private. Velocity Browser prevented the connection to protect your passwords, payment methods, and personal identity.",
+                    text = "Your connection to this website is not private. Velocity Browser detected an issue with the certificate or connection.",
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -95,6 +96,18 @@ fun SslWarningDialog(
             ) {
                 Text("Back to Safety")
             }
-        }
+        },
+        dismissButton = if (onProceedAnyway != null) {
+            {
+                androidx.compose.material3.TextButton(
+                    onClick = onProceedAnyway,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("ssl_proceed_button")
+                ) {
+                    Text("Proceed to site (unsafe)", color = DangerRed)
+                }
+            }
+        } else null
     )
 }

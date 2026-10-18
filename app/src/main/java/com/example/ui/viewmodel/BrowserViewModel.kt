@@ -124,6 +124,8 @@ class BrowserViewModel(
     val isSiteInfoOpen = MutableStateFlow(false)
     val sslErrorDialogVisible = MutableStateFlow(false)
     val activeSslError = MutableStateFlow<String?>(null)
+    val sslProceedCallback = MutableStateFlow<(() -> Unit)?>(null)
+    val sslCancelCallback = MutableStateFlow<(() -> Unit)?>(null)
 
     // Full screen HTML5 video custom view
     val customFullScreenView = MutableStateFlow<View?>(null)
@@ -360,6 +362,21 @@ class BrowserViewModel(
         pendingDownload.value = null
     }
 
+    fun proceedThroughSslWarning() {
+        sslProceedCallback.value?.invoke()
+        sslProceedCallback.value = null
+        sslCancelCallback.value = null
+        sslErrorDialogVisible.value = false
+    }
+
+    fun dismissSslWarning() {
+        sslCancelCallback.value?.invoke()
+        sslProceedCallback.value = null
+        sslCancelCallback.value = null
+        sslErrorDialogVisible.value = false
+        navigateTo("velocity:home")
+    }
+
     // Create WebView client wiring for a given tab
     fun createClientsForTab(tabId: String, context: android.content.Context): Pair<VelocityWebViewClient, VelocityChromeClient> {
         val webClient = VelocityWebViewClient(
@@ -387,8 +404,10 @@ class BrowserViewModel(
                     }
                 }
             },
-            onSslErrorCallback = { errorMsg, failingUrl ->
+            onSslErrorCallback = { errorMsg, failingUrl, proceed, cancel ->
                 activeSslError.value = errorMsg
+                sslProceedCallback.value = proceed
+                sslCancelCallback.value = cancel
                 sslErrorDialogVisible.value = true
                 tabManager.updateTab(tabId) {
                     it.copy(sslError = errorMsg, isSecure = false, isLoading = false)

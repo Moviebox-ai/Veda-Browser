@@ -299,6 +299,10 @@ fun BrowserScreen(
                                 }
                                 // Update text zoom if setting changed
                                 webView.settings.textZoom = settings.textZoom
+
+                                if (!currentTab.url.startsWith("velocity:") && currentTab.url.isNotEmpty() && webView.url != currentTab.url) {
+                                    webView.loadUrl(currentTab.url)
+                                }
                             },
                             modifier = Modifier
                                 .fillMaxSize()
@@ -409,10 +413,8 @@ fun BrowserScreen(
     if (sslErrorDialogVisible) {
         SslWarningDialog(
             errorMessage = activeSslError,
-            onBackToSafety = {
-                viewModel.sslErrorDialogVisible.value = false
-                viewModel.navigateTo("velocity:home")
-            }
+            onBackToSafety = { viewModel.dismissSslWarning() },
+            onProceedAnyway = { viewModel.proceedThroughSslWarning() }
         )
     }
 

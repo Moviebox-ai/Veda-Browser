@@ -25,7 +25,7 @@ class VelocityWebViewClient(
     private val contentBlocker: ContentBlocker,
     private val onPageStartedCallback: (url: String) -> Unit,
     private val onPageFinishedCallback: (url: String, canGoBack: Boolean, canGoForward: Boolean, isSecure: Boolean) -> Unit,
-    private val onSslErrorCallback: (error: String, url: String) -> Unit,
+    private val onSslErrorCallback: (error: String, url: String, proceed: () -> Unit, cancel: () -> Unit) -> Unit,
     private val onRenderProcessCrashedCallback: () -> Unit,
     private val onInternalNavigation: (String) -> Unit
 ) : WebViewClient() {
@@ -37,6 +37,7 @@ class VelocityWebViewClient(
         request: WebResourceRequest?
     ): WebResourceResponse? {
         val url = request?.url ?: return null
+        if (request.isForMainFrame) return null
         if (contentBlocker.shouldBlock(url)) {
             AppLogger.d("VelocityWebViewClient", "Blocked tracker/ad: ${url.host}")
             return contentBlocker.createBlockedResponse()
@@ -86,9 +87,6 @@ class VelocityWebViewClient(
     }
 
     override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
-        // Strict security: Cancel SSL immediately to prevent MITM attacks
-        handler?.cancel()
-
         val errorMessage = when (error?.primaryError) {
             SslError.SSL_EXPIRED -> "The security certificate has expired."
             SslError.SSL_IDMISMATCH -> "Hostname does not match the security certificate."
@@ -101,7 +99,12 @@ class VelocityWebViewClient(
         currentSslError = errorMessage
         val failingUrl = error?.url ?: view?.url ?: ""
         AppLogger.w("VelocityWebViewClient", "SSL Error ($errorMessage) for $failingUrl")
-        onSslErrorCallback(errorMessage, failingUrl)
+        onSslErrorCallback(
+            errorMessage,
+            failingUrl,
+            { handler?.proceed() },
+            { handler?.cancel() }
+        )
     }
 
     override fun onReceivedError(
