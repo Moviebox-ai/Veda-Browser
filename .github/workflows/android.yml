@@ -20,6 +20,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+  actions: read
+
 jobs:
   build:
     name: Build Android APK
@@ -94,6 +98,27 @@ jobs:
           path: app/build/outputs/apk/*/*.apk
           retention-days: 7
           if-no-files-found: ignore
+
+      - name: Publish GitHub Release with Direct APK Download
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        with:
+          tag_name: "v1.0.0"
+          name: "Velocity Browser v1.0.0 (APK Download)"
+          body: |
+            ## 📱 Velocity Browser Android APK
+            
+            Directly download the latest APK file below:
+            - **Download**: [`app-debug.apk`](https://github.com/${{ github.repository }}/releases/download/v1.0.0/app-debug.apk)
+            
+            ### Installation Instructions:
+            1. Download `app-debug.apk` directly to your Android device.
+            2. Open the downloaded file and tap **Install**.
+            3. If prompted by Android, allow "Install unknown apps".
+          draft: false
+          prerelease: false
+          files: app/build/outputs/apk/debug/app-debug.apk
 
       - name: Run Unit Tests (Robolectric & JVM)
         run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
