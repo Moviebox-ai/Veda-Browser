@@ -15,6 +15,10 @@ import com.example.security.ContentBlocker
 import com.example.util.AppLogger
 import com.example.util.NetworkMonitor
 import com.example.webview.TabWebViewManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.io.File
 
 class VelocityApplication : Application() {
 
@@ -53,6 +57,25 @@ class VelocityApplication : Application() {
             }
         }
 
+        // Ensure Chromium Simple Cache directories exist and remove any corrupt 0-byte fake_index
+        try {
+            val webViewCache = File(cacheDir, "WebView/Default/HTTP Cache")
+            if (!webViewCache.exists()) {
+                webViewCache.mkdirs()
+            } else {
+                val fakeIndex = File(webViewCache, "fake_index")
+                if (fakeIndex.exists() && fakeIndex.length() == 0L) {
+                    fakeIndex.delete()
+                }
+            }
+            val defaultCache = File(cacheDir, "org.chromium.android_webview/Default/HTTP Cache")
+            if (!defaultCache.exists()) {
+                defaultCache.mkdirs()
+            }
+        } catch (e: Exception) {
+            AppLogger.w("VelocityApplication", "Cache prep note: ${e.message}")
+        }
+
         // Enable WebView debugging only for debug builds
         if (BuildConfig.DEBUG) {
             WebView.setWebContentsDebuggingEnabled(true)
@@ -71,13 +94,15 @@ class VelocityApplication : Application() {
         networkMonitor = NetworkMonitor(this)
         speedTestManager = com.example.data.network.SpeedTestManager()
 
-        // Pre-warm Safe Browsing if supported
-        try {
-            WebView.startSafeBrowsing(this) { success ->
-                AppLogger.d("VelocityApplication", "Safe Browsing initialized: $success")
+        // Pre-warm Safe Browsing asynchronously on background thread to prevent startup I/O contention
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                WebView.startSafeBrowsing(this@VelocityApplication) { success ->
+                    AppLogger.d("VelocityApplication", "Safe Browsing initialized: $success")
+                }
+            } catch (e: Exception) {
+                AppLogger.w("VelocityApplication", "Safe Browsing init skipped: ${e.message}")
             }
-        } catch (e: Exception) {
-            AppLogger.w("VelocityApplication", "Safe Browsing init skipped: ${e.message}")
         }
     }
 

@@ -252,40 +252,42 @@ fun BrowserScreen(
                         onNewPrivateTab = { viewModel.openNewTab(isPrivate = true) }
                     )
                 } else {
-                    // Real WebView Container
-                    AndroidView(
-                        factory = { ctx ->
-                            val (webClient, chromeClient) = viewModel.createClientsForTab(currentTab.id, ctx)
-                            val webView = viewModel.webViewManager.getOrCreateWebView(
-                                tabId = currentTab.id,
-                                context = ctx,
-                                isPrivate = currentTab.isPrivate,
-                                client = webClient,
-                                chromeClient = chromeClient
-                            )
+                    // Real WebView Container keyed to active tab
+                    androidx.compose.runtime.key(currentTab.id) {
+                        AndroidView(
+                            factory = { ctx ->
+                                val (webClient, chromeClient) = viewModel.createClientsForTab(currentTab.id, ctx)
+                                val webView = viewModel.webViewManager.getOrCreateWebView(
+                                    tabId = currentTab.id,
+                                    context = ctx,
+                                    isPrivate = currentTab.isPrivate,
+                                    client = webClient,
+                                    chromeClient = chromeClient
+                                )
 
-                            // Set Download listener
-                            webView.setDownloadListener { url, _, contentDisposition, mimeType, contentLength ->
-                                viewModel.requestDownloadConfirmation(url, contentDisposition, mimeType, contentLength)
-                            }
+                                // Set Download listener
+                                webView.setDownloadListener { url, _, contentDisposition, mimeType, contentLength ->
+                                    viewModel.requestDownloadConfirmation(url, contentDisposition, mimeType, contentLength)
+                                }
 
-                            if (webView.url.isNullOrEmpty() || webView.url != currentTab.url) {
-                                webView.loadUrl(currentTab.url)
-                            }
-                            webView
-                        },
-                        update = { webView ->
-                            // Update download listener
-                            webView.setDownloadListener { url, _, contentDisposition, mimeType, contentLength ->
-                                viewModel.requestDownloadConfirmation(url, contentDisposition, mimeType, contentLength)
-                            }
-                            // Update text zoom if setting changed
-                            webView.settings.textZoom = settings.textZoom
-                        },
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .testTag("webview_${currentTab.id}")
-                    )
+                                if (webView.url.isNullOrEmpty() || webView.url != currentTab.url) {
+                                    webView.loadUrl(currentTab.url)
+                                }
+                                webView
+                            },
+                            update = { webView ->
+                                // Update download listener
+                                webView.setDownloadListener { url, _, contentDisposition, mimeType, contentLength ->
+                                    viewModel.requestDownloadConfirmation(url, contentDisposition, mimeType, contentLength)
+                                }
+                                // Update text zoom if setting changed
+                                webView.settings.textZoom = settings.textZoom
+                            },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .testTag("webview_${currentTab.id}")
+                        )
+                    }
                 }
             }
 
