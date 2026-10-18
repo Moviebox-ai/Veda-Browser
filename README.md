@@ -2,32 +2,35 @@
 
 Velocity Browser is a real, high-speed, private native Android web browser built on top of Android System WebView, Jetpack Compose, Room Database, and Kotlin Coroutines.
 
-## Features
+## Features & Security Architecture
 
 - **Hardened Security & Privacy**:
-  - Cleartext traffic disabled by default with strict `NetworkSecurityConfig`.
-  - SSL errors always intercepted and canceled (`handler.cancel()`) with a dedicated security warning interstitial.
-  - Safe Browsing enabled with threat mitigation.
-  - Tracking and ad request blocker in `shouldInterceptRequest`.
-  - `allowFileAccess = false`, `allowContentAccess = false`, and `allowUniversalAccessFromFileURLs = false` to prevent file exfiltration.
-  - Safe Intent URI parser clearing component/selector and stripping `FLAG_GRANT_*` permission flags.
+  - Cleartext traffic strictly disabled by default (`usesCleartextTraffic = false`) with `NetworkSecurityConfig` trusting system CAs only (user CAs restricted to `debug-overrides`).
+  - Strict HTTPS-First escalation upgrading HTTP navigations to HTTPS.
+  - Multi-profile isolation for private tabs via AndroidX WebKit `ProfileStore` (`MULTI_PROFILE`), wiping cookies and site storage upon private session termination.
+  - Search suggestions suppressed in private tabs to prevent query leakage to network providers.
+  - Subresource SSL errors automatically canceled; main-frame SSL errors tracked per-tab with explicit warning dialog.
+  - Top-level dangerous schemes (`javascript:`, `file:`, `content:`, `jar:`, `data:`, `blob:`) validated and blocked before tab creation.
+  - `allowFileAccess = false`, `allowContentAccess = false`, and `mixedContentMode = MIXED_CONTENT_NEVER_ALLOW`.
+  - Media playback requires user gesture (`mediaPlaybackRequiresUserGesture = true`).
+  - Origin-scoped site data clearing via `WebStorage.deleteOrigin`.
+  - FileProvider constrained to dedicated download directories.
 
 - **Multi-Tab Architecture**:
-  - `TabManager` and `TabWebViewManager` with tab isolation.
-  - Grid tab switcher with separate Standard vs Private segments.
-  - Recently closed tab history stack with instant restoration.
-  - Graceful renderer crash recovery (`onRenderProcessGone`).
+  - `TabManager` and `TabWebViewManager` with multi-profile and `MutableContextWrapper` lifecycle handling.
+  - Separate Standard and Private browsing tab segments.
+  - Recently closed tab history stack with restoration.
+  - Renderer crash recovery (`onRenderProcessGone`).
 
 - **Smart Address Bar & Engine**:
-  - Pure Kotlin `UrlResolver` with scheme validation, domain extraction, and HTTPS-first escalation.
-  - Real-time debounced search suggestions via OkHttp.
+  - Pure Kotlin `UrlResolver` with scheme validation, domain extraction, and HTTPS-first mode.
+  - Real-time debounced search suggestions via OkHttp (standard tabs only).
   - Live connection security badges (Verified HTTPS, Insecure HTTP, SSL Certificate Error).
   - Configurable top or bottom address bar.
 
-- **Storage & Offline First**:
+- **Storage & Downloads**:
   - Room Database with DAOs for bookmarks, browsing history, shortcuts, and downloads.
-  - Real-time `NetworkMonitor` with offline banners.
-  - Download Manager with progress tracking and secure `FileProvider` launch.
+  - Single-connection streaming download engine with progress telemetry, MediaScanner integration, and saving to `Download/Velocity` folder in Android storage.
   - Reader Mode on-demand extraction with typography customization.
 
 ## Building and Running Tests

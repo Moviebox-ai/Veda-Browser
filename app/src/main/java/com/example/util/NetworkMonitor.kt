@@ -10,14 +10,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Monitors network availability in real-time.
+ * Monitors network availability in real-time with accurate capability validation.
  */
 class NetworkMonitor(context: Context) {
 
     private val connectivityManager =
         context.applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
 
-    private val _isOnline = MutableStateFlow(checkInitialConnectivity())
+    private val _isOnline = MutableStateFlow(checkConnectivity())
     val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
@@ -26,11 +26,15 @@ class NetworkMonitor(context: Context) {
         }
 
         override fun onLost(network: Network) {
-            _isOnline.value = checkInitialConnectivity()
+            _isOnline.value = checkConnectivity()
         }
 
         override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
-            val hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            val hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                    (networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) ||
+                     networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                     networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                     networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
             _isOnline.value = hasInternet
         }
     }
@@ -46,21 +50,22 @@ class NetworkMonitor(context: Context) {
         }
     }
 
-    private fun checkInitialConnectivity(): Boolean {
-        val cm = connectivityManager ?: return true
-        val activeNetwork = cm.activeNetwork
-        if (activeNetwork != null) {
-            val caps = cm.getNetworkCapabilities(activeNetwork)
-            if (caps != null && (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) || caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED))) {
-                return true
-            }
+    fun checkConnectivity(): Boolean {
+        val cm = connectivityManager ?: return false
+        val activeNetwork = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(activeNetwork) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) ||
+                 caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                 caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                 caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
+    }
+
+    fun unregister() {
+        try {
+            connectivityManager?.unregisterNetworkCallback(networkCallback)
+        } catch (e: Exception) {
+            AppLogger.w("NetworkMonitor", "Failed to unregister network callback: ${e.message}")
         }
-        @Suppress("DEPRECATION")
-        val networkInfo = cm.activeNetworkInfo
-        if (networkInfo != null && networkInfo.isConnectedOrConnecting) {
-            return true
-        }
-        // Default to true so web browsing is never blocked by delayed capability broadcasts
-        return true
     }
 }

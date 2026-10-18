@@ -33,7 +33,7 @@ class ContentBlocker {
         "advertising.com",
         "quantserve.com",
         "analytics.twitter.com",
-        "connect.facebook.net/signals",
+        "connect.facebook.net",
         "adroll.com",
         "moatads.com",
         "popads.net",

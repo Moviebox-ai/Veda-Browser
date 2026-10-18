@@ -51,6 +51,7 @@ import com.example.ui.components.BottomToolbar
 import com.example.ui.components.BrowserMenuSheet
 import com.example.ui.components.DownloadConfirmDialog
 import com.example.ui.components.FindInPageBar
+import com.example.ui.components.JsDialogHost
 import com.example.ui.components.SiteInfoSheet
 import com.example.ui.components.SslWarningDialog
 import com.example.ui.theme.InsecureWarning
@@ -87,6 +88,8 @@ fun BrowserScreen(
     val isReaderModeActive by viewModel.isReaderModeActive.collectAsStateWithLifecycle()
     val readerArticle by viewModel.readerArticle.collectAsStateWithLifecycle()
     val pendingDownload by viewModel.pendingDownload.collectAsStateWithLifecycle()
+    val activeJsDialog by viewModel.activeJsDialog.collectAsStateWithLifecycle()
+    val activeHttpAuth by viewModel.activeHttpAuth.collectAsStateWithLifecycle()
 
     var showMenuSheet by remember { mutableStateOf(false) }
 
@@ -497,7 +500,7 @@ fun BrowserScreen(
             onDismiss = { viewModel.isSiteInfoOpen.value = false },
             onToggleDesktopMode = { viewModel.toggleDesktopMode() },
             onClearSiteData = {
-                viewModel.clearBrowsingData(clearCookies = true, clearCache = true, clearStorage = true, clearHistory = false)
+                viewModel.clearSiteDataForActiveTab()
             }
         )
     }
@@ -517,4 +520,11 @@ fun BrowserScreen(
             onDismiss = { viewModel.dismissDownload() }
         )
     }
+
+    JsDialogHost(
+        dialogRequest = activeJsDialog,
+        httpAuthRequest = activeHttpAuth,
+        onDismissJsDialog = { viewModel.dismissJsDialog() },
+        onDismissHttpAuth = { viewModel.dismissHttpAuth() }
+    )
 }

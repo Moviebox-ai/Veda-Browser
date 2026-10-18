@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
+import android.webkit.HttpAuthHandler
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.SafeBrowsingResponse
 import android.webkit.SslErrorHandler
@@ -27,7 +28,8 @@ class VelocityWebViewClient(
     private val onPageFinishedCallback: (url: String, canGoBack: Boolean, canGoForward: Boolean, isSecure: Boolean) -> Unit,
     private val onSslErrorCallback: (error: String, url: String, proceed: () -> Unit, cancel: () -> Unit) -> Unit,
     private val onRenderProcessCrashedCallback: () -> Unit,
-    private val onInternalNavigation: (String) -> Unit
+    private val onInternalNavigation: (String) -> Unit,
+    private val onHttpAuthRequestCallback: ((host: String, realm: String, proceed: (String, String) -> Unit, cancel: () -> Unit) -> Unit)? = null
 ) : WebViewClient() {
 
     private var currentSslError: String? = null
@@ -87,6 +89,26 @@ class VelocityWebViewClient(
     }
 
     override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
+        val failingUrl = error?.url ?: view?.url ?: ""
+        val currentViewUrl = view?.url ?: ""
+
+        // Check if error is for the main frame
+        val isMainFrame = failingUrl.isEmpty() || failingUrl == currentViewUrl ||
+                try {
+                    val failHost = Uri.parse(failingUrl).host
+                    val viewHost = Uri.parse(currentViewUrl).host
+                    failHost != null && failHost == viewHost
+                } catch (_: Exception) {
+                    false
+                }
+
+        // Subresource SSL errors (iframes, ads, scripts) must be canceled immediately to prevent request hanging
+        if (!isMainFrame) {
+            AppLogger.w("VelocityWebViewClient", "Subresource SSL error canceled: $failingUrl")
+            handler?.cancel()
+            return
+        }
+
         val errorMessage = when (error?.primaryError) {
             SslError.SSL_EXPIRED -> "The security certificate has expired."
             SslError.SSL_IDMISMATCH -> "Hostname does not match the security certificate."
@@ -97,8 +119,7 @@ class VelocityWebViewClient(
         }
 
         currentSslError = errorMessage
-        val failingUrl = error?.url ?: view?.url ?: ""
-        AppLogger.w("VelocityWebViewClient", "SSL Error ($errorMessage) for $failingUrl")
+        AppLogger.w("VelocityWebViewClient", "Main-frame SSL Error ($errorMessage) for $failingUrl")
         onSslErrorCallback(
             errorMessage,
             failingUrl,
@@ -126,8 +147,28 @@ class VelocityWebViewClient(
         callback: SafeBrowsingResponse?
     ) {
         AppLogger.w("VelocityWebViewClient", "Safe Browsing Hit: Threat type $threatType")
-        // Return back to safety to protect user
-        callback?.backToSafety(true)
+        // backToSafety(false) prevents sending telemetry without user consent
+        callback?.backToSafety(false)
+    }
+
+    override fun onReceivedHttpAuthRequest(
+        view: WebView?,
+        handler: HttpAuthHandler?,
+        host: String?,
+        realm: String?
+    ) {
+        val targetHost = host ?: ""
+        val targetRealm = realm ?: ""
+        if (onHttpAuthRequestCallback != null) {
+            onHttpAuthRequestCallback.invoke(
+                targetHost,
+                targetRealm,
+                { username, password -> handler?.proceed(username, password) },
+                { handler?.cancel() }
+            )
+        } else {
+            handler?.cancel()
+        }
     }
 
     override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {

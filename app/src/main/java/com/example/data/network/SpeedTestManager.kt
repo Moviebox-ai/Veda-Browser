@@ -66,7 +66,7 @@ class SpeedTestManager(
                 }
                 if (pingTime > 0) pingTimes.add(pingTime)
             }
-            val avgPing = if (pingTimes.isNotEmpty()) pingTimes.average().toLong() else 28L
+            val avgPing = if (pingTimes.isNotEmpty()) pingTimes.average().toLong() else 0L
             _state.value = _state.value.copy(pingMs = avgPing, progress = 0.2f)
 
             // 2. Measure Download Speed
@@ -123,7 +123,6 @@ class SpeedTestManager(
                 }
             } catch (e: Exception) {
                 AppLogger.d("SpeedTestManager", "Download test note: ${e.message}")
-                if (maxDownloadMbps == 0f) maxDownloadMbps = 45.2f
             }
             _state.value = _state.value.copy(
                 downloadSpeedMbps = maxDownloadMbps,
@@ -180,12 +179,11 @@ class SpeedTestManager(
                 client.newCall(uploadRequest).execute().close()
             } catch (e: Exception) {
                 AppLogger.d("SpeedTestManager", "Upload test note: ${e.message}")
-                if (maxUploadMbps == 0f) maxUploadMbps = 24.8f
             }
 
             _state.value = _state.value.copy(
                 phase = SpeedTestPhase.COMPLETED,
-                uploadSpeedMbps = maxOf(maxUploadMbps, 18.5f),
+                uploadSpeedMbps = maxUploadMbps,
                 currentGaugeMbps = _state.value.downloadSpeedMbps,
                 progress = 1.0f
             )
@@ -194,9 +192,7 @@ class SpeedTestManager(
             AppLogger.e("SpeedTestManager", "Speed test error", e)
             _state.value = _state.value.copy(
                 phase = SpeedTestPhase.COMPLETED,
-                downloadSpeedMbps = 38.5f,
-                uploadSpeedMbps = 19.2f,
-                pingMs = 24,
+                currentGaugeMbps = 0f,
                 progress = 1.0f
             )
         }

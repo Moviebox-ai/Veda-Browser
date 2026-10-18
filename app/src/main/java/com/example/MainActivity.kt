@@ -17,6 +17,7 @@ import androidx.activity.viewModels
 import androidx.core.content.ContextCompat
 import com.example.util.AppLogger
 import com.example.util.DownloadNotificationHelper
+import com.example.util.UrlResolver
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
@@ -97,10 +98,7 @@ class MainActivity : ComponentActivity() {
                 null
             }
 
-            if (!selectedUris.isNullOrEmpty()) {
-                val firstFileName = selectedUris.firstOrNull()?.let { getFileNameFromUri(it) } ?: "file"
-                DownloadNotificationHelper.notifyUpload(this@MainActivity, selectedUris.size, firstFileName)
-            }
+            // Removed misleading upload notification on mere file selection
             selectedUris
         } else {
             null
@@ -122,7 +120,7 @@ class MainActivity : ComponentActivity() {
             requestNotificationPermissionIfNeeded()
         }
 
-        // Wire up high-speed file upload handler for WebView
+        // Wire up file chooser handler for WebView
         viewModel.onShowFileChooserHandler = { callback, params ->
             requestNotificationPermissionIfNeeded()
             fileChooserCallback?.onReceiveValue(null)
@@ -141,7 +139,10 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        handleIntent(intent)
+        // Guard against duplicate tab creation during configuration changes
+        if (savedInstanceState == null) {
+            handleIntent(intent)
+        }
 
         setContent {
             val settings by viewModel.settings.collectAsStateWithLifecycle()
@@ -152,6 +153,15 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        fileChooserCallback?.onReceiveValue(null)
+        fileChooserCallback = null
+        viewModel.onShowFileChooserHandler = null
+        viewModel.onRequestNotificationPermission = null
+        viewModel.webViewManager.detachAllContexts(applicationContext)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -169,16 +179,25 @@ class MainActivity : ComponentActivity() {
 
         when (intent.action) {
             Intent.ACTION_VIEW -> {
-                intent.dataString?.let { url ->
-                    if (url.isNotBlank()) {
-                        viewModel.openNewTab(url = url, isPrivate = false)
+                intent.dataString?.let { rawUrl ->
+                    val uri = intent.data
+                    val scheme = uri?.scheme?.lowercase()
+                    // Strictly allow only http and https from external apps
+                    if (scheme == "http" || scheme == "https") {
+                        val resolved = UrlResolver.resolve(rawUrl, viewModel.settings.value.searchEngine)
+                        if (resolved.type != UrlResolver.ResolvedType.BLOCKED_SCHEME) {
+                            viewModel.openNewTab(url = resolved.url, isPrivate = false)
+                        }
+                    } else {
+                        AppLogger.w("MainActivity", "Blocked external intent with unsafe scheme: $scheme")
                     }
                 }
             }
             Intent.ACTION_WEB_SEARCH -> {
                 intent.getStringExtra(SearchManager.QUERY)?.let { query ->
                     if (query.isNotBlank()) {
-                        viewModel.openNewTab(url = query, isPrivate = false)
+                        val searchUrl = viewModel.settings.value.searchEngine.buildSearchUrl(query)
+                        viewModel.openNewTab(url = searchUrl, isPrivate = false)
                     }
                 }
             }
@@ -186,7 +205,10 @@ class MainActivity : ComponentActivity() {
                 if (intent.type == "text/plain") {
                     intent.getStringExtra(Intent.EXTRA_TEXT)?.let { text ->
                         if (text.isNotBlank()) {
-                            viewModel.openNewTab(url = text, isPrivate = false)
+                            val resolved = UrlResolver.resolve(text, viewModel.settings.value.searchEngine)
+                            if (resolved.type != UrlResolver.ResolvedType.BLOCKED_SCHEME) {
+                                viewModel.openNewTab(url = resolved.url, isPrivate = false)
+                            }
                         }
                     }
                 }

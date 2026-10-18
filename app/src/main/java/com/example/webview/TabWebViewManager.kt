@@ -1,6 +1,7 @@
 package com.example.webview
 
 import android.content.Context
+import android.content.MutableContextWrapper
 import android.os.Bundle
 import android.view.ViewGroup
 import android.webkit.CookieManager
@@ -10,14 +11,17 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.webkit.ProfileStore
 import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.example.security.ContentBlocker
 import com.example.util.AppLogger
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Manages WebViews per tab with hardened security configurations and lifecycle safety.
+ * Manages WebViews per tab with hardened security configurations, profile isolation,
+ * and memory-leak prevention using MutableContextWrapper.
  */
 class TabWebViewManager(
     val contentBlocker: ContentBlocker = ContentBlocker()
@@ -25,10 +29,12 @@ class TabWebViewManager(
 
     private val webViews = ConcurrentHashMap<String, WebView>()
     private val defaultUserAgents = ConcurrentHashMap<String, String>()
+    private val contextWrappers = ConcurrentHashMap<String, MutableContextWrapper>()
 
     companion object {
         const val DESKTOP_USER_AGENT =
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+        const val PRIVATE_PROFILE_NAME = "velocity_private_profile"
     }
 
     @Suppress("DEPRECATION")
@@ -41,12 +47,17 @@ class TabWebViewManager(
     ): WebView {
         val existing = webViews[tabId]
         if (existing != null) {
+            contextWrappers[tabId]?.baseContext = context
             existing.webViewClient = client
             existing.webChromeClient = chromeClient
             return existing
         }
 
-        val webView = WebView(context).apply {
+        // Use MutableContextWrapper so Activity references can be detached to prevent memory leaks
+        val wrapper = MutableContextWrapper(context)
+        contextWrappers[tabId] = wrapper
+
+        val webView = WebView(wrapper).apply {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -59,35 +70,46 @@ class TabWebViewManager(
             val defaultUa = settings.userAgentString
             defaultUserAgents[tabId] = defaultUa
 
-            // Enable GPU Hardware Acceleration for ultra-fast rendering & video
+            // Enable GPU Hardware Acceleration
             setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
 
-            // Consume insets so Chromium's internal compositor does not trigger conflicting layout passes during IME animation
+            // Consume window insets
             ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ ->
                 WindowInsetsCompat.CONSUMED
             }
 
-            // High-throughput cookie handling for reliable uploads and authenticated downloads
-            CookieManager.getInstance().setAcceptCookie(true)
-            CookieManager.getInstance().setAcceptThirdPartyCookies(this, !isPrivate)
+            // Multi-profile isolation for private tabs via AndroidX WebKit Profile API
+            if (isPrivate && WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+                try {
+                    ProfileStore.getInstance().getOrCreateProfile(PRIVATE_PROFILE_NAME)
+                    WebViewCompat.setProfile(this, PRIVATE_PROFILE_NAME)
+                } catch (e: Exception) {
+                    AppLogger.w("TabWebViewManager", "Failed to assign multi-profile to private tab: ${e.message}")
+                }
+            } else {
+                // High-throughput cookie handling for standard tabs
+                CookieManager.getInstance().setAcceptCookie(true)
+                CookieManager.getInstance().setAcceptThirdPartyCookies(this, !isPrivate)
+            }
 
-            // Hardened Security & High-Performance Configurations
+            // Hardened Security & Performance Configurations
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
-                databaseEnabled = true
                 loadsImagesAutomatically = true
-                mediaPlaybackRequiresUserGesture = false
 
-                // Keep file:// access blocked for security, but allow content:// for high-speed file uploads
+                // Autoplay blocked without user gesture
+                mediaPlaybackRequiresUserGesture = true
+
+                // Completely disable file:// and content:// access to prevent local exfiltration
                 allowFileAccess = false
-                allowContentAccess = true
+                allowContentAccess = false
                 allowFileAccessFromFileURLs = false
                 allowUniversalAccessFromFileURLs = false
 
-                // Allow compatibility mode for mixed content so modern websites load completely
-                mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                javaScriptCanOpenWindowsAutomatically = true
+                // Block mixed content strictly
+                mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                javaScriptCanOpenWindowsAutomatically = false
 
                 // Performance & Cache
                 cacheMode = if (isPrivate) WebSettings.LOAD_NO_CACHE else WebSettings.LOAD_DEFAULT
@@ -114,7 +136,7 @@ class TabWebViewManager(
             }
 
             if (isPrivate) {
-                // Disable form data for private tabs (cache isolation handled via LOAD_NO_CACHE)
+                // Hardened private mode settings
                 settings.saveFormData = false
             }
         }
@@ -142,8 +164,8 @@ class TabWebViewManager(
         val webView = webViews[tabId] ?: return
         val defaultUa = defaultUserAgents[tabId] ?: webView.settings.userAgentString
         webView.settings.userAgentString = if (enabled) DESKTOP_USER_AGENT else defaultUa
-        webView.settings.useWideViewPort = enabled
-        webView.settings.loadWithOverviewMode = enabled
+        webView.settings.useWideViewPort = true
+        webView.settings.loadWithOverviewMode = true
         webView.reload()
     }
 
@@ -157,7 +179,14 @@ class TabWebViewManager(
         webView.settings.javaScriptEnabled = enabled
     }
 
+    fun detachAllContexts(appContext: Context) {
+        for (wrapper in contextWrappers.values) {
+            wrapper.baseContext = appContext
+        }
+    }
+
     fun destroyTab(tabId: String) {
+        contextWrappers.remove(tabId)
         val webView = webViews.remove(tabId) ?: return
         defaultUserAgents.remove(tabId)
         try {
@@ -178,26 +207,57 @@ class TabWebViewManager(
         }
     }
 
+    /**
+     * Completely wipes private profile data when all private tabs are closed.
+     */
+    fun cleanupPrivateProfile() {
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+            try {
+                ProfileStore.getInstance().deleteProfile(PRIVATE_PROFILE_NAME)
+                AppLogger.d("TabWebViewManager", "Private profile deleted successfully")
+            } catch (e: Exception) {
+                AppLogger.w("TabWebViewManager", "Could not delete private profile: ${e.message}")
+            }
+        } else {
+            try {
+                CookieManager.getInstance().removeSessionCookies(null)
+            } catch (_: Exception) {}
+        }
+    }
+
     @Suppress("DEPRECATION")
     fun onTrimMemory() {
-        // Clear caches to free memory when Android system requests
         for (webView in webViews.values) {
             webView.freeMemory()
         }
     }
 
+    /**
+     * Clears origin-scoped site data (localStorage, IndexedDB) without wiping other websites.
+     */
+    fun clearSiteData(origin: String) {
+        try {
+            WebStorage.getInstance().deleteOrigin(origin)
+        } catch (e: Exception) {
+            AppLogger.w("TabWebViewManager", "Could not delete origin storage for $origin: ${e.message}")
+        }
+    }
+
+    /**
+     * Global clear browsing data (Must be executed on the UI thread).
+     */
     fun clearBrowsingData(clearCookies: Boolean, clearCache: Boolean, clearStorage: Boolean) {
         if (clearCookies) {
             CookieManager.getInstance().removeAllCookies(null)
             CookieManager.getInstance().flush()
         }
-        if (clearCache) {
-            for (webView in webViews.values) {
-                webView.clearCache(true)
-            }
-        }
         if (clearStorage) {
             WebStorage.getInstance().deleteAllData()
+        }
+        for (webView in webViews.values) {
+            if (clearCache) {
+                webView.clearCache(true)
+            }
         }
     }
 }

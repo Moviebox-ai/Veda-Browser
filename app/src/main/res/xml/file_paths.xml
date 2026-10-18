@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-path name="external_root" path="." />
-    <external-path name="downloads" path="Download/" />
-    <external-files-path name="ext_files" path="." />
-    <external-files-path name="ext_files_downloads" path="Download/" />
-    <files-path name="app_downloads" path="downloads/" />
-    <files-path name="files" path="." />
-    <cache-path name="app_cache" path="." />
+    <external-path name="downloads" path="Download/Velocity" />
+    <external-files-path name="ext_downloads" path="Download/Velocity" />
+    <files-path name="internal_downloads" path="Velocity" />
 </paths>

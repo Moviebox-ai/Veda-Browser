@@ -25,6 +25,12 @@ class UrlResolverTest {
         val httpResult = UrlResolver.resolve("http://insecure.site")
         assertEquals("http://insecure.site", httpResult.url)
         assertEquals(UrlResolver.ResolvedType.WEB_URL, httpResult.type)
+
+        val httpsFirstResult = UrlResolver.resolve("http://insecure.site", httpsFirst = true)
+        assertEquals("https://insecure.site", httpsFirstResult.url)
+
+        val localHttpResult = UrlResolver.resolve("http://localhost:8080", httpsFirst = true)
+        assertEquals("http://localhost:8080", localHttpResult.url)
     }
 
     @Test

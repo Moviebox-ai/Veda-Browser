@@ -23,6 +23,8 @@ import com.example.webview.VelocityChromeClient
 import com.example.webview.VelocityWebViewClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -71,6 +73,14 @@ class BrowserViewModel(
         list.find { it.id == tabManager.activeTabId.value }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, tabManager.activeTab)
 
+    init {
+        viewModelScope.launch {
+            settings.collect { currentSettings ->
+                webViewManager.contentBlocker.isEnabled = currentSettings.contentBlockerEnabled
+            }
+        }
+    }
+
     // Address Bar State
     val addressInput = MutableStateFlow("")
     val isAddressBarFocused = MutableStateFlow(false)
@@ -81,7 +91,9 @@ class BrowserViewModel(
         .distinctUntilChanged()
         .flatMapLatest { query ->
             val trimmed = query.trim()
-            if (trimmed.length >= 2 && isAddressBarFocused.value && 
+            val isPrivate = activeTab.value?.isPrivate == true
+            // Privacy rule: NEVER query suggestions service in private tabs
+            if (!isPrivate && trimmed.length >= 2 && isAddressBarFocused.value && 
                 !trimmed.startsWith("http://", ignoreCase = true) && 
                 !trimmed.startsWith("https://", ignoreCase = true) && 
                 !trimmed.startsWith("velocity:", ignoreCase = true)) {
@@ -123,6 +135,17 @@ class BrowserViewModel(
 
     // Site Info & Dialogs
     val isSiteInfoOpen = MutableStateFlow(false)
+
+    // Per-tab SSL Error Tracking
+    data class PendingSslError(
+        val tabId: String,
+        val errorMessage: String,
+        val failingUrl: String,
+        val proceed: () -> Unit,
+        val cancel: () -> Unit
+    )
+    val pendingSslErrors = ConcurrentHashMap<String, PendingSslError>()
+
     val sslErrorDialogVisible = MutableStateFlow(false)
     val activeSslError = MutableStateFlow<String?>(null)
     val sslProceedCallback = MutableStateFlow<(() -> Unit)?>(null)
@@ -148,6 +171,58 @@ class BrowserViewModel(
     )
     val pendingDownload = MutableStateFlow<PendingDownload?>(null)
 
+    // JavaScript Dialogs & HTTP Authentication
+    sealed class JsDialogRequest {
+        abstract val message: String
+        abstract val onConfirm: (String) -> Unit
+        abstract val onCancel: () -> Unit
+
+        data class Alert(
+            override val message: String,
+            override val onConfirm: (String) -> Unit,
+            override val onCancel: () -> Unit
+        ) : JsDialogRequest()
+
+        data class Confirm(
+            override val message: String,
+            override val onConfirm: (String) -> Unit,
+            override val onCancel: () -> Unit
+        ) : JsDialogRequest()
+
+        data class Prompt(
+            override val message: String,
+            val defaultValue: String,
+            override val onConfirm: (String) -> Unit,
+            override val onCancel: () -> Unit
+        ) : JsDialogRequest()
+
+        data class BeforeUnload(
+            override val message: String,
+            override val onConfirm: (String) -> Unit,
+            override val onCancel: () -> Unit
+        ) : JsDialogRequest()
+    }
+
+    data class HttpAuthRequest(
+        val host: String,
+        val realm: String,
+        val onSubmit: (String, String) -> Unit,
+        val onCancel: () -> Unit
+    )
+
+    val activeJsDialog = MutableStateFlow<JsDialogRequest?>(null)
+    val activeHttpAuth = MutableStateFlow<HttpAuthRequest?>(null)
+
+    fun dismissJsDialog() {
+        activeJsDialog.value?.onCancel?.invoke()
+        activeJsDialog.value = null
+    }
+
+    fun dismissHttpAuth() {
+        activeHttpAuth.value?.onCancel?.invoke()
+        activeHttpAuth.value = null
+    }
+
     fun navigateTo(input: String) {
         val current = activeTab.value ?: return
         val currentEngine = settings.value.searchEngine
@@ -158,18 +233,24 @@ class BrowserViewModel(
             return
         }
 
+        // HTTPS-First Escalation: upgrade http:// to https:// when enabled
+        var targetUrl = resolved.url
+        if (settings.value.httpsFirst && targetUrl.startsWith("http://", ignoreCase = true)) {
+            targetUrl = "https://" + targetUrl.removePrefix("http://")
+        }
+
         tabManager.updateTab(current.id) {
             it.copy(
-                url = resolved.url,
-                title = if (resolved.url.startsWith("velocity:")) "New Tab" else resolved.url,
+                url = targetUrl,
+                title = if (targetUrl.startsWith("velocity:")) "New Tab" else targetUrl,
                 isLoading = true,
                 sslError = null
             )
         }
 
         val webView = webViewManager.getWebView(current.id)
-        if (webView != null && !resolved.url.startsWith("velocity:")) {
-            webView.loadUrl(resolved.url)
+        if (webView != null && !targetUrl.startsWith("velocity:")) {
+            webView.loadUrl(targetUrl)
         }
     }
 
@@ -203,23 +284,64 @@ class BrowserViewModel(
     }
 
     fun openNewTab(url: String = "velocity:home", isPrivate: Boolean = false) {
-        val newTab = tabManager.createTab(url = url, isPrivate = isPrivate, select = true)
+        val currentEngine = settings.value.searchEngine
+        val resolved = UrlResolver.resolve(url, currentEngine, settings.value.httpsFirst)
+        val safeUrl = if (resolved.type == UrlResolver.ResolvedType.BLOCKED_SCHEME) {
+            AppLogger.w("BrowserViewModel", "Blocked dangerous scheme in openNewTab: ${resolved.error}")
+            "velocity:home"
+        } else {
+            resolved.url
+        }
+
+        val newTab = tabManager.createTab(url = safeUrl, isPrivate = isPrivate, select = true)
         addressInput.value = ""
         isAddressBarFocused.value = false
-        if (!url.startsWith("velocity:") && url != "about:blank") {
-            navigateTo(url)
+        if (!safeUrl.startsWith("velocity:") && safeUrl != "about:blank") {
+            navigateTo(safeUrl)
         }
     }
 
     fun selectTab(tabId: String) {
+        activeJsDialog.value?.onCancel?.invoke()
+        activeJsDialog.value = null
+        activeHttpAuth.value?.onCancel?.invoke()
+        activeHttpAuth.value = null
+
         tabManager.selectTab(tabId)
         val tab = tabManager.tabs.value.find { it.id == tabId }
         addressInput.value = tab?.url?.takeIf { !it.startsWith("velocity:") } ?: ""
         isAddressBarFocused.value = false
+
+        // Synchronize SSL error dialog state for the newly focused tab
+        val pending = pendingSslErrors[tabId]
+        if (pending != null) {
+            activeSslError.value = pending.errorMessage
+            sslProceedCallback.value = pending.proceed
+            sslCancelCallback.value = pending.cancel
+            sslErrorDialogVisible.value = true
+        } else {
+            sslErrorDialogVisible.value = false
+        }
     }
 
     fun closeTab(tabId: String) {
+        val closedTab = tabManager.tabs.value.find { it.id == tabId }
+        if (activeTabId.value == tabId) {
+            activeJsDialog.value?.onCancel?.invoke()
+            activeJsDialog.value = null
+            activeHttpAuth.value?.onCancel?.invoke()
+            activeHttpAuth.value = null
+        }
         tabManager.closeTab(tabId)
+        webViewManager.destroyTab(tabId)
+        pendingSslErrors.remove(tabId)?.cancel?.invoke()
+
+        if (closedTab?.isPrivate == true) {
+            val remainingPrivate = tabManager.tabs.value.any { it.isPrivate }
+            if (!remainingPrivate) {
+                webViewManager.cleanupPrivateProfile()
+            }
+        }
     }
 
     fun closeOtherTabs(tabId: String) {
@@ -228,6 +350,10 @@ class BrowserViewModel(
 
     fun closeAllTabs(privateOnly: Boolean = false) {
         tabManager.closeAllTabs(isPrivateOnly = privateOnly)
+        val remainingPrivate = tabManager.tabs.value.any { it.isPrivate }
+        if (!remainingPrivate) {
+            webViewManager.cleanupPrivateProfile()
+        }
     }
 
     fun reopenClosedTab() {
@@ -366,14 +492,18 @@ class BrowserViewModel(
     }
 
     fun proceedThroughSslWarning() {
-        sslProceedCallback.value?.invoke()
+        val currentTabId = activeTabId.value
+        val pending = pendingSslErrors.remove(currentTabId)
+        pending?.proceed?.invoke()
         sslProceedCallback.value = null
         sslCancelCallback.value = null
         sslErrorDialogVisible.value = false
     }
 
     fun dismissSslWarning() {
-        sslCancelCallback.value?.invoke()
+        val currentTabId = activeTabId.value
+        val pending = pendingSslErrors.remove(currentTabId)
+        pending?.cancel?.invoke()
         sslProceedCallback.value = null
         sslCancelCallback.value = null
         sslErrorDialogVisible.value = false
@@ -400,7 +530,7 @@ class BrowserViewModel(
                         isSecure = isSecure
                     )
                 }
-                // Record in history if non-private and history saving is enabled
+                // Record in history strictly if non-private and history saving is enabled
                 if (tab?.isPrivate == false && settings.value.saveHistory && !url.startsWith("velocity:")) {
                     viewModelScope.launch(Dispatchers.IO) {
                         repository.recordVisit(tab.title.ifEmpty { url }, url)
@@ -408,10 +538,14 @@ class BrowserViewModel(
                 }
             },
             onSslErrorCallback = { errorMsg, failingUrl, proceed, cancel ->
-                activeSslError.value = errorMsg
-                sslProceedCallback.value = proceed
-                sslCancelCallback.value = cancel
-                sslErrorDialogVisible.value = true
+                val errorItem = PendingSslError(tabId, errorMsg, failingUrl, proceed, cancel)
+                pendingSslErrors[tabId] = errorItem
+                if (activeTabId.value == tabId) {
+                    activeSslError.value = errorMsg
+                    sslProceedCallback.value = proceed
+                    sslCancelCallback.value = cancel
+                    sslErrorDialogVisible.value = true
+                }
                 tabManager.updateTab(tabId) {
                     it.copy(sslError = errorMsg, isSecure = false, isLoading = false)
                 }
@@ -426,6 +560,18 @@ class BrowserViewModel(
             },
             onInternalNavigation = { internalUrl ->
                 navigateTo(internalUrl)
+            },
+            onHttpAuthRequestCallback = { host, realm, proceed, cancel ->
+                if (activeTabId.value == tabId) {
+                    activeHttpAuth.value = HttpAuthRequest(
+                        host = host,
+                        realm = realm,
+                        onSubmit = { user, pass -> proceed(user, pass) },
+                        onCancel = { cancel() }
+                    )
+                } else {
+                    cancel()
+                }
             }
         )
 
@@ -453,6 +599,51 @@ class BrowserViewModel(
             },
             onShowFileChooserCallback = { callback, params ->
                 onShowFileChooserHandler?.invoke(callback, params) ?: false
+            },
+            onJsAlertCallback = { msg, res ->
+                if (activeTabId.value == tabId) {
+                    activeJsDialog.value = JsDialogRequest.Alert(
+                        message = msg,
+                        onConfirm = { res.confirm() },
+                        onCancel = { res.cancel() }
+                    )
+                } else {
+                    res.cancel()
+                }
+            },
+            onJsConfirmCallback = { msg, res ->
+                if (activeTabId.value == tabId) {
+                    activeJsDialog.value = JsDialogRequest.Confirm(
+                        message = msg,
+                        onConfirm = { res.confirm() },
+                        onCancel = { res.cancel() }
+                    )
+                } else {
+                    res.cancel()
+                }
+            },
+            onJsPromptCallback = { msg, def, res ->
+                if (activeTabId.value == tabId) {
+                    activeJsDialog.value = JsDialogRequest.Prompt(
+                        message = msg,
+                        defaultValue = def,
+                        onConfirm = { input -> res.confirm(input) },
+                        onCancel = { res.cancel() }
+                    )
+                } else {
+                    res.cancel()
+                }
+            },
+            onJsBeforeUnloadCallback = { msg, res ->
+                if (activeTabId.value == tabId) {
+                    activeJsDialog.value = JsDialogRequest.BeforeUnload(
+                        message = msg,
+                        onConfirm = { res.confirm() },
+                        onCancel = { res.cancel() }
+                    )
+                } else {
+                    res.cancel()
+                }
             }
         )
 
@@ -483,10 +674,28 @@ class BrowserViewModel(
 
     fun clearBrowsingData(clearCookies: Boolean, clearCache: Boolean, clearStorage: Boolean, clearHistory: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-            webViewManager.clearBrowsingData(clearCookies, clearCache, clearStorage)
             if (clearHistory) {
                 repository.clearHistory()
             }
+            withContext(Dispatchers.Main) {
+                webViewManager.clearBrowsingData(clearCookies, clearCache, clearStorage)
+            }
+        }
+    }
+
+    fun clearSiteDataForActiveTab() {
+        val tab = activeTab.value ?: return
+        val origin = try {
+            val uri = android.net.Uri.parse(tab.url)
+            val scheme = uri.scheme ?: "https"
+            val host = uri.host ?: return
+            val port = if (uri.port != -1) ":${uri.port}" else ""
+            "$scheme://$host$port"
+        } catch (_: Exception) {
+            return
+        }
+        viewModelScope.launch(Dispatchers.Main) {
+            webViewManager.clearSiteData(origin)
         }
     }
 

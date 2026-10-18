@@ -109,6 +109,11 @@ class BrowserRepositoryImpl(
     override suspend fun clearHistory() =
         database.historyDao().clearAll()
 
+    override suspend fun pruneOldHistory(maxAgeDays: Int) {
+        val cutoff = System.currentTimeMillis() - (maxAgeDays.toLong() * 24 * 60 * 60 * 1000)
+        database.historyDao().pruneOldHistory(cutoff)
+    }
+
     // Shortcuts
     override fun getAllShortcuts(): Flow<List<Shortcut>> =
         database.shortcutDao().getAllShortcuts().map { list ->

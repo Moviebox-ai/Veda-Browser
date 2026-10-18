@@ -43,4 +43,7 @@ interface HistoryDao {
 
     @Query("DELETE FROM history WHERE visitedAt >= :startTime AND visitedAt <= :endTime")
     suspend fun deleteRange(startTime: Long, endTime: Long)
+
+    @Query("DELETE FROM history WHERE visitedAt < :cutoffTimestamp")
+    suspend fun pruneOldHistory(cutoffTimestamp: Long)
 }

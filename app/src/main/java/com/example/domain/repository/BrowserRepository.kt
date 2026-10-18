@@ -38,6 +38,7 @@ interface BrowserRepository {
     suspend fun recordVisit(title: String, url: String)
     suspend fun deleteHistoryItem(id: Long)
     suspend fun clearHistory()
+    suspend fun pruneOldHistory(maxAgeDays: Int = 90)
 
     // Shortcuts
     fun getAllShortcuts(): Flow<List<Shortcut>>

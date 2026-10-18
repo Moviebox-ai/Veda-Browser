@@ -22,7 +22,7 @@ object UrlResolver {
     const val VELOCITY_SETTINGS = "velocity:settings"
 
     private val DANGEROUS_SCHEMES = setOf(
-        "javascript", "file", "content", "jar", "data"
+        "javascript", "file", "content", "jar", "data", "blob"
     )
 
     private val DOMAIN_PATTERN = Pattern.compile(
@@ -39,7 +39,11 @@ object UrlResolver {
     /**
      * Resolves raw text from the address bar into either a normalized web URL or search URL.
      */
-    fun resolve(input: String, searchEngine: SearchEngine = SearchEngine.GOOGLE): ResolvedUrl {
+    fun resolve(
+        input: String,
+        searchEngine: SearchEngine = SearchEngine.GOOGLE,
+        httpsFirst: Boolean = false
+    ): ResolvedUrl {
         val trimmed = input.trim()
         if (trimmed.isEmpty()) {
             return ResolvedUrl(url = VELOCITY_HOME, type = ResolvedType.INTERNAL)
@@ -71,9 +75,22 @@ object UrlResolver {
             }
         }
 
-        // Standard http / https
-        if (lower.startsWith("https://") || lower.startsWith("http://")) {
+        // Standard https
+        if (lower.startsWith("https://")) {
             return ResolvedUrl(url = trimmed, type = ResolvedType.WEB_URL)
+        }
+
+        // Standard http - upgrade to https if httpsFirst is enabled and not local
+        if (lower.startsWith("http://")) {
+            val hostPart = trimmed.substring(7).substringBefore("/").substringBefore(":")
+            val isLocal = hostPart.equals("localhost", ignoreCase = true) ||
+                    IP_OR_LOCAL_PATTERN.matcher(hostPart).matches()
+            val finalUrl = if (httpsFirst && !isLocal) {
+                "https://" + trimmed.substring(7)
+            } else {
+                trimmed
+            }
+            return ResolvedUrl(url = finalUrl, type = ResolvedType.WEB_URL)
         }
 
         // Detect if it is an IP or localhost with optional port
@@ -125,7 +142,8 @@ object UrlResolver {
     fun getEditableUrl(url: String): String {
         if (url.startsWith("velocity:") || url == ABOUT_BLANK) return ""
         return try {
-            URLDecoder.decode(url, StandardCharsets.UTF_8.name())
+            val protectedUrl = url.replace("+", "%2B")
+            URLDecoder.decode(protectedUrl, StandardCharsets.UTF_8.name())
         } catch (_: Exception) {
             url
         }
