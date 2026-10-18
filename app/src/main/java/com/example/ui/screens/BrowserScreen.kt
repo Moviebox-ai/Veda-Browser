@@ -284,9 +284,48 @@ fun BrowserScreen(
                                     chromeClient = chromeClient
                                 )
 
-                                // Set Download listener
+                                 // Set Download listener
                                 webView.setDownloadListener { url, _, contentDisposition, mimeType, contentLength ->
                                     viewModel.requestDownloadConfirmation(url, contentDisposition, mimeType, contentLength)
+                                }
+
+                                // Long click handler to download photos, videos, and media files directly
+                                webView.setOnLongClickListener {
+                                    val hit = webView.hitTestResult
+                                    val url = hit.extra
+                                    if (!url.isNullOrBlank()) {
+                                        when (hit.type) {
+                                            android.webkit.WebView.HitTestResult.IMAGE_TYPE,
+                                            android.webkit.WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> {
+                                                viewModel.requestDownloadConfirmation(
+                                                    url = url,
+                                                    contentDisposition = null,
+                                                    mimeType = "image/*",
+                                                    contentLength = 0L
+                                                )
+                                                true
+                                            }
+                                            android.webkit.WebView.HitTestResult.SRC_ANCHOR_TYPE -> {
+                                                val lower = url.lowercase()
+                                                if (lower.endsWith(".jpg") || lower.endsWith(".jpeg") ||
+                                                    lower.endsWith(".png") || lower.endsWith(".webp") ||
+                                                    lower.endsWith(".gif") || lower.endsWith(".mp4") ||
+                                                    lower.endsWith(".webm") || lower.endsWith(".mkv") ||
+                                                    lower.endsWith(".mp3") || lower.endsWith(".pdf") ||
+                                                    lower.endsWith(".zip") || lower.endsWith(".apk")
+                                                ) {
+                                                    viewModel.requestDownloadConfirmation(
+                                                        url = url,
+                                                        contentDisposition = null,
+                                                        mimeType = null,
+                                                        contentLength = 0L
+                                                    )
+                                                    true
+                                                } else false
+                                            }
+                                            else -> false
+                                        }
+                                    } else false
                                 }
 
                                 if (!currentTab.url.startsWith("velocity:") && currentTab.url.isNotEmpty()) {
@@ -303,6 +342,43 @@ fun BrowserScreen(
                                 // Update download listener
                                 webView.setDownloadListener { url, _, contentDisposition, mimeType, contentLength ->
                                     viewModel.requestDownloadConfirmation(url, contentDisposition, mimeType, contentLength)
+                                }
+                                webView.setOnLongClickListener {
+                                    val hit = webView.hitTestResult
+                                    val url = hit.extra
+                                    if (!url.isNullOrBlank()) {
+                                        when (hit.type) {
+                                            android.webkit.WebView.HitTestResult.IMAGE_TYPE,
+                                            android.webkit.WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> {
+                                                viewModel.requestDownloadConfirmation(
+                                                    url = url,
+                                                    contentDisposition = null,
+                                                    mimeType = "image/*",
+                                                    contentLength = 0L
+                                                )
+                                                true
+                                            }
+                                            android.webkit.WebView.HitTestResult.SRC_ANCHOR_TYPE -> {
+                                                val lower = url.lowercase()
+                                                if (lower.endsWith(".jpg") || lower.endsWith(".jpeg") ||
+                                                    lower.endsWith(".png") || lower.endsWith(".webp") ||
+                                                    lower.endsWith(".gif") || lower.endsWith(".mp4") ||
+                                                    lower.endsWith(".webm") || lower.endsWith(".mkv") ||
+                                                    lower.endsWith(".mp3") || lower.endsWith(".pdf") ||
+                                                    lower.endsWith(".zip") || lower.endsWith(".apk")
+                                                ) {
+                                                    viewModel.requestDownloadConfirmation(
+                                                        url = url,
+                                                        contentDisposition = null,
+                                                        mimeType = null,
+                                                        contentLength = 0L
+                                                    )
+                                                    true
+                                                } else false
+                                            }
+                                            else -> false
+                                        }
+                                    } else false
                                 }
                                 // Update text zoom if setting changed
                                 webView.settings.textZoom = settings.textZoom

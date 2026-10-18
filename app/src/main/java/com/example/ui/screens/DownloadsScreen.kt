@@ -79,43 +79,78 @@ fun DownloadsScreen(
             )
         }
     ) { padding ->
-        if (downloads.isEmpty()) {
-            Box(
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val folderPath = com.example.util.StorageUtils.getDisplayFolderPath(context)
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            Surface(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(
                         imageVector = Icons.Default.Download,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                        modifier = Modifier.size(64.dp)
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "No downloads yet",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Folder: $folderPath",
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            ) {
-                items(downloads, key = { it.id }) { item ->
-                    DownloadCardItem(
-                        item = item,
-                        onOpen = { onOpenFile(item) },
-                        onPause = { onPauseDownload(item.id) },
-                        onResume = { onResumeDownload(item.id) },
-                        onCancel = { onCancelDownload(item.id) },
-                        onDelete = { onDeleteDownload(item) }
-                    )
+
+            if (downloads.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "No downloads yet",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .weight(1f)
+                ) {
+                    items(downloads, key = { it.id }) { item ->
+                        DownloadCardItem(
+                            item = item,
+                            onOpen = { onOpenFile(item) },
+                            onPause = { onPauseDownload(item.id) },
+                            onResume = { onResumeDownload(item.id) },
+                            onCancel = { onCancelDownload(item.id) },
+                            onDelete = { onDeleteDownload(item) }
+                        )
+                    }
                 }
             }
         }

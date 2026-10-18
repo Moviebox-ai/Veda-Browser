@@ -18,7 +18,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import com.example.ui.viewmodel.BrowserViewModel
+import com.example.util.StorageUtils
 import com.example.util.UrlResolver
 
 @Composable
@@ -27,7 +29,9 @@ fun DownloadConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     val host = UrlResolver.extractDisplayHost(pending.url)
+    val folderPath = StorageUtils.getDisplayFolderPath(context)
     val sizeString = if (pending.contentLength > 0) {
         val mb = pending.contentLength / (1024f * 1024f)
         if (mb >= 1f) "%.1f MB".format(mb) else "${pending.contentLength / 1024} KB"
@@ -59,6 +63,12 @@ fun DownloadConfirmDialog(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Save folder: $folderPath",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Size: $sizeString",
                     style = MaterialTheme.typography.bodySmall,

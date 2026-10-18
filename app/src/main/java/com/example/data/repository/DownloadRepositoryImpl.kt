@@ -14,6 +14,7 @@ import com.example.VelocityApplication
 import com.example.util.AppLogger
 import com.example.util.DownloadNotificationHelper
 import com.example.util.FilenameSanitizer
+import com.example.util.StorageUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -89,7 +90,7 @@ class DownloadRepositoryImpl(
         val suggestedName = URLUtil.guessFileName(url, contentDisposition, mimeType)
         val sanitized = FilenameSanitizer.sanitize(suggestedName, mimeType)
 
-        val downloadsDir = File(context.filesDir, "downloads").apply { if (!exists()) mkdirs() }
+        val downloadsDir = StorageUtils.getAppDownloadDirectory(context)
         val targetFile = FilenameSanitizer.getUniqueFile(downloadsDir, sanitized)
 
         val entity = DownloadEntity(
@@ -219,7 +220,10 @@ class DownloadRepositoryImpl(
                 database.downloadDao().markCompleted(id)
                 val entity = database.downloadDao().getDownloadById(id)
                 val mimeType = entity?.mimeType ?: "application/octet-stream"
-                appContext?.let { DownloadNotificationHelper.notifyCompleted(it, id, targetFile.name, targetFile, mimeType) }
+                appContext?.let { ctx ->
+                    StorageUtils.scanMediaFile(ctx, targetFile, mimeType)
+                    DownloadNotificationHelper.notifyCompleted(ctx, id, targetFile.name, targetFile, mimeType)
+                }
             }
         } catch (e: Exception) {
             liveSpeeds.remove(id)
