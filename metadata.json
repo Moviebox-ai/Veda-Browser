@@ -1,5 +1,5 @@
 {
-  "name": "Velocity Browser",
+  "name": "Velocity",
   "description": "Fast, secure, private native Android web browser with multi-tab management, bookmarks, download manager, and hardened privacy controls.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
