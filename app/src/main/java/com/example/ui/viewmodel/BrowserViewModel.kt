@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -83,10 +84,12 @@ class BrowserViewModel(
                 !trimmed.startsWith("http://", ignoreCase = true) && 
                 !trimmed.startsWith("https://", ignoreCase = true) && 
                 !trimmed.startsWith("velocity:", ignoreCase = true)) {
-                try {
-                    flowOf(suggestionService.getSuggestions(trimmed, settings.value.searchEngine))
-                } catch (_: Throwable) {
-                    flowOf(emptyList())
+                flow {
+                    try {
+                        emit(suggestionService.getSuggestions(trimmed, settings.value.searchEngine))
+                    } catch (_: Throwable) {
+                        emit(emptyList())
+                    }
                 }
             } else {
                 flowOf(emptyList())

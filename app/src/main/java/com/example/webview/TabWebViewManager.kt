@@ -8,6 +8,8 @@ import android.webkit.WebSettings
 import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import com.example.security.ContentBlocker
@@ -59,6 +61,11 @@ class TabWebViewManager(
 
             // Enable GPU Hardware Acceleration for ultra-fast rendering & video
             setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+
+            // Consume insets so Chromium's internal compositor does not trigger conflicting layout passes during IME animation
+            ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ ->
+                WindowInsetsCompat.CONSUMED
+            }
 
             // High-throughput cookie handling for reliable uploads and authenticated downloads
             CookieManager.getInstance().setAcceptCookie(true)

@@ -10,9 +10,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -128,6 +131,7 @@ fun BrowserScreen(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             if (!settings.bottomToolbar) {
                 Column(modifier = Modifier.statusBarsPadding()) {
@@ -188,7 +192,9 @@ fun BrowserScreen(
             }
         },
         bottomBar = {
-            Column {
+            Column(
+                modifier = if (settings.bottomToolbar) Modifier.imePadding() else Modifier
+            ) {
                 if (settings.bottomToolbar) {
                     AnimatedVisibility(visible = isFindInPageVisible) {
                         FindInPageBar(
@@ -241,6 +247,7 @@ fun BrowserScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
         ) {
             if (currentTab != null) {
                 if (currentTab.url == "velocity:home" || currentTab.url.isEmpty()) {

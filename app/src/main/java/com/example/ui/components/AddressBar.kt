@@ -144,7 +144,7 @@ fun AddressBar(
                     .height(48.dp)
                     .clip(RoundedCornerShape(24.dp))
                     .clickable(
-                        interactionSource = interactionSource,
+                        interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) {
                         if (!isFocused) {
