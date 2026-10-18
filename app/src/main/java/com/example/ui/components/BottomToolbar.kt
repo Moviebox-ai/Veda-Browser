@@ -12,6 +12,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Badge
@@ -33,6 +35,7 @@ import com.example.ui.theme.PrivateModePurple
 
 @Composable
 fun BottomToolbar(
+    isHomeScreen: Boolean = false,
     canGoBack: Boolean,
     canGoForward: Boolean,
     tabCount: Int,
@@ -40,6 +43,8 @@ fun BottomToolbar(
     onBack: () -> Unit,
     onForward: () -> Unit,
     onHome: () -> Unit,
+    onOpenBookmarks: () -> Unit = {},
+    onOpenDownloads: () -> Unit = {},
     onOpenTabs: () -> Unit,
     onOpenMenu: () -> Unit,
     modifier: Modifier = Modifier
@@ -58,94 +63,166 @@ fun BottomToolbar(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Back Button
-            IconButton(
-                onClick = onBack,
-                enabled = canGoBack,
-                modifier = Modifier
-                    .size(48.dp)
-                    .testTag("toolbar_back_button")
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = if (canGoBack) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                )
-            }
+            if (isHomeScreen) {
+                // PRD Section 4 Primary Navigation: Home, Bookmarks, Tabs, Downloads, More
+                // 1. Home (Active)
+                IconButton(
+                    onClick = onHome,
+                    modifier = Modifier.size(48.dp).testTag("nav_home_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Home,
+                        contentDescription = "Home",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
 
-            // Forward Button
-            IconButton(
-                onClick = onForward,
-                enabled = canGoForward,
-                modifier = Modifier
-                    .size(48.dp)
-                    .testTag("toolbar_forward_button")
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = "Forward",
-                    tint = if (canGoForward) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                )
-            }
+                // 2. Bookmarks
+                IconButton(
+                    onClick = onOpenBookmarks,
+                    modifier = Modifier.size(48.dp).testTag("nav_bookmarks_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Bookmark,
+                        contentDescription = "Bookmarks",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
-            // Home Button
-            IconButton(
-                onClick = onHome,
-                modifier = Modifier
-                    .size(48.dp)
-                    .testTag("toolbar_home_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Home,
-                    contentDescription = "Home",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            // Tab Switcher Button
-            IconButton(
-                onClick = onOpenTabs,
-                modifier = Modifier
-                    .size(48.dp)
-                    .testTag("toolbar_tabs_button")
-            ) {
-                BadgedBox(
-                    badge = {
-                        Badge(
-                            containerColor = if (isPrivate) PrivateModePurple else MaterialTheme.colorScheme.primary
+                // 3. Tabs (with live badge)
+                IconButton(
+                    onClick = onOpenTabs,
+                    modifier = Modifier.size(48.dp).testTag("nav_tabs_button")
+                ) {
+                    BadgedBox(
+                        badge = {
+                            Badge(
+                                containerColor = if (isPrivate) PrivateModePurple else MaterialTheme.colorScheme.primary
+                            ) {
+                                Text(text = tabCount.toString(), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(text = tabCount.toString(), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = tabCount.toString(),
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
+                }
+
+                // 4. Downloads
+                IconButton(
+                    onClick = onOpenDownloads,
+                    modifier = Modifier.size(48.dp).testTag("nav_downloads_button")
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = "Downloads",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // 5. More Menu
+                IconButton(
+                    onClick = onOpenMenu,
+                    modifier = Modifier.size(48.dp).testTag("nav_menu_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "More",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                // In-Page Web Navigation Bar: Back, Forward, Home, Tabs, Menu
+                // 1. Back
+                IconButton(
+                    onClick = onBack,
+                    enabled = canGoBack,
+                    modifier = Modifier.size(48.dp).testTag("toolbar_back_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = if (canGoBack) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    )
+                }
+
+                // 2. Forward
+                IconButton(
+                    onClick = onForward,
+                    enabled = canGoForward,
+                    modifier = Modifier.size(48.dp).testTag("toolbar_forward_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "Forward",
+                        tint = if (canGoForward) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    )
+                }
+
+                // 3. Home
+                IconButton(
+                    onClick = onHome,
+                    modifier = Modifier.size(48.dp).testTag("toolbar_home_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Home,
+                        contentDescription = "Home",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                // 4. Tabs
+                IconButton(
+                    onClick = onOpenTabs,
+                    modifier = Modifier.size(48.dp).testTag("toolbar_tabs_button")
+                ) {
+                    BadgedBox(
+                        badge = {
+                            Badge(
+                                containerColor = if (isPrivate) PrivateModePurple else MaterialTheme.colorScheme.primary
+                            ) {
+                                Text(text = tabCount.toString(), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     ) {
-                        Text(
-                            text = tabCount.toString(),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = tabCount.toString(),
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
-            }
 
-            // Menu Button
-            IconButton(
-                onClick = onOpenMenu,
-                modifier = Modifier
-                    .size(48.dp)
-                    .testTag("toolbar_menu_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = "Menu",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
+                // 5. Menu
+                IconButton(
+                    onClick = onOpenMenu,
+                    modifier = Modifier.size(48.dp).testTag("toolbar_menu_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Menu",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
         }
     }

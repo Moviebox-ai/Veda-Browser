@@ -185,8 +185,8 @@ fun BrowserScreen(
             }
         },
         bottomBar = {
-            if (settings.bottomToolbar) {
-                Column {
+            Column {
+                if (settings.bottomToolbar) {
                     AnimatedVisibility(visible = isFindInPageVisible) {
                         FindInPageBar(
                             query = findQuery,
@@ -211,19 +211,24 @@ fun BrowserScreen(
                         onOpenMenu = { showMenuSheet = true },
                         onOpenSiteInfo = { viewModel.isSiteInfoOpen.value = true }
                     )
-
-                    BottomToolbar(
-                        canGoBack = currentTab?.canGoBack == true,
-                        canGoForward = currentTab?.canGoForward == true,
-                        tabCount = tabs.size,
-                        isPrivate = currentTab?.isPrivate == true,
-                        onBack = { viewModel.goBack() },
-                        onForward = { viewModel.goForward() },
-                        onHome = { viewModel.navigateTo("velocity:home") },
-                        onOpenTabs = onOpenTabs,
-                        onOpenMenu = { showMenuSheet = true }
-                    )
                 }
+
+                val isHome = currentTab == null || currentTab.url == "velocity:home" || currentTab.url.isEmpty()
+
+                BottomToolbar(
+                    isHomeScreen = isHome,
+                    canGoBack = currentTab?.canGoBack == true,
+                    canGoForward = currentTab?.canGoForward == true,
+                    tabCount = tabs.size,
+                    isPrivate = currentTab?.isPrivate == true,
+                    onBack = { viewModel.goBack() },
+                    onForward = { viewModel.goForward() },
+                    onHome = { viewModel.navigateTo("velocity:home") },
+                    onOpenBookmarks = onOpenBookmarks,
+                    onOpenDownloads = onOpenDownloads,
+                    onOpenTabs = onOpenTabs,
+                    onOpenMenu = { showMenuSheet = true }
+                )
             }
         }
     ) { innerPadding ->

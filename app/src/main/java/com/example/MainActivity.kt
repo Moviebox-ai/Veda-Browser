@@ -91,13 +91,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings by viewModel.settings.collectAsStateWithLifecycle()
 
-            val isDark = when (settings.darkThemeMode) {
-                "dark" -> true
-                "light" -> false
-                else -> isSystemInDarkTheme()
-            }
-
-            VelocityTheme(darkTheme = isDark) {
+            VelocityTheme(themeMode = settings.darkThemeMode) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     VelocityNavHost(viewModel = viewModel)
                 }

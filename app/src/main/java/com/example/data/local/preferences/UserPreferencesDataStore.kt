@@ -22,7 +22,7 @@ data class BrowserSettings(
     val desktopModeDefault: Boolean = false,
     val httpsFirst: Boolean = true,
     val bottomToolbar: Boolean = false,
-    val darkThemeMode: String = "system", // system, light, dark
+    val darkThemeMode: String = "light", // light (default), dark, amoled, blue, green, purple, red, system
     val saveHistory: Boolean = true,
     val textZoom: Int = 100,
     val homepageUrl: String = "velocity:home"
@@ -56,7 +56,7 @@ class UserPreferencesDataStore(private val context: Context) {
             desktopModeDefault = preferences[PreferencesKeys.DESKTOP_MODE_DEFAULT] ?: false,
             httpsFirst = preferences[PreferencesKeys.HTTPS_FIRST] ?: true,
             bottomToolbar = preferences[PreferencesKeys.BOTTOM_TOOLBAR] ?: false,
-            darkThemeMode = preferences[PreferencesKeys.DARK_THEME_MODE] ?: "system",
+            darkThemeMode = preferences[PreferencesKeys.DARK_THEME_MODE] ?: "light",
             saveHistory = preferences[PreferencesKeys.SAVE_HISTORY] ?: true,
             textZoom = preferences[PreferencesKeys.TEXT_ZOOM] ?: 100,
             homepageUrl = preferences[PreferencesKeys.HOMEPAGE_URL] ?: "velocity:home"
