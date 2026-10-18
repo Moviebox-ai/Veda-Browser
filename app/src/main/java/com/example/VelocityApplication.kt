@@ -57,12 +57,12 @@ class VelocityApplication : Application() {
             }
         }
 
-        // Ensure Chromium Simple Cache and V8 GeneratedCodeCache directory structures exist.
-        // Chromium's file enumerator requires 'Code Cache/js' and 'Code Cache/wasm' directories
-        // under 'Default/HTTP Cache/Code Cache' and 'Default/Code Cache'. If 'wasm' does not exist,
-        // opendir fails with ENOENT (2), causing 'Could not reconstruct index from disk' and
-        // 'Failed to write a new fake index'.
-        ensureChromiumCacheStructure()
+        // Clean up any corrupt legacy cache directories created by previous runs.
+        // Specifically, 'HTTP Cache/Code Cache' was an invalid nested directory structure
+        // that causes Chromium's SimpleBackend to fail with:
+        // "Simple Cache Backend: cache directory inaccessible right after creation; path: .../HTTP Cache/Code Cache/js"
+        // and "Unable to create cache". Removing the corrupted folder allows Chromium to natively create its cache.
+        cleanCorruptCacheIfPresent()
 
         // Enable WebView debugging only for debug builds
         if (BuildConfig.DEBUG) {
@@ -92,48 +92,24 @@ class VelocityApplication : Application() {
         }
     }
 
-    private fun ensureChromiumCacheStructure() {
+    private fun cleanCorruptCacheIfPresent() {
         try {
-            val baseDirs = listOf(
-                File(cacheDir, "WebView/Default"),
-                File(cacheDir, "org.chromium.android_webview/Default")
-            )
-
-            for (base in baseDirs) {
-                val httpCache = File(base, "HTTP Cache")
-                val codeCache1 = File(httpCache, "Code Cache")
-                val codeCache2 = File(base, "Code Cache")
-
-                // Pre-create js and wasm code cache directories so opendir() in simple_file_enumerator.cc succeeds
-                val requiredDirs = listOf(
-                    File(codeCache1, "js"),
-                    File(codeCache1, "wasm"),
-                    File(codeCache2, "js"),
-                    File(codeCache2, "wasm")
-                )
-
-                for (dir in requiredDirs) {
-                    if (!dir.exists()) {
-                        dir.mkdirs()
-                    }
+            val webViewCache = File(cacheDir, "WebView")
+            if (webViewCache.exists()) {
+                val invalidSubCache = File(webViewCache, "Default/HTTP Cache/Code Cache")
+                if (invalidSubCache.exists()) {
+                    webViewCache.deleteRecursively()
                 }
-
-                // If zero-byte index files were left from interrupted writes, remove them
-                // so Chromium's Simple Cache can re-write valid index files cleanly
-                listOf(
-                    File(httpCache, "index"),
-                    File(codeCache1, "wasm/index"),
-                    File(codeCache1, "js/index"),
-                    File(codeCache2, "wasm/index"),
-                    File(codeCache2, "js/index")
-                ).forEach { sentinel ->
-                    if (sentinel.exists() && sentinel.length() == 0L) {
-                        sentinel.delete()
-                    }
+            }
+            val orgChromiumCache = File(cacheDir, "org.chromium.android_webview")
+            if (orgChromiumCache.exists()) {
+                val invalidSubCache = File(orgChromiumCache, "Default/HTTP Cache/Code Cache")
+                if (invalidSubCache.exists()) {
+                    orgChromiumCache.deleteRecursively()
                 }
             }
         } catch (e: Exception) {
-            AppLogger.w("VelocityApplication", "Chromium cache structure prep note: ${e.message}")
+            AppLogger.w("VelocityApplication", "Cache cleanup note: ${e.message}")
         }
     }
 

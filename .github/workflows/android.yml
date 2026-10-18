@@ -15,6 +15,11 @@ on:
         options:
           - debug
           - release
+      upload_artifacts:
+        description: 'Upload build artifacts (disable if GitHub storage quota is reached)'
+        required: false
+        default: true
+        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -77,16 +82,20 @@ jobs:
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
-        if: always()
+        if: success() && (github.event.inputs.upload_artifacts != false)
+        continue-on-error: true
         with:
           name: velocity-browser-apk
-          path: app/build/outputs/apk/**/*.apk
-          retention-days: 14
+          path: app/build/outputs/apk/*/*.apk
+          retention-days: 1
+          if-no-files-found: ignore
 
-      - name: Upload Unit Test Results
+      - name: Upload Unit Test Results (On Failure Only)
         uses: actions/upload-artifact@v4
-        if: always()
+        if: failure() && (github.event.inputs.upload_artifacts != false)
+        continue-on-error: true
         with:
           name: unit-test-reports
           path: app/build/reports/tests/testDebugUnitTest/
-          retention-days: 7
+          retention-days: 1
+          if-no-files-found: ignore
