@@ -15,11 +15,6 @@ on:
         options:
           - debug
           - release
-      upload_artifacts:
-        description: 'Upload build artifacts (disable if GitHub storage quota is reached)'
-        required: false
-        default: true
-        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -27,9 +22,9 @@ concurrency:
 
 jobs:
   build:
-    name: Build & Test Android App
+    name: Build Android APK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
 
     steps:
       - name: Checkout Code
@@ -51,7 +46,7 @@ jobs:
       - name: Make Gradle Wrapper Executable
         run: chmod +x gradlew
 
-      - name: Prepare Environment & Secrets
+      - name: Prepare Environment & Keystore
         run: |
           # Ensure .env file exists for Secrets Gradle Plugin
           if [ ! -f ".env" ] && [ -f ".env.example" ]; then
@@ -59,7 +54,7 @@ jobs:
             echo ".env created from .env.example"
           fi
 
-          # Restore or generate debug.keystore for reliable APK signing
+          # Restore or generate debug.keystore for APK signing
           if [ -f "debug.keystore.base64" ] && [ ! -f "debug.keystore" ]; then
             base64 -d debug.keystore.base64 > debug.keystore || true
             echo "debug.keystore restored from base64"
@@ -69,30 +64,44 @@ jobs:
             echo "Fresh debug.keystore generated"
           fi
 
-      - name: Run Unit Tests
-        run: ./gradlew :app:testDebugUnitTest --no-configuration-cache --no-daemon --stacktrace
-
       - name: Build Debug APK
         if: github.event.inputs.build_type != 'release'
-        run: ./gradlew :app:assembleDebug --no-configuration-cache --no-daemon --stacktrace
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
       - name: Build Release APK
         if: github.event.inputs.build_type == 'release'
-        run: ./gradlew :app:assembleRelease --no-configuration-cache --no-daemon --stacktrace || ./gradlew :app:assembleDebug --no-configuration-cache --no-daemon --stacktrace
+        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace || ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
-      - name: Upload Debug APK Artifact
+      - name: Verify APK Generated
+        run: |
+          echo "### 📱 Velocity Browser Build Summary" >> $GITHUB_STEP_SUMMARY
+          if ls app/build/outputs/apk/*/*.apk 1> /dev/null 2>&1; then
+            echo "✅ **APK built successfully!**" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            ls -lh app/build/outputs/apk/*/*.apk >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **No APK found in app/build/outputs/apk/**" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
-        if: success() && (github.event.inputs.upload_artifacts != false)
+        if: always()
         continue-on-error: true
         with:
           name: velocity-browser-apk
           path: app/build/outputs/apk/*/*.apk
-          retention-days: 1
+          retention-days: 7
           if-no-files-found: ignore
+
+      - name: Run Unit Tests (Robolectric & JVM)
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+        continue-on-error: true
 
       - name: Upload Unit Test Results (On Failure Only)
         uses: actions/upload-artifact@v4
-        if: failure() && (github.event.inputs.upload_artifacts != false)
+        if: failure()
         continue-on-error: true
         with:
           name: unit-test-reports
