@@ -78,8 +78,16 @@ class BrowserViewModel(
         .debounce(200)
         .distinctUntilChanged()
         .flatMapLatest { query ->
-            if (query.length >= 2 && isAddressBarFocused.value) {
-                flowOf(suggestionService.getSuggestions(query, settings.value.searchEngine))
+            val trimmed = query.trim()
+            if (trimmed.length >= 2 && isAddressBarFocused.value && 
+                !trimmed.startsWith("http://", ignoreCase = true) && 
+                !trimmed.startsWith("https://", ignoreCase = true) && 
+                !trimmed.startsWith("velocity:", ignoreCase = true)) {
+                try {
+                    flowOf(suggestionService.getSuggestions(trimmed, settings.value.searchEngine))
+                } catch (_: Throwable) {
+                    flowOf(emptyList())
+                }
             } else {
                 flowOf(emptyList())
             }

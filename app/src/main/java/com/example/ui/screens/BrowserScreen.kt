@@ -69,6 +69,7 @@ fun BrowserScreen(
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val isOnline by viewModel.isOnline.collectAsStateWithLifecycle()
     val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
+    val isAddressBarFocused by viewModel.isAddressBarFocused.collectAsStateWithLifecycle()
 
     val isBookmarked by viewModel.isCurrentUrlBookmarked.collectAsStateWithLifecycle()
     val isFindInPageVisible by viewModel.isFindInPageVisible.collectAsStateWithLifecycle()
@@ -136,6 +137,8 @@ fun BrowserScreen(
                         isLoading = currentTab?.isLoading == true,
                         progress = currentTab?.progress ?: 0,
                         onNavigate = { viewModel.navigateTo(it) },
+                        onQueryChange = { viewModel.addressInput.value = it },
+                        onFocusChange = { viewModel.isAddressBarFocused.value = it },
                         onReload = { viewModel.reload() },
                         onStop = { viewModel.stop() },
                         onOpenTabs = onOpenTabs,
@@ -205,6 +208,8 @@ fun BrowserScreen(
                         isLoading = currentTab?.isLoading == true,
                         progress = currentTab?.progress ?: 0,
                         onNavigate = { viewModel.navigateTo(it) },
+                        onQueryChange = { viewModel.addressInput.value = it },
+                        onFocusChange = { viewModel.isAddressBarFocused.value = it },
                         onReload = { viewModel.reload() },
                         onStop = { viewModel.stop() },
                         onOpenTabs = onOpenTabs,
@@ -297,7 +302,7 @@ fun BrowserScreen(
             }
 
             // Real-Time Search Suggestions Dropdown Overlay
-            if (suggestions.isNotEmpty()) {
+            if (suggestions.isNotEmpty() && isAddressBarFocused) {
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -312,6 +317,7 @@ fun BrowserScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
+                                        viewModel.isAddressBarFocused.value = false
                                         viewModel.navigateTo(suggestion)
                                     }
                                     .padding(horizontal = 16.dp, vertical = 12.dp),
