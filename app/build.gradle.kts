@@ -27,20 +27,70 @@ val releaseKeyPassword: String = keystoreProperties.getProperty("keyPassword")
     ?: System.getenv("KEY_PASSWORD")
     ?: "android"
 
-val debugKeystoreFile = file("${rootDir}/debug.keystore")
-val debugKeystoreBase64File = file("${rootDir}/debug.keystore.base64")
-if (!debugKeystoreFile.exists() && debugKeystoreBase64File.exists()) {
-    try {
-        val decoded = Base64.getDecoder().decode(debugKeystoreBase64File.readText().trim())
-        debugKeystoreFile.writeBytes(decoded)
-    } catch (_: Exception) {
+fun resolveDebugKeystore(): File {
+    val standardKeystore = file("${rootDir}/debug.keystore")
+    if (standardKeystore.exists() && standardKeystore.length() > 0L) {
+        return standardKeystore
     }
+
+    val base64Keystore = file("${rootDir}/debug.keystore.base64")
+    if (base64Keystore.exists()) {
+        try {
+            val decoded = Base64.getDecoder().decode(base64Keystore.readText().trim())
+            standardKeystore.writeBytes(decoded)
+            if (standardKeystore.exists() && standardKeystore.length() > 0L) {
+                return standardKeystore
+            }
+        } catch (_: Exception) {
+        }
+    }
+
+    val userHomeKeystore = file("${System.getProperty("user.home")}/.android/debug.keystore")
+    if (userHomeKeystore.exists() && userHomeKeystore.length() > 0L) {
+        return userHomeKeystore
+    }
+
+    // Fallback logic: Generate a temporary debug keystore if standard debug keystores are missing
+    val tempKeystore = File(System.getProperty("java.io.tmpdir"), "velocity_temp_debug.keystore")
+    if (!tempKeystore.exists() || tempKeystore.length() == 0L) {
+        val javaHome = System.getProperty("java.home")
+        val keytoolExecutable = if (!javaHome.isNullOrEmpty() && file("$javaHome/bin/keytool").exists()) {
+            file("$javaHome/bin/keytool").absolutePath
+        } else {
+            "keytool"
+        }
+
+        try {
+            val process = ProcessBuilder(
+                keytoolExecutable,
+                "-genkeypair",
+                "-alias", "androiddebugkey",
+                "-keypass", "android",
+                "-keystore", tempKeystore.absolutePath,
+                "-storepass", "android",
+                "-dname", "CN=Android Debug,O=Android,C=US",
+                "-keyalg", "RSA",
+                "-keysize", "2048",
+                "-validity", "10000"
+            ).redirectErrorStream(true).start()
+            process.waitFor()
+        } catch (_: Exception) {
+        }
+    }
+
+    if (tempKeystore.exists() && tempKeystore.length() > 0L) {
+        return tempKeystore
+    }
+
+    return standardKeystore
 }
+
+val resolvedDebugKeystore = resolveDebugKeystore()
 
 val releaseStoreFile = if (!releaseStoreFilePath.isNullOrEmpty() && file(releaseStoreFilePath).exists()) {
     file(releaseStoreFilePath)
 } else {
-    debugKeystoreFile
+    resolvedDebugKeystore
 }
 
 android {
@@ -65,7 +115,7 @@ android {
             keyPassword = releaseKeyPassword
         }
         getByName("debug") {
-            storeFile = file("${rootDir}/debug.keystore")
+            storeFile = resolvedDebugKeystore
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"
