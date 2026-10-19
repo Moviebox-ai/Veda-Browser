@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-path name="downloads" path="Download/Velocity" />
-    <external-files-path name="ext_downloads" path="Download/Velocity" />
-    <files-path name="internal_downloads" path="Velocity" />
-</paths>
