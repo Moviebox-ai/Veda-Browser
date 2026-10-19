@@ -1,4 +1,5 @@
 import java.io.FileInputStream
+import java.util.Base64
 import java.util.Properties
 
 plugins {
@@ -26,10 +27,20 @@ val releaseKeyPassword: String = keystoreProperties.getProperty("keyPassword")
     ?: System.getenv("KEY_PASSWORD")
     ?: "android"
 
+val debugKeystoreFile = file("${rootDir}/debug.keystore")
+val debugKeystoreBase64File = file("${rootDir}/debug.keystore.base64")
+if (!debugKeystoreFile.exists() && debugKeystoreBase64File.exists()) {
+    try {
+        val decoded = Base64.getDecoder().decode(debugKeystoreBase64File.readText().trim())
+        debugKeystoreFile.writeBytes(decoded)
+    } catch (_: Exception) {
+    }
+}
+
 val releaseStoreFile = if (!releaseStoreFilePath.isNullOrEmpty() && file(releaseStoreFilePath).exists()) {
     file(releaseStoreFilePath)
 } else {
-    file("${rootDir}/debug.keystore")
+    debugKeystoreFile
 }
 
 android {

@@ -24,5 +24,11 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew || true
 
+    - name: Restore debug keystore
+      run: |
+        if [ -f debug.keystore.base64 ] && [ ! -f debug.keystore ]; then
+          base64 -d debug.keystore.base64 > debug.keystore
+        fi
+
     - name: Build with Gradle
       run: ./gradlew assembleDebug --no-daemon
