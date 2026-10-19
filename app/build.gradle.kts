@@ -1,14 +1,43 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
 
+// Load release keystore credentials from keystore.properties or environment variables
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        load(FileInputStream(keystorePropertiesFile))
+    }
+}
+
+val releaseStoreFilePath: String? = keystoreProperties.getProperty("storeFile")
+    ?: System.getenv("KEYSTORE_PATH")
+val releaseStorePassword: String = keystoreProperties.getProperty("storePassword")
+    ?: System.getenv("KEYSTORE_PASSWORD")
+    ?: "android"
+val releaseKeyAlias: String = keystoreProperties.getProperty("keyAlias")
+    ?: System.getenv("KEY_ALIAS")
+    ?: "androiddebugkey"
+val releaseKeyPassword: String = keystoreProperties.getProperty("keyPassword")
+    ?: System.getenv("KEY_PASSWORD")
+    ?: "android"
+
+val releaseStoreFile = if (!releaseStoreFilePath.isNullOrEmpty() && file(releaseStoreFilePath).exists()) {
+    file(releaseStoreFilePath)
+} else {
+    file("${rootDir}/debug.keystore")
+}
+
 android {
-    namespace = "com.example.velocity"
+    namespace = "com.aaryo.velocity"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.aistudio.velocity.kxpqrv"
+        applicationId = "com.aaryo.velocity"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
@@ -19,10 +48,10 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("${rootDir}/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            storeFile = releaseStoreFile
+            storePassword = releaseStorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
         }
         getByName("debug") {
             storeFile = file("${rootDir}/debug.keystore")
@@ -34,8 +63,13 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             signingConfig = signingConfigs.getByName("release")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
         debug {
             signingConfig = signingConfigs.getByName("debug")
@@ -65,6 +99,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.androidx.webkit)
+    implementation(libs.androidx.datastore.preferences)
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.gson)
