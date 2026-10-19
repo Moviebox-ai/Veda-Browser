@@ -7,6 +7,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.aaryo.velocity.ui.screens.BrowserScreen
 import com.aaryo.velocity.ui.theme.VelocityTheme
 import com.aaryo.velocity.viewmodel.BrowserViewModel
@@ -24,7 +26,11 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            VelocityTheme {
+            val settings by viewModel.settings.collectAsState()
+            VelocityTheme(
+                themeMode = settings.themeMode,
+                accentColorHex = settings.accentColorHex
+            ) {
                 BrowserScreen(viewModel = viewModel)
             }
         }

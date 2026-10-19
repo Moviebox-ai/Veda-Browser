@@ -1,12 +1,16 @@
 package com.aaryo.velocity.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,15 +18,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.History
@@ -31,58 +40,84 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.aaryo.velocity.model.Bookmark
+import com.aaryo.velocity.model.BrowserSettings
 import com.aaryo.velocity.model.ShieldStats
+import com.aaryo.velocity.ui.components.VelocityLogoIcon
+import com.aaryo.velocity.ui.components.WallpaperCanvas
+import com.aaryo.velocity.ui.theme.BrandAmazon
+import com.aaryo.velocity.ui.theme.BrandChatGPT
+import com.aaryo.velocity.ui.theme.BrandFacebook
+import com.aaryo.velocity.ui.theme.BrandFlipkart
+import com.aaryo.velocity.ui.theme.BrandGitHub
+import com.aaryo.velocity.ui.theme.BrandGmail
+import com.aaryo.velocity.ui.theme.BrandGoogleBlue
+import com.aaryo.velocity.ui.theme.BrandGoogleGreen
+import com.aaryo.velocity.ui.theme.BrandGoogleRed
+import com.aaryo.velocity.ui.theme.BrandGoogleYellow
+import com.aaryo.velocity.ui.theme.BrandInstagramEnd
+import com.aaryo.velocity.ui.theme.BrandInstagramStart
+import com.aaryo.velocity.ui.theme.BrandYouTube
 import com.aaryo.velocity.ui.theme.IncognitoDarkBg
 import com.aaryo.velocity.ui.theme.IncognitoPurple
-import com.aaryo.velocity.ui.theme.IncognitoSurface
 import com.aaryo.velocity.ui.theme.VelocityBlue
-import com.aaryo.velocity.ui.theme.VelocityCardDark
 import com.aaryo.velocity.ui.theme.VelocityCyan
-import com.aaryo.velocity.ui.theme.VelocitySlate
+import com.aaryo.velocity.ui.theme.VelocityPurple
 
-data class SpeedDialItem(
+data class QuickDialShortcut(
+    val id: String,
     val title: String,
     val url: String,
-    val domain: String,
-    val iconColor: Color
+    val brandType: String
 )
 
-private val DEFAULT_SPEED_DIALS = listOf(
-    SpeedDialItem("DuckDuckGo", "https://duckduckgo.com", "duckduckgo.com", Color(0xFFDE5833)),
-    SpeedDialItem("GitHub", "https://github.com", "github.com", Color(0xFF6E40C9)),
-    SpeedDialItem("Wikipedia", "https://en.wikipedia.org", "wikipedia.org", Color(0xFF3366CC)),
-    SpeedDialItem("Hacker News", "https://news.ycombinator.com", "ycombinator.com", Color(0xFFFF6600)),
-    SpeedDialItem("Reddit", "https://reddit.com", "reddit.com", Color(0xFFFF4500)),
-    SpeedDialItem("YouTube", "https://youtube.com", "youtube.com", Color(0xFFFF0000)),
-    SpeedDialItem("X / Twitter", "https://twitter.com", "twitter.com", Color(0xFF1DA1F2)),
-    SpeedDialItem("AI Studio", "https://aistudio.google.com", "google.com", Color(0xFF00E5FF))
+data class DiscoverArticle(
+    val id: String,
+    val title: String,
+    val category: String,
+    val source: String,
+    val timeAgo: String,
+    val url: String,
+    val gradientColors: List<Color>
 )
 
 @Composable
 fun NewTabPage(
     isIncognito: Boolean,
     shieldStats: ShieldStats,
+    settings: BrowserSettings = BrowserSettings(),
     onNavigate: (String) -> Unit,
     onOpenBookmarks: () -> Unit,
     onOpenHistory: () -> Unit,
@@ -92,275 +127,814 @@ fun NewTabPage(
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
+    var searchInput by remember { mutableStateOf("") }
+    var showAddDialog by remember { mutableStateOf(false) }
 
-    val backgroundBrush = if (isIncognito) {
-        Brush.verticalGradient(
-            colors = listOf(IncognitoDarkBg, IncognitoSurface, Color(0xFF0D0A1A))
+    // Mockup-exact quick dials
+    val quickDials = remember {
+        mutableStateListOf(
+            QuickDialShortcut("youtube", "YouTube", "https://youtube.com", "YOUTUBE"),
+            QuickDialShortcut("google", "Google", "https://google.com", "GOOGLE"),
+            QuickDialShortcut("gmail", "Gmail", "https://mail.google.com", "GMAIL"),
+            QuickDialShortcut("chatgpt", "ChatGPT", "https://chatgpt.com", "CHATGPT"),
+            QuickDialShortcut("github", "GitHub", "https://github.com", "GITHUB"),
+            QuickDialShortcut("facebook", "Facebook", "https://facebook.com", "FACEBOOK"),
+            QuickDialShortcut("instagram", "Instagram", "https://instagram.com", "INSTAGRAM"),
+            QuickDialShortcut("amazon", "Amazon", "https://amazon.com", "AMAZON"),
+            QuickDialShortcut("flipkart", "Flipkart", "https://flipkart.com", "FLIPKART")
         )
-    } else {
-        Brush.verticalGradient(
-            colors = listOf(
-                MaterialTheme.colorScheme.background,
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                MaterialTheme.colorScheme.background
+    }
+
+    var selectedDiscoverCategory by remember { mutableIntStateOf(0) }
+    val discoverCategories = listOf("All", "News", "Technology", "Business", "Sports", "Entertainment")
+
+    val articles = remember {
+        listOf(
+            DiscoverArticle(
+                id = "1",
+                title = "The future of web browsing is here",
+                category = "Technology",
+                source = "Velocity",
+                timeAgo = "2h ago",
+                url = "https://blog.google/technology/ai/",
+                gradientColors = listOf(Color(0xFF1E3A8A), Color(0xFF6B21A8), Color(0xFF0F172A))
+            ),
+            DiscoverArticle(
+                id = "2",
+                title = "Exploring the most beautiful places on Earth",
+                category = "Travel",
+                source = "National Geographic",
+                timeAgo = "6h ago",
+                url = "https://www.nationalgeographic.com/travel",
+                gradientColors = listOf(Color(0xFF065F46), Color(0xFF0284C7), Color(0xFF064E3B))
+            ),
+            DiscoverArticle(
+                id = "3",
+                title = "AI is changing the world and how we work",
+                category = "Technology",
+                source = "TechCrunch",
+                timeAgo = "1d ago",
+                url = "https://techcrunch.com",
+                gradientColors = listOf(Color(0xFF701A75), Color(0xFF9333EA), Color(0xFF1E1B4B))
+            ),
+            DiscoverArticle(
+                id = "4",
+                title = "Top 10 productivity tools for 2026",
+                category = "Business",
+                source = "Wired",
+                timeAgo = "1d ago",
+                url = "https://wired.com",
+                gradientColors = listOf(Color(0xFF9A3412), Color(0xFFC2410C), Color(0xFF431407))
             )
         )
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(backgroundBrush)
-            .verticalScroll(scrollState)
-            .padding(horizontal = 20.dp, vertical = 24.dp),
-        contentAlignment = Alignment.TopCenter
-    ) {
+    Box(modifier = modifier.fillMaxSize()) {
+        // Wallpaper Canvas Background (Mountains by default, or user setting)
+        if (isIncognito) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(IncognitoDarkBg, Color(0xFF150E28), Color(0xFF0A0714))
+                        )
+                    )
+            )
+        } else {
+            WallpaperCanvas(
+                theme = settings.wallpaperTheme,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        // Main Scrollable Content
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Velocity Branding Header
-            Surface(
-                shape = CircleShape,
-                color = if (isIncognito) IncognitoPurple.copy(alpha = 0.2f) else VelocityCyan.copy(alpha = 0.15f),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    if (isIncognito) IncognitoPurple.copy(alpha = 0.4f) else VelocityCyan.copy(alpha = 0.4f)
-                ),
-                modifier = Modifier.size(72.dp)
+            // Top Bar: Weather / Time & Settings Icon
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(contentAlignment = Alignment.Center) {
+                // Weather / Location Pill
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color(0x660F172A),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x3338BDF8))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.WbSunny,
+                            contentDescription = "Weather",
+                            tint = Color(0xFFFBBF24),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "28°C",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "New Delhi",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                // Settings button on top right
+                IconButton(
+                    onClick = onOpenSettings,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .background(Color(0x660F172A), CircleShape)
+                        .border(1.dp, Color(0x3338BDF8), CircleShape)
+                        .testTag("home_settings_button")
+                ) {
                     Icon(
-                        imageVector = if (isIncognito) Icons.Default.Lock else Icons.Default.Speed,
-                        contentDescription = "Velocity Logo",
-                        tint = if (isIncognito) IncognitoPurple else VelocityCyan,
-                        modifier = Modifier.size(38.dp)
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Settings",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
-            Text(
-                text = if (isIncognito) "VELOCITY PRIVATE" else "VELOCITY",
-                fontSize = 26.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 2.sp,
-                color = if (isIncognito) IncognitoPurple else VelocityBlue
-            )
-
-            Text(
-                text = if (isIncognito) "Incognito session: no history, isolated storage" else "Supersonic, private native web experience",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 4.dp, bottom = 24.dp)
-            )
-
-            // Speed Dial Grid
-            Text(
-                text = "Favorites & Speed Dial",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp)
-            )
-
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(4),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                userScrollEnabled = false
+            // Central Velocity Branding
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                items(DEFAULT_SPEED_DIALS) { item ->
-                    SpeedDialTile(
-                        item = item,
-                        onClick = { onNavigate(item.url) }
-                    )
-                }
+                // Curved "V" logo
+                VelocityLogoIcon(size = 56.dp)
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = if (isIncognito) "Velocity Private" else "Velocity",
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.sp,
+                    color = Color.White
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = if (isIncognito) "Isolated Session • No History • Shield Max" else "Fast  •  Secure  •  Smart",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 1.sp,
+                    color = if (isIncognito) IncognitoPurple else Color(0xFF94A3B8)
+                )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(26.dp))
 
-            // Velocity Shield Status Card
-            Card(
+            // Modern Pill Search Bar
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onOpenShield() }
-                    .testTag("shield_status_card"),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isIncognito) Color(0xFF1E1638) else MaterialTheme.colorScheme.surfaceVariant
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    .widthIn(max = 560.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .testTag("home_search_bar"),
+                color = Color(0xE6111827),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x443B82F6)),
+                shadowElevation = 8.dp
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Google 4-color G or Search icon
+                    GoogleGLogo(modifier = Modifier.size(22.dp))
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Box(modifier = Modifier.weight(1f)) {
+                        if (searchInput.isEmpty()) {
+                            Text(
+                                text = "Search the web...",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 15.sp
+                            )
+                        }
+                        BasicTextField(
+                            value = searchInput,
+                            onValueChange = { searchInput = it },
+                            singleLine = true,
+                            textStyle = TextStyle(
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Normal
+                            ),
+                            cursorBrush = SolidColor(VelocityCyan),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("home_search_input")
+                        )
+                    }
+
+                    if (searchInput.isNotEmpty()) {
+                        IconButton(
+                            onClick = {
+                                val query = searchInput.trim()
+                                if (query.isNotEmpty()) {
+                                    onNavigate(query)
+                                }
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = "Go",
+                                tint = VelocityCyan,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = Color(0xFF64748B),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // Shortcuts Grid (4 Columns, matching mockup)
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(4),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(210.dp)
+                    .widthIn(max = 560.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                userScrollEnabled = false
+            ) {
+                items(quickDials) { item ->
+                    QuickDialItemTile(
+                        item = item,
+                        onClick = { onNavigate(item.url) }
+                    )
+                }
+
+                // Add button tile
+                item {
+                    Column(
+                        modifier = Modifier
+                            .clickable { showAddDialog = true }
+                            .padding(4.dp)
+                            .testTag("add_shortcut_btn"),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0x331E293B),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x3394A3B8)),
+                            modifier = Modifier.size(54.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Add shortcut",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Add",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Velocity Shield Banner
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 560.dp)
+                    .clickable { onOpenShield() }
+                    .testTag("shield_status_card"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isIncognito) Color(0xCC1A1032) else Color(0xCC0E1726)
+                ),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x2238BDF8))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
                         shape = CircleShape,
-                        color = VelocityCyan.copy(alpha = 0.2f),
-                        modifier = Modifier.size(44.dp)
+                        color = VelocityCyan.copy(alpha = 0.15f),
+                        modifier = Modifier.size(40.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.Shield,
                                 contentDescription = "Shield",
                                 tint = VelocityCyan,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(22.dp)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.width(14.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
 
                     Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Velocity Shield Active",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
                         Text(
-                            text = "${shieldStats.totalAdsBlocked} ads & trackers blocked • Fast page loads",
+                            text = "Velocity Shield Active",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "${shieldStats.totalAdsBlocked} ads & trackers blocked",
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = Color(0xFF94A3B8)
                         )
                     }
 
                     Icon(
                         imageVector = Icons.Default.Security,
-                        contentDescription = "Privacy details",
+                        contentDescription = "Details",
                         tint = VelocityCyan,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
-            // Quick Access Buttons
+            // Discover Feed Section (from mockup)
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 560.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                QuickActionButton(
-                    icon = Icons.Default.Bookmark,
-                    label = "Bookmarks",
-                    onClick = onOpenBookmarks,
-                    modifier = Modifier.weight(1f).testTag("quick_bookmarks_button")
+                Text(
+                    text = "Discover",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                QuickActionButton(
-                    icon = Icons.Default.History,
-                    label = "History",
-                    onClick = onOpenHistory,
-                    modifier = Modifier.weight(1f).testTag("quick_history_button")
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                QuickActionButton(
-                    icon = Icons.Default.Download,
-                    label = "Downloads",
-                    onClick = onOpenDownloads,
-                    modifier = Modifier.weight(1f).testTag("quick_downloads_button")
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                QuickActionButton(
-                    icon = Icons.Default.Settings,
-                    label = "Settings",
-                    onClick = onOpenSettings,
-                    modifier = Modifier.weight(1f).testTag("quick_settings_button")
+
+                Text(
+                    text = "See all",
+                    color = VelocityCyan,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable { onNavigate("https://news.google.com") }
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Category Filter Pills
+            val categoryScroll = rememberScrollState()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 560.dp)
+                    .horizontalScroll(categoryScroll),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                discoverCategories.forEachIndexed { index, cat ->
+                    val isSelected = selectedDiscoverCategory == index
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (isSelected) VelocityBlue else Color(0x331E293B),
+                        border = if (isSelected) null else androidx.compose.foundation.BorderStroke(1.dp, Color(0x2294A3B8)),
+                        modifier = Modifier.clickable { selectedDiscoverCategory = index }
+                    ) {
+                        Text(
+                            text = cat,
+                            color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Discover Articles Cards
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 560.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                articles.forEach { article ->
+                    DiscoverArticleCard(
+                        article = article,
+                        onClick = { onNavigate(article.url) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
         }
+    }
+
+    // Add Shortcut Dialog
+    if (showAddDialog) {
+        var newTitle by remember { mutableStateOf("") }
+        var newUrl by remember { mutableStateOf("https://") }
+
+        AlertDialog(
+            onDismissRequest = { showAddDialog = false },
+            title = { Text("Add Shortcut", color = Color.White) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = newTitle,
+                        onValueChange = { newTitle = it },
+                        label = { Text("Name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = newUrl,
+                        onValueChange = { newUrl = it },
+                        label = { Text("URL") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (newTitle.isNotBlank() && newUrl.isNotBlank()) {
+                            quickDials.add(
+                                QuickDialShortcut(
+                                    id = System.currentTimeMillis().toString(),
+                                    title = newTitle.trim(),
+                                    url = if (newUrl.startsWith("http")) newUrl.trim() else "https://${newUrl.trim()}",
+                                    brandType = "CUSTOM"
+                                )
+                            )
+                            showAddDialog = false
+                        }
+                    }
+                ) {
+                    Text("Add", color = VelocityCyan)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddDialog = false }) {
+                    Text("Cancel", color = Color.Gray)
+                }
+            },
+            containerColor = Color(0xFF131926)
+        )
     }
 }
 
+/**
+ * Renders an exact shortcut icon with proper branding from the mockup.
+ */
 @Composable
-private fun SpeedDialTile(
-    item: SpeedDialItem,
+private fun QuickDialItemTile(
+    item: QuickDialShortcut,
     onClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .clickable { onClick() }
-            .testTag("speed_dial_${item.title.lowercase()}"),
+            .padding(4.dp)
+            .testTag("quick_dial_${item.id}"),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Surface(
-            shape = CircleShape,
-            color = item.iconColor.copy(alpha = 0.15f),
-            border = androidx.compose.foundation.BorderStroke(1.dp, item.iconColor.copy(alpha = 0.3f)),
-            modifier = Modifier.size(48.dp)
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF131926),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x3326354D)),
+            shadowElevation = 4.dp,
+            modifier = Modifier.size(54.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = item.title.take(1),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = item.iconColor
-                )
+                when (item.brandType) {
+                    "YOUTUBE" -> YouTubeLogo(modifier = Modifier.size(32.dp))
+                    "GOOGLE" -> GoogleGLogo(modifier = Modifier.size(26.dp))
+                    "GMAIL" -> GmailLogo(modifier = Modifier.size(26.dp))
+                    "CHATGPT" -> ChatGPTLogo(modifier = Modifier.size(28.dp))
+                    "GITHUB" -> GitHubLogo(modifier = Modifier.size(26.dp))
+                    "FACEBOOK" -> FacebookLogo(modifier = Modifier.size(26.dp))
+                    "INSTAGRAM" -> InstagramLogo(modifier = Modifier.size(28.dp))
+                    "AMAZON" -> AmazonLogo(modifier = Modifier.size(26.dp))
+                    "FLIPKART" -> FlipkartLogo(modifier = Modifier.size(26.dp))
+                    else -> {
+                        Text(
+                            text = item.title.take(1).uppercase(),
+                            color = VelocityCyan,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
-        Spacer(modifier = Modifier.height(4.dp))
+
+        Spacer(modifier = Modifier.height(6.dp))
+
         Text(
             text = item.title,
-            fontSize = 11.sp,
+            color = Color.White,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/**
+ * Article card matching Discover feed in the mockup.
+ */
+@Composable
+private fun DiscoverArticleCard(
+    article: DiscoverArticle,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .testTag("discover_article_${article.id}"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xCC111827)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x2238BDF8))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Stylized rich thumbnail
+            Box(
+                modifier = Modifier
+                    .size(width = 90.dp, height = 70.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Brush.linearGradient(article.gradientColors)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = article.category.take(3).uppercase(),
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = article.title,
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = article.source,
+                        color = VelocityCyan,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = " • ${article.timeAgo}",
+                        color = Color(0xFF64748B),
+                        fontSize = 11.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// Vector Logos for Shortcuts
+// ==========================================
+
+@Composable
+fun GoogleGLogo(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        // Draw colorful circle sectors for Google G
+        drawArc(
+            color = BrandGoogleBlue,
+            startAngle = 0f,
+            sweepAngle = 90f,
+            useCenter = true
+        )
+        drawArc(
+            color = BrandGoogleGreen,
+            startAngle = 90f,
+            sweepAngle = 90f,
+            useCenter = true
+        )
+        drawArc(
+            color = BrandGoogleYellow,
+            startAngle = 180f,
+            sweepAngle = 90f,
+            useCenter = true
+        )
+        drawArc(
+            color = BrandGoogleRed,
+            startAngle = 270f,
+            sweepAngle = 90f,
+            useCenter = true
+        )
+        drawCircle(color = Color(0xFF131926), radius = w * 0.35f)
+        drawLine(
+            color = BrandGoogleBlue,
+            start = Offset(w * 0.5f, h * 0.5f),
+            end = Offset(w * 0.95f, h * 0.5f),
+            strokeWidth = h * 0.22f
         )
     }
 }
 
 @Composable
-private fun QuickActionButton(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
+fun YouTubeLogo(modifier: Modifier = Modifier) {
+    Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() },
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-        shape = RoundedCornerShape(12.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(BrandYouTube),
+        contentAlignment = Alignment.Center
     ) {
-        Column(
-            modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = label,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+        Canvas(modifier = Modifier.size(14.dp)) {
+            val path = androidx.compose.ui.graphics.Path().apply {
+                moveTo(0f, 0f)
+                lineTo(size.width, size.height * 0.5f)
+                lineTo(0f, size.height)
+                close()
+            }
+            drawPath(path, Color.White)
         }
+    }
+}
+
+@Composable
+fun GmailLogo(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.White),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "M",
+            color = BrandGmail,
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = 16.sp
+        )
+    }
+}
+
+@Composable
+fun ChatGPTLogo(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(BrandChatGPT),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "✱",
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp
+        )
+    }
+}
+
+@Composable
+fun GitHubLogo(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(BrandGitHub),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "🐙",
+            fontSize = 14.sp
+        )
+    }
+}
+
+@Composable
+fun FacebookLogo(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(BrandFacebook),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "f",
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp
+        )
+    }
+}
+
+@Composable
+fun InstagramLogo(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                Brush.linearGradient(listOf(BrandInstagramStart, BrandInstagramEnd))
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "📷",
+            fontSize = 12.sp
+        )
+    }
+}
+
+@Composable
+fun AmazonLogo(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF232F3E)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "a",
+            color = BrandAmazon,
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = 18.sp
+        )
+    }
+}
+
+@Composable
+fun FlipkartLogo(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(BrandFlipkart),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "f",
+            color = Color(0xFF2874F0),
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = 16.sp
+        )
     }
 }

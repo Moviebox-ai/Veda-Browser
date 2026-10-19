@@ -194,15 +194,28 @@ fun WebViewContainer(
                         view: WebView?,
                         request: WebResourceRequest?
                     ): WebResourceResponse? {
-                        val reqUrl = request?.url?.toString()
-                        val currentSiteHost = view?.url?.let { Uri.parse(it).host }
+                        val reqUrl = request?.url?.toString() ?: return super.shouldInterceptRequest(view, request)
+
+                        // Safely determine parent site host without calling WebView methods on the background thread
+                        val refererHost = request.requestHeaders?.let { headers ->
+                            (headers["Referer"] ?: headers["referer"])?.let { ref ->
+                                try { Uri.parse(ref).host } catch (_: Exception) { null }
+                            }
+                        }
+                        val currentSiteHost = refererHost
+                            ?: (if (request.isForMainFrame) request.url?.host else null)
+                            ?: try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
 
                         if (currentAdBlockEnabled && AdBlocker.isAdOrTracker(reqUrl, currentSiteHost)) {
-                            view?.post { currentOnTrackerBlocked() }
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                currentOnTrackerBlocked()
+                            }
                             return AdBlocker.createEmptyResponse()
                         }
                         return super.shouldInterceptRequest(view, request)
                     }
+
+
 
                     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                         super.onPageStarted(view, url, favicon)

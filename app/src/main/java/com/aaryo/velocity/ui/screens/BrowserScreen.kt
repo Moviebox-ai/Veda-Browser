@@ -32,7 +32,9 @@ import com.aaryo.velocity.security.CertificateInfo
 import com.aaryo.velocity.ui.components.BottomNavigationBar
 import com.aaryo.velocity.ui.components.FindInPageBar
 import com.aaryo.velocity.ui.components.Omnibox
+import com.aaryo.velocity.ui.components.VelocityMenuSheet
 import com.aaryo.velocity.ui.components.WebViewContainer
+import com.aaryo.velocity.ui.dialogs.AiAssistantDialog
 import com.aaryo.velocity.ui.dialogs.ClearDataDialog
 import com.aaryo.velocity.ui.dialogs.InstallUserscriptDialog
 import com.aaryo.velocity.ui.dialogs.ShieldDialog
@@ -40,8 +42,10 @@ import com.aaryo.velocity.ui.dialogs.SslDialog
 import com.aaryo.velocity.ui.dialogs.SslWarningDialog
 import com.aaryo.velocity.ui.dialogs.WebPermissionDialog
 import com.aaryo.velocity.ui.dialogs.WebPermissionState
+import com.aaryo.velocity.ui.screens.AppearanceScreen
 import com.aaryo.velocity.ui.screens.ExtensionDetailScreen
 import com.aaryo.velocity.ui.screens.ExtensionsScreen
+import com.aaryo.velocity.ui.screens.PasswordsScreen
 import com.aaryo.velocity.viewmodel.BrowserViewModel
 import com.aaryo.velocity.viewmodel.SheetType
 import com.aaryo.velocity.viewmodel.UriHelper
@@ -151,6 +155,12 @@ fun BrowserScreen(
                             "FIND_IN_PAGE" -> viewModel.setFindInPageVisible(true)
                             "SHIELD" -> viewModel.openSheet(SheetType.SHIELD_INFO)
                             "SETTINGS" -> viewModel.openSheet(SheetType.SETTINGS)
+                            "AI_ASSISTANT" -> viewModel.openSheet(SheetType.AI_ASSISTANT)
+                            "PASSWORDS" -> viewModel.openSheet(SheetType.PASSWORDS)
+                            "APPEARANCE" -> viewModel.openSheet(SheetType.APPEARANCE)
+                            "TAB_SWITCHER" -> viewModel.openSheet(SheetType.TAB_SWITCHER)
+                            "TRANSLATE" -> viewModel.openSheet(SheetType.AI_ASSISTANT)
+                            "ADD_HOME_SCREEN" -> viewModel.showToast("Shortcut added to Home Screen")
                             "SHARE" -> {
                                 activeTab?.url?.let { url ->
                                     val sendIntent = Intent().apply {
@@ -192,6 +202,7 @@ fun BrowserScreen(
                             NewTabPage(
                                 isIncognito = activeTab.isIncognito,
                                 shieldStats = shieldStats,
+                                settings = settings,
                                 onNavigate = { viewModel.navigateTo(it) },
                                 onOpenBookmarks = { viewModel.openSheet(SheetType.BOOKMARKS) },
                                 onOpenHistory = { viewModel.openSheet(SheetType.HISTORY) },
@@ -251,14 +262,16 @@ fun BrowserScreen(
                     }
                 }
 
-                // Bottom Navigation Bar
+                // Bottom Navigation Bar matching mockup
                 BottomNavigationBar(
                     tab = activeTab,
+                    tabCount = tabs.size,
                     onGoBack = { currentWebView?.goBack() },
                     onGoForward = { currentWebView?.goForward() },
                     onGoHome = { viewModel.navigateTo("velocity://newtab") },
-                    onOpenShield = { viewModel.openSheet(SheetType.SHIELD_INFO) },
-                    onOpenTabs = { viewModel.openSheet(SheetType.TAB_SWITCHER) }
+                    onOpenTabs = { viewModel.openSheet(SheetType.TAB_SWITCHER) },
+                    onOpenAiAssistant = { viewModel.openSheet(SheetType.AI_ASSISTANT) },
+                    onOpenMenu = { viewModel.openSheet(SheetType.MENU) }
                 )
             }
 
@@ -325,6 +338,50 @@ fun BrowserScreen(
                         settings = settings,
                         onUpdateSettings = { viewModel.updateSettings(it) },
                         onOpenClearData = { viewModel.openSheet(SheetType.CLEAR_DATA) },
+                        onOpenAppearance = { viewModel.openSheet(SheetType.APPEARANCE) },
+                        onDismiss = { viewModel.closeSheet() }
+                    )
+                }
+                SheetType.MENU -> {
+                    VelocityMenuSheet(
+                        tab = activeTab,
+                        isDesktopMode = activeTab?.isDesktopMode == true,
+                        onToggleDesktop = { activeTab?.id?.let { viewModel.toggleDesktopMode(it) } },
+                        onMenuAction = { action ->
+                            when (action) {
+                                "NEW_TAB" -> viewModel.createNewTab(isIncognito = false)
+                                "NEW_INCOGNITO_TAB" -> viewModel.createNewTab(isIncognito = true)
+                                "BOOKMARKS" -> viewModel.openSheet(SheetType.BOOKMARKS)
+                                "HISTORY" -> viewModel.openSheet(SheetType.HISTORY)
+                                "DOWNLOADS" -> viewModel.openSheet(SheetType.DOWNLOADS)
+                                "EXTENSIONS" -> viewModel.openSheet(SheetType.EXTENSIONS)
+                                "PASSWORDS" -> viewModel.openSheet(SheetType.PASSWORDS)
+                                "APPEARANCE" -> viewModel.openSheet(SheetType.APPEARANCE)
+                                "SETTINGS" -> viewModel.openSheet(SheetType.SETTINGS)
+                                "TAB_SWITCHER" -> viewModel.openSheet(SheetType.TAB_SWITCHER)
+                                "FIND_IN_PAGE" -> viewModel.setFindInPageVisible(true)
+                                "TRANSLATE" -> viewModel.openSheet(SheetType.AI_ASSISTANT)
+                                "ADD_HOME_SCREEN" -> viewModel.showToast("Shortcut added to Home Screen")
+                            }
+                        },
+                        onDismiss = { viewModel.closeSheet() }
+                    )
+                }
+                SheetType.AI_ASSISTANT -> {
+                    AiAssistantDialog(
+                        tab = activeTab,
+                        onDismiss = { viewModel.closeSheet() }
+                    )
+                }
+                SheetType.APPEARANCE -> {
+                    AppearanceScreen(
+                        settings = settings,
+                        onUpdateSettings = { viewModel.updateSettings(it) },
+                        onDismiss = { viewModel.closeSheet() }
+                    )
+                }
+                SheetType.PASSWORDS -> {
+                    PasswordsScreen(
                         onDismiss = { viewModel.closeSheet() }
                     )
                 }

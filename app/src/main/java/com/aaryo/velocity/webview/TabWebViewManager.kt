@@ -79,7 +79,6 @@ class TabWebViewManager {
             javaScriptEnabled = settings.javaScriptEnabled
             textZoom = settings.textZoomPercent
             domStorageEnabled = true
-            databaseEnabled = true
             useWideViewPort = true
             loadWithOverviewMode = true
             builtInZoomControls = true
@@ -104,6 +103,7 @@ class TabWebViewManager {
                 settings.forceDarkWebContent
             )
         } else if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
+            @Suppress("DEPRECATION")
             WebSettingsCompat.setForceDark(
                 webView.settings,
                 if (settings.forceDarkWebContent) WebSettingsCompat.FORCE_DARK_ON else WebSettingsCompat.FORCE_DARK_OFF

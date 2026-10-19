@@ -432,6 +432,27 @@ fun Omnibox(
                             onMenuAction("SHIELD")
                         }
                     )
+                    DropdownMenuItem(
+                        text = { Text("AI Assistant") },
+                        onClick = {
+                            menuExpanded = false
+                            onMenuAction("AI_ASSISTANT")
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Passwords") },
+                        onClick = {
+                            menuExpanded = false
+                            onMenuAction("PASSWORDS")
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Appearance") },
+                        onClick = {
+                            menuExpanded = false
+                            onMenuAction("APPEARANCE")
+                        }
+                    )
                     HorizontalDivider()
                     DropdownMenuItem(
                         text = { Text("Settings") },

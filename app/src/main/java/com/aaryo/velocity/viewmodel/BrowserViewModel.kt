@@ -46,7 +46,11 @@ enum class SheetType {
     CLEAR_DATA,
     ALLOWLIST_MANAGER,
     EXTENSIONS,
-    EXTENSION_DETAIL
+    EXTENSION_DETAIL,
+    MENU,
+    AI_ASSISTANT,
+    APPEARANCE,
+    PASSWORDS
 }
 
 data class CustomViewState(
