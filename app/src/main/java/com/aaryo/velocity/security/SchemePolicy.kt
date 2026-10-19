@@ -9,27 +9,35 @@ object SchemePolicy {
     private val EXTERNAL_INTENT_SCHEMES = setOf("mailto", "tel", "sms", "geo", "intent", "market")
     private val BLOCKED_SCHEMES = setOf("file", "content")
 
+    private fun extractScheme(url: String?): String? {
+        if (url.isNullOrBlank()) return null
+        val colonIdx = url.indexOf(':')
+        if (colonIdx <= 0) return null
+        val candidate = url.substring(0, colonIdx).trim().lowercase()
+        return if (candidate.all { it.isLetterOrDigit() || it == '+' || it == '.' || it == '-' }) {
+            candidate
+        } else {
+            null
+        }
+    }
+
     fun isWebScheme(url: String?): Boolean {
-        if (url == null) return false
-        val scheme = Uri.parse(url).scheme?.lowercase() ?: return false
+        val scheme = extractScheme(url) ?: return false
         return scheme in WEB_SCHEMES
     }
 
     fun isExternalScheme(url: String?): Boolean {
-        if (url == null) return false
-        val scheme = Uri.parse(url).scheme?.lowercase() ?: return false
+        val scheme = extractScheme(url) ?: return false
         return scheme in EXTERNAL_INTENT_SCHEMES
     }
 
     fun isSafeInternal(url: String?): Boolean {
-        if (url == null) return false
-        val scheme = Uri.parse(url).scheme?.lowercase() ?: return false
+        val scheme = extractScheme(url) ?: return false
         return scheme in SAFE_INTERNAL_SCHEMES
     }
 
     fun isBlockedScheme(url: String?): Boolean {
-        if (url == null) return false
-        val scheme = Uri.parse(url).scheme?.lowercase() ?: return false
+        val scheme = extractScheme(url) ?: return false
         return scheme in BLOCKED_SCHEMES
     }
 }

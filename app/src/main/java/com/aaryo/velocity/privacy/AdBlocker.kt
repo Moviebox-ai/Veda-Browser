@@ -102,13 +102,18 @@ object AdBlocker {
             }
         }
 
-        val uri = try {
-            Uri.parse(url)
+        val requestHost = try {
+            java.net.URI(url).host?.lowercase()
         } catch (_: Exception) {
-            return false
-        }
+            null
+        } ?: try {
+            val afterScheme = if (url.contains("://")) url.substringAfter("://") else url
+            val rawHost = afterScheme.substringBefore('/').substringBefore('?').substringBefore(':')
+            rawHost.trim().lowercase().ifBlank { null }
+        } catch (_: Exception) {
+            null
+        } ?: return false
 
-        val requestHost = uri.host?.lowercase() ?: return false
         val normalizedHost = requestHost.removePrefix("www.")
 
         // 2. Prevent breaking logins for essential OAuth/Identity providers
@@ -125,7 +130,13 @@ object AdBlocker {
         }
 
         // 4. URL path pattern match
-        val path = uri.path?.lowercase() ?: ""
+        val path = try {
+            java.net.URI(url).path?.lowercase() ?: ""
+        } catch (_: Exception) {
+            val afterScheme = if (url.contains("://")) url.substringAfter("://") else url
+            val rawPath = afterScheme.substringAfter('/', "")
+            if (rawPath.isNotEmpty()) "/${rawPath.substringBefore('?')}" else ""
+        }
         for (pattern in blockedPathPatterns) {
             if (path.contains(pattern)) {
                 return true
