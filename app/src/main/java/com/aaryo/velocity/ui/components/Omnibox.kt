@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
@@ -401,6 +402,13 @@ fun Omnibox(
                         onClick = {
                             menuExpanded = false
                             onMenuAction("TOGGLE_DESKTOP")
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Extensions") },
+                        onClick = {
+                            menuExpanded = false
+                            onMenuAction("EXTENSIONS")
                         }
                     )
                     DropdownMenuItem(

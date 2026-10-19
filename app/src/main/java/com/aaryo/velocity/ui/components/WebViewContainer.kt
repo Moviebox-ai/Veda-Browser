@@ -28,7 +28,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import com.aaryo.velocity.extension.ExtensionInjector
+import com.aaryo.velocity.extension.GmBridge
 import com.aaryo.velocity.model.BrowserSettings
+import com.aaryo.velocity.model.Extension
+import com.aaryo.velocity.model.RunAt
 import com.aaryo.velocity.model.Tab
 import com.aaryo.velocity.privacy.AdBlocker
 import com.aaryo.velocity.security.CertificateHelper
@@ -45,6 +49,9 @@ fun WebViewContainer(
     tab: Tab,
     settings: BrowserSettings,
     tabWebViewManager: TabWebViewManager,
+    extensions: List<Extension> = emptyList(),
+    isExtensionsGlobalEnabled: Boolean = true,
+    gmBridge: GmBridge? = null,
     onPageStarted: (String) -> Unit,
     onPageFinished: (String, String?, CertificateInfo?) -> Unit,
     onProgressChanged: (Int) -> Unit,
@@ -52,6 +59,8 @@ fun WebViewContainer(
     onFaviconReceived: (Bitmap) -> Unit,
     onNavigationStateChanged: (Boolean, Boolean) -> Unit,
     onTrackerBlocked: () -> Unit,
+    onExtensionsCountChanged: (Int) -> Unit = {},
+    onInterceptUserscript: (String) -> Unit = {},
     onDownloadStart: (String, String, String, String) -> Unit,
     onOpenNewTabRequested: (String) -> Unit,
     onShowCustomView: (View, WebChromeClient.CustomViewCallback) -> Unit,
@@ -81,6 +90,11 @@ fun WebViewContainer(
     val currentOnHideCustomView by rememberUpdatedState(onHideCustomView)
     val currentOnSslError by rememberUpdatedState(onSslErrorOccurred)
     val currentOnPermission by rememberUpdatedState(onPermissionRequested)
+    val currentExtensions by rememberUpdatedState(extensions)
+    val currentIsExtensionsGlobalEnabled by rememberUpdatedState(isExtensionsGlobalEnabled)
+    val currentGmBridge by rememberUpdatedState(gmBridge)
+    val currentOnExtensionsCountChanged by rememberUpdatedState(onExtensionsCountChanged)
+    val currentOnInterceptUserscript by rememberUpdatedState(onInterceptUserscript)
 
     // File chooser callback holder
     var fileUploadCallback: ValueCallback<Array<Uri>>? = null
@@ -97,7 +111,8 @@ fun WebViewContainer(
         tabId = tab.id,
         isIncognito = tab.isIncognito,
         settings = settings,
-        isDesktopMode = tab.isDesktopMode
+        isDesktopMode = tab.isDesktopMode,
+        gmBridge = gmBridge
     )
 
     // Handle Find in Page
@@ -146,6 +161,12 @@ fun WebViewContainer(
                         val uri = request?.url ?: return false
                         val urlString = uri.toString()
 
+                        // Intercept *.user.js scripts to prompt install dialog
+                        if (urlString.endsWith(".user.js", ignoreCase = true) || uri.path?.endsWith(".user.js", ignoreCase = true) == true) {
+                            currentOnInterceptUserscript(urlString)
+                            return true
+                        }
+
                         if (SchemePolicy.isWebScheme(urlString)) {
                             return false
                         }
@@ -188,6 +209,27 @@ fun WebViewContainer(
                         url?.let { currentOnPageStarted(it) }
                         favicon?.let { currentOnFaviconReceived(it) }
                         currentOnNavChanged(view?.canGoBack() == true, view?.canGoForward() == true)
+
+                        if (url != null && view != null && currentGmBridge != null) {
+                            currentGmBridge?.let { bridge ->
+                                ExtensionInjector.injectForStage(
+                                    webView = view,
+                                    targetUrl = url,
+                                    stage = RunAt.DOCUMENT_START,
+                                    extensions = currentExtensions,
+                                    isIncognito = currentTab.isIncognito,
+                                    isGlobalEnabled = currentIsExtensionsGlobalEnabled,
+                                    gmBridge = bridge
+                                )
+                                val matchingCount = ExtensionInjector.countMatchingExtensions(
+                                    targetUrl = url,
+                                    extensions = currentExtensions,
+                                    isIncognito = currentTab.isIncognito,
+                                    isGlobalEnabled = currentIsExtensionsGlobalEnabled
+                                )
+                                currentOnExtensionsCountChanged(matchingCount)
+                            }
+                        }
                     }
 
                     override fun onPageFinished(view: WebView?, url: String?) {
@@ -200,6 +242,39 @@ fun WebViewContainer(
 
                         url?.let { currentOnPageFinished(it, view?.title, certInfo) }
                         currentOnNavChanged(view?.canGoBack() == true, view?.canGoForward() == true)
+
+                        // Inject DOCUMENT_END and schedule DOCUMENT_IDLE userscripts
+                        if (url != null && view != null && currentGmBridge != null) {
+                            currentGmBridge?.let { bridge ->
+                                ExtensionInjector.injectForStage(
+                                    webView = view,
+                                    targetUrl = url,
+                                    stage = RunAt.DOCUMENT_END,
+                                    extensions = currentExtensions,
+                                    isIncognito = currentTab.isIncognito,
+                                    isGlobalEnabled = currentIsExtensionsGlobalEnabled,
+                                    gmBridge = bridge
+                                )
+                                view.postDelayed({
+                                    ExtensionInjector.injectForStage(
+                                        webView = view,
+                                        targetUrl = url,
+                                        stage = RunAt.DOCUMENT_IDLE,
+                                        extensions = currentExtensions,
+                                        isIncognito = currentTab.isIncognito,
+                                        isGlobalEnabled = currentIsExtensionsGlobalEnabled,
+                                        gmBridge = bridge
+                                    )
+                                }, 150)
+                                val matchingCount = ExtensionInjector.countMatchingExtensions(
+                                    targetUrl = url,
+                                    extensions = currentExtensions,
+                                    isIncognito = currentTab.isIncognito,
+                                    isGlobalEnabled = currentIsExtensionsGlobalEnabled
+                                )
+                                currentOnExtensionsCountChanged(matchingCount)
+                            }
+                        }
 
                         // Inject DNT property into JavaScript runtime if DNT is active
                         if (currentSettings.doNotTrackEnabled) {

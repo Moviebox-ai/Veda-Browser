@@ -8,10 +8,16 @@ import android.webkit.WebChromeClient
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aaryo.velocity.data.BrowserRepository
+import com.aaryo.velocity.data.ExtensionRepository
 import com.aaryo.velocity.download.RealDownloadManager
+import com.aaryo.velocity.extension.BuiltInExtensions
+import com.aaryo.velocity.extension.ExtensionInjector
+import com.aaryo.velocity.extension.GmBridge
+import com.aaryo.velocity.extension.UserscriptParser
 import com.aaryo.velocity.model.Bookmark
 import com.aaryo.velocity.model.BrowserSettings
 import com.aaryo.velocity.model.DownloadItem
+import com.aaryo.velocity.model.Extension
 import com.aaryo.velocity.model.HistoryItem
 import com.aaryo.velocity.model.ShieldStats
 import com.aaryo.velocity.model.Tab
@@ -20,10 +26,13 @@ import com.aaryo.velocity.security.CertificateInfo
 import com.aaryo.velocity.ui.dialogs.SslWarningState
 import com.aaryo.velocity.ui.dialogs.WebPermissionState
 import com.aaryo.velocity.webview.TabWebViewManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import okhttp3.Request
 
 enum class SheetType {
     NONE,
@@ -35,7 +44,9 @@ enum class SheetType {
     SHIELD_INFO,
     SSL_CERTIFICATE,
     CLEAR_DATA,
-    ALLOWLIST_MANAGER
+    ALLOWLIST_MANAGER,
+    EXTENSIONS,
+    EXTENSION_DETAIL
 }
 
 data class CustomViewState(
@@ -93,6 +104,32 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     private val _findInPageQuery = MutableStateFlow("")
     val findInPageQuery: StateFlow<String> = _findInPageQuery.asStateFlow()
 
+    // Extension & userscript states
+    val extensionRepository = ExtensionRepository(application)
+
+    private val _extensions = MutableStateFlow<List<Extension>>(emptyList())
+    val extensions: StateFlow<List<Extension>> = _extensions.asStateFlow()
+
+    private val _extensionsGlobalEnabled = MutableStateFlow(true)
+    val extensionsGlobalEnabled: StateFlow<Boolean> = _extensionsGlobalEnabled.asStateFlow()
+
+    private val _selectedExtensionForDetail = MutableStateFlow<Extension?>(null)
+    val selectedExtensionForDetail: StateFlow<Extension?> = _selectedExtensionForDetail.asStateFlow()
+
+    private val _pendingInstallScript = MutableStateFlow<Extension?>(null)
+    val pendingInstallScript: StateFlow<Extension?> = _pendingInstallScript.asStateFlow()
+
+    val gmBridge: GmBridge by lazy {
+        GmBridge(
+            context = application,
+            onOpenInTab = { url -> createNewTab(url) },
+            onGetStorage = { extId, key -> extensionRepository.getGmValue(extId, key) },
+            onSetStorage = { extId, key, value -> extensionRepository.setGmValue(extId, key, value) },
+            onDeleteStorage = { extId, key -> extensionRepository.deleteGmValue(extId, key) },
+            getExtensionById = { id -> _extensions.value.find { it.id == id } }
+        )
+    }
+
     // Toast/Snackbar notifications
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
@@ -119,6 +156,18 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         }
         viewModelScope.launch {
             repository.shieldStatsFlow.collect { _shieldStats.value = it }
+        }
+        viewModelScope.launch {
+            extensionRepository.extensionsFlow.collect { list ->
+                _extensions.value = list
+                refreshActiveTabExtensionsCount()
+            }
+        }
+        viewModelScope.launch {
+            extensionRepository.globalEnabledFlow.collect { enabled ->
+                _extensionsGlobalEnabled.value = enabled
+                refreshActiveTabExtensionsCount()
+            }
         }
 
         // Restore open tabs from disk on launch
@@ -502,6 +551,85 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     fun showToast(message: String) {
         _toastMessage.value = message
+    }
+
+    fun refreshActiveTabExtensionsCount() {
+        val active = getActiveTab() ?: return
+        if (active.isNewTab || active.url.isBlank()) return
+        val count = ExtensionInjector.countMatchingExtensions(
+            targetUrl = active.url,
+            extensions = _extensions.value,
+            isIncognito = active.isIncognito,
+            isGlobalEnabled = _extensionsGlobalEnabled.value
+        )
+        updateTab(active.id) { it.copy(activeExtensionsCount = count) }
+    }
+
+    fun onExtensionsCountUpdated(tabId: String, count: Int) {
+        updateTab(tabId) { it.copy(activeExtensionsCount = count) }
+    }
+
+    fun toggleExtension(id: String, enabled: Boolean) {
+        viewModelScope.launch {
+            extensionRepository.toggleExtension(id, enabled)
+        }
+    }
+
+    fun toggleExtensionsGlobal(enabled: Boolean) {
+        viewModelScope.launch {
+            extensionRepository.setGlobalEnabled(enabled)
+            showToast(if (enabled) "Extensions enabled" else "All extensions disabled")
+        }
+    }
+
+    fun deleteExtension(id: String) {
+        viewModelScope.launch {
+            extensionRepository.deleteExtension(id)
+            showToast("Extension deleted")
+        }
+    }
+
+    fun saveExtension(extension: Extension) {
+        viewModelScope.launch {
+            extensionRepository.saveExtension(extension)
+            refreshActiveTabExtensionsCount()
+        }
+    }
+
+    fun selectExtensionForDetail(extension: Extension) {
+        _selectedExtensionForDetail.value = extension
+    }
+
+    fun fetchAndPromptUserscript(url: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val client = OkHttpClient()
+                val request = Request.Builder().url(url).build()
+                client.newCall(request).execute().use { response ->
+                    val body = response.body?.string()
+                    if (response.isSuccessful && !body.isNullOrBlank()) {
+                        val parsed = UserscriptParser.parse(body).copy(updateUrl = url)
+                        _pendingInstallScript.value = parsed
+                    } else {
+                        showToast("Failed to fetch userscript from $url")
+                    }
+                }
+            } catch (e: Exception) {
+                showToast("Error downloading userscript: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun installFromUrl(url: String) {
+        fetchAndPromptUserscript(url)
+    }
+
+    fun setPendingInstallScript(script: Extension?) {
+        _pendingInstallScript.value = script
+    }
+
+    fun dismissInstallDialog() {
+        _pendingInstallScript.value = null
     }
 
     fun dismissToast() {

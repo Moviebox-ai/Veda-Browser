@@ -170,15 +170,15 @@ class GmBridge(
                 reqBuilder.method(method, null)
             }
 
-            val response = httpClient.newCall(reqBuilder.build()).execute()
-            val respBody = response.body?.string() ?: ""
-
-            val respObj = JsonObject().apply {
-                addProperty("status", response.code)
-                addProperty("statusText", response.message)
-                addProperty("responseText", respBody)
+            httpClient.newCall(reqBuilder.build()).execute().use { response ->
+                val respBody = response.body?.string() ?: ""
+                val respObj = JsonObject().apply {
+                    addProperty("status", response.code)
+                    addProperty("statusText", response.message)
+                    addProperty("responseText", respBody)
+                }
+                sendResponse(replyProxy, requestId, success = true, result = respObj.toString())
             }
-            sendResponse(replyProxy, requestId, success = true, result = respObj.toString())
         } catch (e: Exception) {
             sendResponse(replyProxy, requestId, success = false, error = e.localizedMessage ?: "Network error")
         }
@@ -232,13 +232,26 @@ class GmBridge(
                 }
             }
 
-            window.GM_getValue = function(key, defaultVal) {
+            window.__gm_cache = window.__gm_cache || {};
+            window.GM_getValue = function(key, defaultVal, callback) {
+                if (typeof callback === 'function') {
+                    __sendGM('GM_getValue', { key: key, defaultValue: defaultVal }, function(resp) {
+                        callback(resp.success && resp.result !== undefined ? resp.result : defaultVal);
+                    });
+                    return;
+                }
+                if (window.__gm_cache && window.__gm_cache[key] !== undefined) {
+                    return window.__gm_cache[key];
+                }
                 return defaultVal;
             };
             window.GM_setValue = function(key, val) {
+                window.__gm_cache = window.__gm_cache || {};
+                window.__gm_cache[key] = val;
                 __sendGM('GM_setValue', { key: key, value: String(val) });
             };
             window.GM_deleteValue = function(key) {
+                if (window.__gm_cache) delete window.__gm_cache[key];
                 __sendGM('GM_deleteValue', { key: key });
             };
             window.GM_addStyle = function(css) {

@@ -34,13 +34,17 @@ import com.aaryo.velocity.ui.components.FindInPageBar
 import com.aaryo.velocity.ui.components.Omnibox
 import com.aaryo.velocity.ui.components.WebViewContainer
 import com.aaryo.velocity.ui.dialogs.ClearDataDialog
+import com.aaryo.velocity.ui.dialogs.InstallUserscriptDialog
 import com.aaryo.velocity.ui.dialogs.ShieldDialog
 import com.aaryo.velocity.ui.dialogs.SslDialog
 import com.aaryo.velocity.ui.dialogs.SslWarningDialog
 import com.aaryo.velocity.ui.dialogs.WebPermissionDialog
 import com.aaryo.velocity.ui.dialogs.WebPermissionState
+import com.aaryo.velocity.ui.screens.ExtensionDetailScreen
+import com.aaryo.velocity.ui.screens.ExtensionsScreen
 import com.aaryo.velocity.viewmodel.BrowserViewModel
 import com.aaryo.velocity.viewmodel.SheetType
+import com.aaryo.velocity.viewmodel.UriHelper
 
 @Composable
 fun BrowserScreen(
@@ -63,6 +67,11 @@ fun BrowserScreen(
     val isFindInPageVisible by viewModel.isFindInPageVisible.collectAsState()
     val findInPageQuery by viewModel.findInPageQuery.collectAsState()
     val toastMessage by viewModel.toastMessage.collectAsState()
+
+    val extensions by viewModel.extensions.collectAsState()
+    val extensionsGlobalEnabled by viewModel.extensionsGlobalEnabled.collectAsState()
+    val selectedExtensionForDetail by viewModel.selectedExtensionForDetail.collectAsState()
+    val pendingInstallScript by viewModel.pendingInstallScript.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var currentWebView by remember { mutableStateOf<WebView?>(null) }
@@ -129,6 +138,7 @@ fun BrowserScreen(
                     onToggleBookmark = { viewModel.toggleBookmarkCurrentTab() },
                     onOpenShield = { viewModel.openSheet(SheetType.SHIELD_INFO) },
                     onOpenSsl = { viewModel.openSheet(SheetType.SSL_CERTIFICATE) },
+                    onOpenExtensions = { viewModel.openSheet(SheetType.EXTENSIONS) },
                     onMenuAction = { action ->
                         when (action) {
                             "NEW_TAB" -> viewModel.createNewTab(isIncognito = false)
@@ -136,6 +146,7 @@ fun BrowserScreen(
                             "BOOKMARKS" -> viewModel.openSheet(SheetType.BOOKMARKS)
                             "HISTORY" -> viewModel.openSheet(SheetType.HISTORY)
                             "DOWNLOADS" -> viewModel.openSheet(SheetType.DOWNLOADS)
+                            "EXTENSIONS" -> viewModel.openSheet(SheetType.EXTENSIONS)
                             "TOGGLE_DESKTOP" -> activeTab?.id?.let { viewModel.toggleDesktopMode(it) }
                             "FIND_IN_PAGE" -> viewModel.setFindInPageVisible(true)
                             "SHIELD" -> viewModel.openSheet(SheetType.SHIELD_INFO)
@@ -194,6 +205,9 @@ fun BrowserScreen(
                                 tab = activeTab,
                                 settings = settings,
                                 tabWebViewManager = viewModel.tabWebViewManager,
+                                extensions = extensions,
+                                isExtensionsGlobalEnabled = extensionsGlobalEnabled,
+                                gmBridge = viewModel.gmBridge,
                                 onPageStarted = { viewModel.onPageStarted(activeTab.id, it) },
                                 onPageFinished = { url, title, certInfo ->
                                     viewModel.onPageFinished(activeTab.id, url, title, certInfo)
@@ -205,6 +219,12 @@ fun BrowserScreen(
                                     viewModel.onNavigationStateChanged(activeTab.id, canBack, canFwd)
                                 },
                                 onTrackerBlocked = { viewModel.onTrackerBlocked(activeTab.id) },
+                                onExtensionsCountChanged = { count ->
+                                    viewModel.onExtensionsCountUpdated(activeTab.id, count)
+                                },
+                                onInterceptUserscript = { url ->
+                                    viewModel.fetchAndPromptUserscript(url)
+                                },
                                 onDownloadStart = { url, disposition, mime, ua ->
                                     viewModel.startDownload(url, disposition, mime, ua)
                                 },
@@ -338,7 +358,52 @@ fun BrowserScreen(
                         onDismiss = { viewModel.closeSheet() }
                     )
                 }
+                SheetType.EXTENSIONS -> {
+                    ExtensionsScreen(
+                        extensions = extensions,
+                        isGlobalEnabled = extensionsGlobalEnabled,
+                        onToggleGlobal = { viewModel.toggleExtensionsGlobal(it) },
+                        onToggleExtension = { id, enabled -> viewModel.toggleExtension(id, enabled) },
+                        onDeleteExtension = { viewModel.deleteExtension(it) },
+                        onSaveExtension = { viewModel.saveExtension(it) },
+                        onInstallFromUrl = { viewModel.installFromUrl(it) },
+                        onSelectExtension = { ext ->
+                            viewModel.selectExtensionForDetail(ext)
+                            viewModel.openSheet(SheetType.EXTENSION_DETAIL)
+                        },
+                        onDismiss = { viewModel.closeSheet() }
+                    )
+                }
+                SheetType.EXTENSION_DETAIL -> {
+                    selectedExtensionForDetail?.let { ext ->
+                        val currentSiteHost = activeTab?.url?.let { UriHelper.extractDomain(it) }
+                        ExtensionDetailScreen(
+                            extension = ext,
+                            currentSiteHost = currentSiteHost,
+                            onSaveExtension = { updated ->
+                                viewModel.saveExtension(updated)
+                                viewModel.selectExtensionForDetail(updated)
+                            },
+                            onDismiss = {
+                                viewModel.openSheet(SheetType.EXTENSIONS)
+                            }
+                        )
+                    }
+                }
                 else -> { /* No active sheet */ }
+            }
+
+            // Userscript Install Confirmation Dialog
+            pendingInstallScript?.let { scriptToInstall ->
+                InstallUserscriptDialog(
+                    extension = scriptToInstall,
+                    onInstall = {
+                        viewModel.saveExtension(scriptToInstall)
+                        viewModel.dismissInstallDialog()
+                        viewModel.showToast("Installed ${scriptToInstall.name}")
+                    },
+                    onDismiss = { viewModel.dismissInstallDialog() }
+                )
             }
 
             // SSL Security Warning Dialog (Cancel by default for untrusted certs)

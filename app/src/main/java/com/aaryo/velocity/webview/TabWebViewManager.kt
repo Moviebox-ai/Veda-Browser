@@ -29,11 +29,13 @@ class TabWebViewManager {
         tabId: String,
         isIncognito: Boolean,
         settings: BrowserSettings,
-        isDesktopMode: Boolean
+        isDesktopMode: Boolean,
+        gmBridge: com.aaryo.velocity.extension.GmBridge? = null
     ): WebView {
         val existing = webViewMap[tabId]
         if (existing != null) {
             applyWebSettings(existing, settings, isDesktopMode, isIncognito)
+            gmBridge?.attachToWebView(existing)
             return existing
         }
 
@@ -43,6 +45,7 @@ class TabWebViewManager {
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
         }
+        gmBridge?.attachToWebView(webView)
 
         // Configure multi-profile if supported by Android WebView engine
         if (isIncognito && WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
