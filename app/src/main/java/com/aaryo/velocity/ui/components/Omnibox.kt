@@ -79,6 +79,7 @@ fun Omnibox(
     onToggleBookmark: () -> Unit,
     onOpenShield: () -> Unit,
     onOpenSsl: () -> Unit,
+    onOpenExtensions: () -> Unit = {},
     onMenuAction: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -257,6 +258,36 @@ fun Omnibox(
                                         color = VelocityCyan
                                     )
                                 }
+                            }
+                        }
+                    }
+
+                    // Active Extensions Badge
+                    if (tab != null && !tab.isNewTab && tab.activeExtensionsCount > 0) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(VelocityCyan.copy(alpha = 0.2f))
+                                .clickable { onOpenExtensions() }
+                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                                .testTag("extensions_badge_button"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Extension,
+                                    contentDescription = "Active Extensions",
+                                    tint = VelocityCyan,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = "${tab.activeExtensionsCount}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = VelocityCyan
+                                )
                             }
                         }
                     }

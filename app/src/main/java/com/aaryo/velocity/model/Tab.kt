@@ -18,6 +18,7 @@ data class Tab(
     val isSecure: Boolean = true,
     val favicon: Bitmap? = null,
     val screenshot: Bitmap? = null,
+    val activeExtensionsCount: Int = 0,
     val lastVisitedTimestamp: Long = System.currentTimeMillis()
 ) {
     val isNewTab: Boolean
