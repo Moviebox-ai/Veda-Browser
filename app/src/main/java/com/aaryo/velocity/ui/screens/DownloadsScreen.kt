@@ -349,7 +349,7 @@ private fun RealDownloadCardItem(
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = item.filename,
+                text = item.fileName,
                 color = Color.White,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
@@ -360,7 +360,7 @@ private fun RealDownloadCardItem(
             Spacer(modifier = Modifier.height(3.dp))
 
             Text(
-                text = "${item.bytesDownloaded / 1024} KB • ${item.status.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                text = "${item.downloadedBytes / 1024} KB • ${item.status.name.lowercase().replaceFirstChar { it.uppercase() }}",
                 color = Color(0xFF94A3B8),
                 fontSize = 12.sp
             )

@@ -1,6 +1,7 @@
 package com.aaryo.velocity.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -161,6 +162,11 @@ fun TabSwitcherScreen(
                 }
             }
 
+            val displayTabs = remember(tabs) {
+                val nonNewTabs = tabs.filterNot { it.isNewTab }
+                if (nonNewTabs.isNotEmpty()) nonNewTabs else tabs
+            }
+
             // Tab Cards List
             LazyColumn(
                 modifier = Modifier
@@ -169,7 +175,7 @@ fun TabSwitcherScreen(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(tabs, key = { it.id }) { tab ->
+                items(displayTabs, key = { it.id }) { tab ->
                     TabCardItem(
                         tab = tab,
                         isSelected = tab.id == activeTabId,
@@ -302,28 +308,78 @@ private fun TabCardItem(
                         )
                     }
                     isGoogle -> {
-                        Text(
-                            text = "G",
-                            color = Color(0xFF4285F4),
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Canvas(modifier = Modifier.size(22.dp)) {
+                            val w = size.width
+                            val h = size.height
+                            drawLine(
+                                color = Color(0xFF4285F4),
+                                start = Offset(w * 0.45f, h * 0.5f),
+                                end = Offset(w * 0.95f, h * 0.5f),
+                                strokeWidth = w * 0.22f
+                            )
+                            drawArc(
+                                color = Color(0xFF4285F4),
+                                startAngle = -45f,
+                                sweepAngle = 45f,
+                                useCenter = false,
+                                style = Stroke(width = w * 0.22f)
+                            )
+                            drawArc(
+                                color = Color(0xFFEA4335),
+                                startAngle = 180f,
+                                sweepAngle = 90f,
+                                useCenter = false,
+                                style = Stroke(width = w * 0.22f)
+                            )
+                            drawArc(
+                                color = Color(0xFFFBBC05),
+                                startAngle = 90f,
+                                sweepAngle = 90f,
+                                useCenter = false,
+                                style = Stroke(width = w * 0.22f)
+                            )
+                            drawArc(
+                                color = Color(0xFF34A853),
+                                startAngle = 0f,
+                                sweepAngle = 90f,
+                                useCenter = false,
+                                style = Stroke(width = w * 0.22f)
+                            )
+                        }
                     }
                     isNews -> {
-                        Icon(
-                            imageVector = Icons.Default.Newspaper,
-                            contentDescription = "News",
-                            tint = Color(0xFF38BDF8),
-                            modifier = Modifier.size(22.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.White)
+                                .border(1.dp, Color(0xFF38BDF8), RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Newspaper,
+                                contentDescription = "News",
+                                tint = Color(0xFF0284C7),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
                     isOpenAi -> {
-                        Text(
-                            text = "✦",
-                            color = Color(0xFF10A37F),
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Canvas(modifier = Modifier.size(24.dp)) {
+                            val w = size.width
+                            val h = size.height
+                            for (i in 0 until 6) {
+                                val angle = Math.toRadians(i * 60.0)
+                                val r = w * 0.24f
+                                val cx = w * 0.5f + (Math.cos(angle) * r).toFloat()
+                                val cy = h * 0.5f + (Math.sin(angle) * r).toFloat()
+                                drawCircle(
+                                    color = Color.Black,
+                                    radius = r * 0.55f,
+                                    center = Offset(cx, cy),
+                                    style = Stroke(width = 1.8.dp.toPx())
+                                )
+                            }
+                        }
                     }
                     else -> {
                         Icon(

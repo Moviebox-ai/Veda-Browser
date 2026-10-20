@@ -412,8 +412,8 @@ fun SettingsScreen(
                         ) {
                             Text("JavaScript JIT Engine", color = Color.White, fontSize = 14.sp)
                             Switch(
-                                checked = settings.javascriptEnabled,
-                                onCheckedChange = { onUpdateSettings(settings.copy(javascriptEnabled = it)) },
+                                checked = settings.javaScriptEnabled,
+                                onCheckedChange = { onUpdateSettings(settings.copy(javaScriptEnabled = it)) },
                                 colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF3B82F6))
                             )
                         }

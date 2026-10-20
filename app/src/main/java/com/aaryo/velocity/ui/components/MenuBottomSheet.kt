@@ -174,7 +174,7 @@ fun VelocityMenuSheet(
                 )
                 MenuQuickActionItem(
                     icon = Icons.Default.VisibilityOff,
-                    label = "Incognito",
+                    label = "New Incognito",
                     onClick = {
                         onDismiss()
                         onMenuAction("NEW_INCOGNITO_TAB")

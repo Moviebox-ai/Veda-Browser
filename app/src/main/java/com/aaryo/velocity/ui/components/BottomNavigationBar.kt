@@ -220,12 +220,12 @@ private fun HomeNavButton(
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = if (isActive) Color(0xFF3B82F6) else Color(0xFF94A3B8),
+            tint = if (isActive) Color.White else Color(0xFF94A3B8),
             modifier = Modifier.size(22.dp)
         )
         Text(
             text = label,
-            color = if (isActive) Color(0xFF3B82F6) else Color(0xFF94A3B8),
+            color = if (isActive) Color.White else Color(0xFF94A3B8),
             fontSize = 11.sp,
             fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
             modifier = Modifier.padding(top = 2.dp)
@@ -252,22 +252,24 @@ private fun TabNavButton(
             color = Color.Transparent,
             border = androidx.compose.foundation.BorderStroke(
                 1.5.dp,
-                if (isActive) Color(0xFF3B82F6) else Color(0xFF94A3B8)
+                if (isActive) Color.White else Color(0xFF94A3B8)
             ),
             modifier = Modifier.size(20.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = tabCount.toString(),
-                    color = if (isActive) Color(0xFF3B82F6) else Color(0xFF94A3B8),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                if (tabCount > 1) {
+                    Text(
+                        text = tabCount.toString(),
+                        color = if (isActive) Color.White else Color(0xFF94A3B8),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
         Text(
             text = "Tabs",
-            color = if (isActive) Color(0xFF3B82F6) else Color(0xFF94A3B8),
+            color = if (isActive) Color.White else Color(0xFF94A3B8),
             fontSize = 11.sp,
             fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
             modifier = Modifier.padding(top = 2.dp)

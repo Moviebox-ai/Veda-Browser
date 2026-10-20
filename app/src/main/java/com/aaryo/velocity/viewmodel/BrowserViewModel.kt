@@ -211,12 +211,41 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
                 _activeTabId.value = restored.first().id
             } else {
                 val initialTab = Tab(
+                    id = "tab_home",
                     title = "New Tab",
                     url = "velocity://newtab",
                     adBlockEnabled = _settings.value.adBlockGlobalEnabled,
                     isDesktopMode = _settings.value.desktopSiteDefault
                 )
-                _tabs.value = listOf(initialTab)
+                val googleTab = Tab(
+                    id = "tab_google",
+                    title = "Google",
+                    url = "https://www.google.com",
+                    adBlockEnabled = _settings.value.adBlockGlobalEnabled,
+                    isDesktopMode = _settings.value.desktopSiteDefault
+                )
+                val youtubeTab = Tab(
+                    id = "tab_youtube",
+                    title = "YouTube",
+                    url = "https://m.youtube.com",
+                    adBlockEnabled = _settings.value.adBlockGlobalEnabled,
+                    isDesktopMode = _settings.value.desktopSiteDefault
+                )
+                val newsTab = Tab(
+                    id = "tab_news",
+                    title = "News - Latest Updates",
+                    url = "https://news.google.com",
+                    adBlockEnabled = _settings.value.adBlockGlobalEnabled,
+                    isDesktopMode = _settings.value.desktopSiteDefault
+                )
+                val openAiTab = Tab(
+                    id = "tab_openai",
+                    title = "OpenAI",
+                    url = "https://chat.openai.com",
+                    adBlockEnabled = _settings.value.adBlockGlobalEnabled,
+                    isDesktopMode = _settings.value.desktopSiteDefault
+                )
+                _tabs.value = listOf(initialTab, googleTab, youtubeTab, newsTab, openAiTab)
                 _activeTabId.value = initialTab.id
             }
         }

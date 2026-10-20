@@ -39,7 +39,7 @@ class TabWebViewManager {
             return existing
         }
 
-        val webView = WebView(context.applicationContext).apply {
+        val webView = WebView(context).apply {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -52,7 +52,7 @@ class TabWebViewManager {
             try {
                 ProfileStore.getInstance().getOrCreateProfile("incognito")
                 androidx.webkit.WebViewCompat.setProfile(webView, "incognito")
-            } catch (_: Exception) {
+            } catch (_: Throwable) {
                 // Fallback to standard cookie/cache isolation handled on cleanup
             }
         }
