@@ -3,7 +3,6 @@ package com.aaryo.velocity
 import android.app.SearchManager
 import android.content.Intent
 import android.os.Bundle
-import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -21,11 +20,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
-        try {
-            WebView.setWebContentsDebuggingEnabled(true)
-        } catch (_: Throwable) {
-        }
 
         if (savedInstanceState == null) {
             handleIntent(intent)

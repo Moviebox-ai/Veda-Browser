@@ -39,6 +39,17 @@ class TabWebViewManager {
             return existing
         }
 
+        try {
+            val webviewDir = java.io.File(context.applicationInfo.dataDir, "app_webview")
+            if (webviewDir.exists()) {
+                val seed = java.io.File(webviewDir, "variations_seed")
+                if (seed.exists() && seed.length() < 32L) {
+                    seed.delete()
+                }
+            }
+        } catch (_: Throwable) {
+        }
+
         val webView = WebView(context).apply {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -117,6 +128,7 @@ class TabWebViewManager {
     }
 
     fun applySettingsToAll(settings: BrowserSettings) {
+        if (webViewMap.isEmpty()) return
         for ((_, webView) in webViewMap) {
             webView.settings.javaScriptEnabled = settings.javaScriptEnabled
             webView.settings.textZoom = settings.textZoomPercent
@@ -127,7 +139,10 @@ class TabWebViewManager {
                 )
             }
         }
-        CookieManager.getInstance().setAcceptCookie(settings.cookiesEnabled)
+        try {
+            CookieManager.getInstance().setAcceptCookie(settings.cookiesEnabled)
+        } catch (_: Throwable) {
+        }
     }
 
     fun captureThumbnail(tabId: String): Bitmap? {

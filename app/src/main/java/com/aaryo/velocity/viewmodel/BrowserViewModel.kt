@@ -208,7 +208,8 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
                     )
                 }
                 _tabs.value = restored
-                _activeTabId.value = restored.first().id
+                val homeTab = restored.find { it.isNewTab }
+                _activeTabId.value = homeTab?.id ?: restored.first().id
             } else {
                 val initialTab = Tab(
                     id = "tab_home",
