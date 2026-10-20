@@ -14,15 +14,23 @@ import com.aaryo.velocity.extension.BuiltInExtensions
 import com.aaryo.velocity.extension.ExtensionInjector
 import com.aaryo.velocity.extension.GmBridge
 import com.aaryo.velocity.extension.UserscriptParser
+import android.content.Intent
+import androidx.core.content.pm.ShortcutInfoCompat
+import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.core.graphics.drawable.IconCompat
+import com.aaryo.velocity.R
 import com.aaryo.velocity.model.Bookmark
 import com.aaryo.velocity.model.BrowserSettings
 import com.aaryo.velocity.model.DownloadItem
 import com.aaryo.velocity.model.Extension
 import com.aaryo.velocity.model.HistoryItem
+import com.aaryo.velocity.model.QuickDialShortcut
+import com.aaryo.velocity.model.SavedCredential
 import com.aaryo.velocity.model.ShieldStats
 import com.aaryo.velocity.model.Tab
 import com.aaryo.velocity.privacy.AdBlocker
 import com.aaryo.velocity.security.CertificateInfo
+import java.net.URLEncoder
 import com.aaryo.velocity.ui.dialogs.SslWarningState
 import com.aaryo.velocity.ui.dialogs.WebPermissionState
 import com.aaryo.velocity.webview.TabWebViewManager
@@ -111,6 +119,12 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     // Extension & userscript states
     val extensionRepository = ExtensionRepository(application)
 
+    private val _credentials = MutableStateFlow<List<SavedCredential>>(emptyList())
+    val credentials: StateFlow<List<SavedCredential>> = _credentials.asStateFlow()
+
+    private val _quickDials = MutableStateFlow<List<QuickDialShortcut>>(emptyList())
+    val quickDials: StateFlow<List<QuickDialShortcut>> = _quickDials.asStateFlow()
+
     private val _extensions = MutableStateFlow<List<Extension>>(emptyList())
     val extensions: StateFlow<List<Extension>> = _extensions.asStateFlow()
 
@@ -160,6 +174,12 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         }
         viewModelScope.launch {
             repository.shieldStatsFlow.collect { _shieldStats.value = it }
+        }
+        viewModelScope.launch {
+            repository.credentialsFlow.collect { _credentials.value = it }
+        }
+        viewModelScope.launch {
+            repository.quickDialsFlow.collect { _quickDials.value = it }
         }
         viewModelScope.launch {
             extensionRepository.extensionsFlow.collect { list ->
@@ -642,6 +662,86 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     fun onActivityStop() {
         tabWebViewManager.saveAllStates()
+    }
+
+    fun addCredential(credential: SavedCredential) {
+        viewModelScope.launch {
+            repository.addCredential(credential)
+            showToast("Password saved for ${credential.website}")
+        }
+    }
+
+    fun removeCredential(id: String) {
+        viewModelScope.launch {
+            repository.removeCredential(id)
+            showToast("Password deleted")
+        }
+    }
+
+    fun addQuickDial(shortcut: QuickDialShortcut) {
+        viewModelScope.launch {
+            repository.addQuickDial(shortcut)
+            showToast("Shortcut added: ${shortcut.title}")
+        }
+    }
+
+    fun removeQuickDial(id: String) {
+        viewModelScope.launch {
+            repository.removeQuickDial(id)
+            showToast("Shortcut removed")
+        }
+    }
+
+    fun addShortcutToHomeScreen(title: String, url: String) {
+        val app = getApplication<Application>()
+        if (!ShortcutManagerCompat.isRequestPinShortcutSupported(app)) {
+            showToast("Home screen shortcuts not supported on this launcher")
+            return
+        }
+
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply {
+                setClass(app, com.aaryo.velocity.MainActivity::class.java)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+
+            val pinShortcutInfo = ShortcutInfoCompat.Builder(app, "shortcut_${System.currentTimeMillis()}")
+                .setIcon(IconCompat.createWithResource(app, R.mipmap.ic_launcher))
+                .setShortLabel(if (title.isNotBlank()) title.take(15) else "Shortcut")
+                .setLongLabel(title)
+                .setIntent(intent)
+                .build()
+
+            ShortcutManagerCompat.requestPinShortcut(app, pinShortcutInfo, null)
+            showToast("Shortcut '$title' added to Home Screen")
+        } catch (e: Exception) {
+            showToast("Failed to create shortcut: ${e.localizedMessage}")
+        }
+    }
+
+    fun translateCurrentPage() {
+        val tab = getActiveTab()
+        if (tab == null || tab.isNewTab || tab.url.isBlank()) {
+            showToast("No webpage to translate")
+            return
+        }
+        try {
+            val encodedUrl = URLEncoder.encode(tab.url, "UTF-8")
+            val targetUrl = "https://translate.google.com/translate?sl=auto&tl=hi&u=$encodedUrl"
+            navigateTo(targetUrl)
+            showToast("Translating page to Hindi...")
+        } catch (_: Exception) {
+            showToast("Could not translate page")
+        }
+    }
+
+    fun navigateToHome() {
+        val home = _settings.value.homepageUrl.trim()
+        if (home.isNotBlank() && home != "velocity://newtab") {
+            navigateTo(home)
+        } else {
+            navigateTo("velocity://newtab")
+        }
     }
 
     override fun onCleared() {

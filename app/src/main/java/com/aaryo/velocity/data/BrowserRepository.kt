@@ -11,6 +11,8 @@ import com.aaryo.velocity.model.Bookmark
 import com.aaryo.velocity.model.BrowserSettings
 import com.aaryo.velocity.model.DownloadItem
 import com.aaryo.velocity.model.HistoryItem
+import com.aaryo.velocity.model.QuickDialShortcut
+import com.aaryo.velocity.model.SavedCredential
 import com.aaryo.velocity.model.ShieldStats
 import com.aaryo.velocity.model.Tab
 import com.google.gson.Gson
@@ -48,6 +50,8 @@ class BrowserRepository(private val context: Context) {
         private val KEY_DOWNLOADS = stringPreferencesKey("key_downloads")
         private val KEY_SETTINGS = stringPreferencesKey("key_settings")
         private val KEY_SHIELD_STATS = stringPreferencesKey("key_shield_stats")
+        private val KEY_CREDENTIALS = stringPreferencesKey("key_credentials")
+        private val KEY_QUICK_DIALS = stringPreferencesKey("key_quick_dials")
 
         const val MAX_HISTORY_ITEMS = 5000
     }
@@ -262,6 +266,90 @@ class BrowserRepository(private val context: Context) {
         )
         context.dataStore.edit { preferences ->
             preferences[KEY_SHIELD_STATS] = gson.toJson(updated)
+        }
+    }
+
+    // Credentials / Passwords Vault
+    val credentialsFlow: Flow<List<SavedCredential>> = context.dataStore.data
+        .catch { exception ->
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
+        }
+        .map { preferences ->
+            val json = preferences[KEY_CREDENTIALS] ?: return@map getDefaultCredentials()
+            try {
+                val type = object : TypeToken<List<SavedCredential>>() {}.type
+                gson.fromJson<List<SavedCredential>>(json, type) ?: getDefaultCredentials()
+            } catch (_: Exception) {
+                getDefaultCredentials()
+            }
+        }
+
+    private fun getDefaultCredentials(): List<SavedCredential> {
+        return listOf(
+            SavedCredential(id = "1", website = "google.com", username = "user@gmail.com", passwordSecret = "MyGooglePass#2026"),
+            SavedCredential(id = "2", website = "github.com", username = "developer-pro", passwordSecret = "GitSecure!Token99"),
+            SavedCredential(id = "3", website = "netflix.com", username = "streamer@live.com", passwordSecret = "MovieNight#4K")
+        )
+    }
+
+    suspend fun addCredential(credential: SavedCredential) = withContext(Dispatchers.IO) {
+        val current = credentialsFlow.first().toMutableList()
+        current.removeAll { it.id == credential.id || (it.website == credential.website && it.username == credential.username) }
+        current.add(0, credential)
+        context.dataStore.edit { preferences ->
+            preferences[KEY_CREDENTIALS] = gson.toJson(current)
+        }
+    }
+
+    suspend fun removeCredential(id: String) = withContext(Dispatchers.IO) {
+        val updated = credentialsFlow.first().filterNot { it.id == id }
+        context.dataStore.edit { preferences ->
+            preferences[KEY_CREDENTIALS] = gson.toJson(updated)
+        }
+    }
+
+    // Quick Dials (New Tab Shortcuts)
+    val quickDialsFlow: Flow<List<QuickDialShortcut>> = context.dataStore.data
+        .catch { exception ->
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
+        }
+        .map { preferences ->
+            val json = preferences[KEY_QUICK_DIALS] ?: return@map getDefaultQuickDials()
+            try {
+                val type = object : TypeToken<List<QuickDialShortcut>>() {}.type
+                gson.fromJson<List<QuickDialShortcut>>(json, type) ?: getDefaultQuickDials()
+            } catch (_: Exception) {
+                getDefaultQuickDials()
+            }
+        }
+
+    private fun getDefaultQuickDials(): List<QuickDialShortcut> {
+        return listOf(
+            QuickDialShortcut("youtube", "YouTube", "https://youtube.com", "YOUTUBE"),
+            QuickDialShortcut("google", "Google", "https://google.com", "GOOGLE"),
+            QuickDialShortcut("gmail", "Gmail", "https://mail.google.com", "GMAIL"),
+            QuickDialShortcut("chatgpt", "ChatGPT", "https://chatgpt.com", "CHATGPT"),
+            QuickDialShortcut("github", "GitHub", "https://github.com", "GITHUB"),
+            QuickDialShortcut("facebook", "Facebook", "https://facebook.com", "FACEBOOK"),
+            QuickDialShortcut("instagram", "Instagram", "https://instagram.com", "INSTAGRAM"),
+            QuickDialShortcut("amazon", "Amazon", "https://amazon.com", "AMAZON"),
+            QuickDialShortcut("flipkart", "Flipkart", "https://flipkart.com", "FLIPKART")
+        )
+    }
+
+    suspend fun addQuickDial(shortcut: QuickDialShortcut) = withContext(Dispatchers.IO) {
+        val current = quickDialsFlow.first().toMutableList()
+        current.removeAll { it.url == shortcut.url }
+        current.add(shortcut)
+        context.dataStore.edit { preferences ->
+            preferences[KEY_QUICK_DIALS] = gson.toJson(current)
+        }
+    }
+
+    suspend fun removeQuickDial(id: String) = withContext(Dispatchers.IO) {
+        val updated = quickDialsFlow.first().filterNot { it.id == id }
+        context.dataStore.edit { preferences ->
+            preferences[KEY_QUICK_DIALS] = gson.toJson(updated)
         }
     }
 }

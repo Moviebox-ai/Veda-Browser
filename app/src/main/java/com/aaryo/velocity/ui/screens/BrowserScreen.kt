@@ -76,6 +76,8 @@ fun BrowserScreen(
     val extensionsGlobalEnabled by viewModel.extensionsGlobalEnabled.collectAsState()
     val selectedExtensionForDetail by viewModel.selectedExtensionForDetail.collectAsState()
     val pendingInstallScript by viewModel.pendingInstallScript.collectAsState()
+    val credentials by viewModel.credentials.collectAsState()
+    val quickDials by viewModel.quickDials.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     var currentWebView by remember { mutableStateOf<WebView?>(null) }
@@ -159,8 +161,12 @@ fun BrowserScreen(
                             "PASSWORDS" -> viewModel.openSheet(SheetType.PASSWORDS)
                             "APPEARANCE" -> viewModel.openSheet(SheetType.APPEARANCE)
                             "TAB_SWITCHER" -> viewModel.openSheet(SheetType.TAB_SWITCHER)
-                            "TRANSLATE" -> viewModel.openSheet(SheetType.AI_ASSISTANT)
-                            "ADD_HOME_SCREEN" -> viewModel.showToast("Shortcut added to Home Screen")
+                            "TRANSLATE" -> viewModel.translateCurrentPage()
+                            "ADD_HOME_SCREEN" -> {
+                                activeTab?.let { tab ->
+                                    viewModel.addShortcutToHomeScreen(tab.title, tab.url)
+                                }
+                            }
                             "SHARE" -> {
                                 activeTab?.url?.let { url ->
                                     val sendIntent = Intent().apply {
@@ -203,6 +209,9 @@ fun BrowserScreen(
                                 isIncognito = activeTab.isIncognito,
                                 shieldStats = shieldStats,
                                 settings = settings,
+                                quickDials = quickDials,
+                                onAddQuickDial = { viewModel.addQuickDial(it) },
+                                onDeleteQuickDial = { viewModel.removeQuickDial(it) },
                                 onNavigate = { viewModel.navigateTo(it) },
                                 onOpenBookmarks = { viewModel.openSheet(SheetType.BOOKMARKS) },
                                 onOpenHistory = { viewModel.openSheet(SheetType.HISTORY) },
@@ -268,7 +277,7 @@ fun BrowserScreen(
                     tabCount = tabs.size,
                     onGoBack = { currentWebView?.goBack() },
                     onGoForward = { currentWebView?.goForward() },
-                    onGoHome = { viewModel.navigateTo("velocity://newtab") },
+                    onGoHome = { viewModel.navigateToHome() },
                     onOpenTabs = { viewModel.openSheet(SheetType.TAB_SWITCHER) },
                     onOpenAiAssistant = { viewModel.openSheet(SheetType.AI_ASSISTANT) },
                     onOpenMenu = { viewModel.openSheet(SheetType.MENU) }
@@ -339,6 +348,7 @@ fun BrowserScreen(
                         onUpdateSettings = { viewModel.updateSettings(it) },
                         onOpenClearData = { viewModel.openSheet(SheetType.CLEAR_DATA) },
                         onOpenAppearance = { viewModel.openSheet(SheetType.APPEARANCE) },
+                        onOpenDownloads = { viewModel.openSheet(SheetType.DOWNLOADS) },
                         onDismiss = { viewModel.closeSheet() }
                     )
                 }
@@ -360,8 +370,12 @@ fun BrowserScreen(
                                 "SETTINGS" -> viewModel.openSheet(SheetType.SETTINGS)
                                 "TAB_SWITCHER" -> viewModel.openSheet(SheetType.TAB_SWITCHER)
                                 "FIND_IN_PAGE" -> viewModel.setFindInPageVisible(true)
-                                "TRANSLATE" -> viewModel.openSheet(SheetType.AI_ASSISTANT)
-                                "ADD_HOME_SCREEN" -> viewModel.showToast("Shortcut added to Home Screen")
+                                "TRANSLATE" -> viewModel.translateCurrentPage()
+                                "ADD_HOME_SCREEN" -> {
+                                    activeTab?.let { tab ->
+                                        viewModel.addShortcutToHomeScreen(tab.title, tab.url)
+                                    }
+                                }
                             }
                         },
                         onDismiss = { viewModel.closeSheet() }
@@ -382,6 +396,9 @@ fun BrowserScreen(
                 }
                 SheetType.PASSWORDS -> {
                     PasswordsScreen(
+                        credentials = credentials,
+                        onAddCredential = { viewModel.addCredential(it) },
+                        onDeleteCredential = { viewModel.removeCredential(it) },
                         onDismiss = { viewModel.closeSheet() }
                     )
                 }

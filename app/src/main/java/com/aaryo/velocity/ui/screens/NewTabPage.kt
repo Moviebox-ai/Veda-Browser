@@ -96,12 +96,7 @@ import com.aaryo.velocity.ui.theme.VelocityBlue
 import com.aaryo.velocity.ui.theme.VelocityCyan
 import com.aaryo.velocity.ui.theme.VelocityPurple
 
-data class QuickDialShortcut(
-    val id: String,
-    val title: String,
-    val url: String,
-    val brandType: String
-)
+import com.aaryo.velocity.model.QuickDialShortcut
 
 data class DiscoverArticle(
     val id: String,
@@ -118,6 +113,9 @@ fun NewTabPage(
     isIncognito: Boolean,
     shieldStats: ShieldStats,
     settings: BrowserSettings = BrowserSettings(),
+    quickDials: List<QuickDialShortcut> = emptyList(),
+    onAddQuickDial: (QuickDialShortcut) -> Unit = {},
+    onDeleteQuickDial: (String) -> Unit = {},
     onNavigate: (String) -> Unit,
     onOpenBookmarks: () -> Unit,
     onOpenHistory: () -> Unit,
@@ -130,21 +128,6 @@ fun NewTabPage(
     var searchInput by remember { mutableStateOf("") }
     var showAddDialog by remember { mutableStateOf(false) }
 
-    // Mockup-exact quick dials
-    val quickDials = remember {
-        mutableStateListOf(
-            QuickDialShortcut("youtube", "YouTube", "https://youtube.com", "YOUTUBE"),
-            QuickDialShortcut("google", "Google", "https://google.com", "GOOGLE"),
-            QuickDialShortcut("gmail", "Gmail", "https://mail.google.com", "GMAIL"),
-            QuickDialShortcut("chatgpt", "ChatGPT", "https://chatgpt.com", "CHATGPT"),
-            QuickDialShortcut("github", "GitHub", "https://github.com", "GITHUB"),
-            QuickDialShortcut("facebook", "Facebook", "https://facebook.com", "FACEBOOK"),
-            QuickDialShortcut("instagram", "Instagram", "https://instagram.com", "INSTAGRAM"),
-            QuickDialShortcut("amazon", "Amazon", "https://amazon.com", "AMAZON"),
-            QuickDialShortcut("flipkart", "Flipkart", "https://flipkart.com", "FLIPKART")
-        )
-    }
-
     var selectedDiscoverCategory by remember { mutableIntStateOf(0) }
     val discoverCategories = listOf("All", "News", "Technology", "Business", "Sports", "Entertainment")
 
@@ -152,41 +135,76 @@ fun NewTabPage(
         listOf(
             DiscoverArticle(
                 id = "1",
-                title = "The future of web browsing is here",
+                title = "The future of web browsing with on-device AI and enhanced privacy",
                 category = "Technology",
-                source = "Velocity",
-                timeAgo = "2h ago",
+                source = "Velocity Tech",
+                timeAgo = "1h ago",
                 url = "https://blog.google/technology/ai/",
                 gradientColors = listOf(Color(0xFF1E3A8A), Color(0xFF6B21A8), Color(0xFF0F172A))
             ),
             DiscoverArticle(
                 id = "2",
-                title = "Exploring the most beautiful places on Earth",
-                category = "Travel",
-                source = "National Geographic",
-                timeAgo = "6h ago",
-                url = "https://www.nationalgeographic.com/travel",
-                gradientColors = listOf(Color(0xFF065F46), Color(0xFF0284C7), Color(0xFF064E3B))
+                title = "Global summits announce new cyber defense frameworks for 2026",
+                category = "News",
+                source = "Reuters",
+                timeAgo = "3h ago",
+                url = "https://www.reuters.com",
+                gradientColors = listOf(Color(0xFF1E293B), Color(0xFF0F172A), Color(0xFF334155))
             ),
             DiscoverArticle(
                 id = "3",
-                title = "AI is changing the world and how we work",
+                title = "Quantum computing chips make massive leap in energy efficiency",
                 category = "Technology",
                 source = "TechCrunch",
-                timeAgo = "1d ago",
+                timeAgo = "4h ago",
                 url = "https://techcrunch.com",
                 gradientColors = listOf(Color(0xFF701A75), Color(0xFF9333EA), Color(0xFF1E1B4B))
             ),
             DiscoverArticle(
                 id = "4",
-                title = "Top 10 productivity tools for 2026",
+                title = "Global markets surge as renewable tech investments hit record high",
+                category = "Business",
+                source = "Bloomberg",
+                timeAgo = "6h ago",
+                url = "https://www.bloomberg.com",
+                gradientColors = listOf(Color(0xFF9A3412), Color(0xFFC2410C), Color(0xFF431407))
+            ),
+            DiscoverArticle(
+                id = "5",
+                title = "Champions League thriller ends in dramatic penalty shootout victory",
+                category = "Sports",
+                source = "ESPN",
+                timeAgo = "8h ago",
+                url = "https://www.espn.com",
+                gradientColors = listOf(Color(0xFF14532D), Color(0xFF15803D), Color(0xFF052E16))
+            ),
+            DiscoverArticle(
+                id = "6",
+                title = "New sci-fi blockbuster breaks global box office records opening weekend",
+                category = "Entertainment",
+                source = "Variety",
+                timeAgo = "10h ago",
+                url = "https://variety.com",
+                gradientColors = listOf(Color(0xFF831843), Color(0xFFDB2777), Color(0xFF500724))
+            ),
+            DiscoverArticle(
+                id = "7",
+                title = "Top 10 productivity and automation tools transforming work in 2026",
                 category = "Business",
                 source = "Wired",
                 timeAgo = "1d ago",
                 url = "https://wired.com",
-                gradientColors = listOf(Color(0xFF9A3412), Color(0xFFC2410C), Color(0xFF431407))
+                gradientColors = listOf(Color(0xFF065F46), Color(0xFF0284C7), Color(0xFF064E3B))
             )
         )
+    }
+
+    val filteredArticles = remember(selectedDiscoverCategory, articles) {
+        if (selectedDiscoverCategory == 0) articles
+        else {
+            val selectedCat = discoverCategories[selectedDiscoverCategory]
+            articles.filter { it.category.equals(selectedCat, ignoreCase = true) }
+        }
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -385,17 +403,20 @@ fun NewTabPage(
             Spacer(modifier = Modifier.height(28.dp))
 
             // Shortcuts Grid (4 Columns, matching mockup)
+            val gridRows = ((quickDials.size + 1) + 3) / 4
+            val gridHeight = (gridRows * 80).coerceAtLeast(160).dp
+
             LazyVerticalGrid(
                 columns = GridCells.Fixed(4),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(210.dp)
+                    .height(gridHeight)
                     .widthIn(max = 560.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 userScrollEnabled = false
             ) {
-                items(quickDials) { item ->
+                items(quickDials, key = { it.id }) { item ->
                     QuickDialItemTile(
                         item = item,
                         onClick = { onNavigate(item.url) }
@@ -563,7 +584,7 @@ fun NewTabPage(
                     .widthIn(max = 560.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                articles.forEach { article ->
+                filteredArticles.forEach { article ->
                     DiscoverArticleCard(
                         article = article,
                         onClick = { onNavigate(article.url) }
@@ -606,7 +627,7 @@ fun NewTabPage(
                 TextButton(
                     onClick = {
                         if (newTitle.isNotBlank() && newUrl.isNotBlank()) {
-                            quickDials.add(
+                            onAddQuickDial(
                                 QuickDialShortcut(
                                     id = System.currentTimeMillis().toString(),
                                     title = newTitle.trim(),

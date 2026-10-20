@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Search
@@ -51,7 +52,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -70,10 +73,12 @@ fun AiAssistantDialog(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
+    val clipboardManager = LocalClipboardManager.current
     var isLoading by remember { mutableStateOf(false) }
     var activeActionTitle by remember { mutableStateOf<String?>(null) }
     var resultText by remember { mutableStateOf<String?>(null) }
     var customQuery by remember { mutableStateOf("") }
+    var copied by remember { mutableStateOf(false) }
 
     val pageTitle = tab?.title?.takeIf { it.isNotBlank() } ?: "Current Webpage"
     val pageUrl = tab?.url ?: ""
@@ -253,6 +258,23 @@ fun AiAssistantDialog(
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
                             )
+
+                            IconButton(
+                                onClick = {
+                                    resultText?.let {
+                                        clipboardManager.setText(AnnotatedString(it))
+                                        copied = true
+                                    }
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ContentCopy,
+                                    contentDescription = "Copy result",
+                                    tint = if (copied) VelocityCyan else Color(0xFF94A3B8),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
