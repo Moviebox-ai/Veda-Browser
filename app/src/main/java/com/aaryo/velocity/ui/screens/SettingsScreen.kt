@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -20,37 +22,26 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Accessibility
-import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Cookie
-import androidx.compose.material.icons.filled.DesktopWindows
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Eco
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -60,7 +51,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -74,10 +64,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aaryo.velocity.model.BrowserSettings
 import com.aaryo.velocity.model.SearchEngine
-import com.aaryo.velocity.ui.components.VelocityLogoIcon
 import com.aaryo.velocity.ui.theme.VelocityBlue
 import com.aaryo.velocity.ui.theme.VelocityCyan
 
+/**
+ * Screen 5: Settings
+ * Exact replica of the reference mockup:
+ * - Header: "← Settings"
+ * - List rows with circular colored icon badges:
+ *   1. Search Engine (Blue circle) -> "Google" >
+ *   2. Privacy & Security (Blue circle) >
+ *   3. Ad Blocker (Red circle) -> Switch (ON)
+ *   4. Data Saver (Green circle) -> Switch (ON)
+ *   5. Theme (Orange circle) -> "System" >
+ *   6. Appearance (Purple circle) >
+ *   7. Download Settings (Blue circle) >
+ *   8. Languages (Magenta circle) >
+ *   9. Home Page (Cyan circle) >
+ *   10. Advanced (Cyan circle) >
+ *   11. About (Blue circle) >
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -95,15 +101,12 @@ fun SettingsScreen(
 
     val scrollState = rememberScrollState()
 
-    // Dialog control states
-    var showSearchEngines by remember { mutableStateOf(false) }
-    var showGeneralDialog by remember { mutableStateOf(false) }
+    // Dialogs
+    var showSearchEnginesDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
-    var showTabsDialog by remember { mutableStateOf(false) }
-    var showHomepageDialog by remember { mutableStateOf(false) }
-    var showAccessibilityDialog by remember { mutableStateOf(false) }
+    var showHomePageDialog by remember { mutableStateOf(false) }
     var showLanguagesDialog by remember { mutableStateOf(false) }
-    var showDownloadsDialog by remember { mutableStateOf(false) }
+    var showAdvancedDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -130,11 +133,11 @@ fun SettingsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF080B11)
+                    containerColor = Color(0xFF070B19)
                 )
             )
         },
-        containerColor = Color(0xFF080B11),
+        containerColor = Color(0xFF070B19),
         modifier = modifier.fillMaxSize()
     ) { padding ->
         Column(
@@ -142,650 +145,330 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(scrollState)
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            // Appearance & Themes Banner
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = VelocityBlue.copy(alpha = 0.15f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, VelocityBlue),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onOpenAppearance() }
-                    .padding(bottom = 12.dp)
-                    .testTag("settings_appearance_item")
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Palette,
-                            contentDescription = "Appearance",
-                            tint = VelocityCyan,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Column {
-                            Text(
-                                text = "Appearance & Themes",
-                                color = Color.White,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "${settings.themeMode.lowercase().replaceFirstChar { it.uppercase() }} • ${settings.wallpaperTheme.lowercase().replaceFirstChar { it.uppercase() }} wallpaper",
-                                color = Color(0xFF94A3B8),
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
-
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "Open",
-                        tint = VelocityCyan,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-
-            // Categories
-            SettingsNavRow(
-                icon = Icons.Default.Tune,
-                title = "General",
-                value = "Workspace: ${settings.activeWorkspace}",
-                onClick = { showGeneralDialog = true }
+            // 1. Search Engine (Blue circle)
+            SettingsMockRow(
+                icon = Icons.Default.Search,
+                iconBg = Color(0xFF2563EB),
+                title = "Search Engine",
+                subtitle = settings.defaultSearchEngine.displayName,
+                onClick = { showSearchEnginesDialog = true }
             )
 
-            SettingsNavRow(
+            // 2. Privacy & Security (Blue circle)
+            SettingsMockRow(
                 icon = Icons.Default.Security,
+                iconBg = Color(0xFF2563EB),
                 title = "Privacy & Security",
-                value = if (settings.adBlockGlobalEnabled) "Shield Active" else "Shield Paused",
                 onClick = { showPrivacyDialog = true }
             )
 
-            SettingsNavRow(
-                icon = Icons.Default.Search,
-                title = "Search Engine",
-                value = "${settings.defaultSearchEngine.displayName} >",
-                onClick = { showSearchEngines = !showSearchEngines }
+            // 3. Ad Blocker (Red circle) with Switch
+            SettingsSwitchRow(
+                icon = Icons.Default.Shield,
+                iconBg = Color(0xFFEF4444),
+                title = "Ad Blocker",
+                checked = settings.adBlockGlobalEnabled,
+                onCheckedChange = { onUpdateSettings(settings.copy(adBlockGlobalEnabled = it)) }
             )
 
-            if (showSearchEngines) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF131926),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 6.dp)
-                ) {
-                    Column(modifier = Modifier.padding(8.dp)) {
+            // 4. Data Saver (Green circle) with Switch
+            SettingsSwitchRow(
+                icon = Icons.Default.Eco,
+                iconBg = Color(0xFF10B981),
+                title = "Data Saver",
+                checked = settings.blockThirdPartyCookies,
+                onCheckedChange = { onUpdateSettings(settings.copy(blockThirdPartyCookies = it)) }
+            )
+
+            // 5. Theme (Orange circle) -> "System" >
+            SettingsMockRow(
+                icon = Icons.Default.Palette,
+                iconBg = Color(0xFFF97316),
+                title = "Theme",
+                subtitle = settings.themeMode.lowercase().replaceFirstChar { it.uppercase() },
+                onClick = onOpenAppearance
+            )
+
+            // 6. Appearance (Purple circle)
+            SettingsMockRow(
+                icon = Icons.Default.Tune,
+                iconBg = Color(0xFF8B5CF6),
+                title = "Appearance",
+                onClick = onOpenAppearance
+            )
+
+            // 7. Download Settings (Blue circle)
+            SettingsMockRow(
+                icon = Icons.Default.FileDownload,
+                iconBg = Color(0xFF2563EB),
+                title = "Download Settings",
+                onClick = onOpenDownloads
+            )
+
+            // 8. Languages (Magenta circle)
+            SettingsMockRow(
+                icon = Icons.Default.Language,
+                iconBg = Color(0xFFD946EF),
+                title = "Languages",
+                subtitle = "English",
+                onClick = { showLanguagesDialog = true }
+            )
+
+            // 9. Home Page (Cyan circle)
+            SettingsMockRow(
+                icon = Icons.Default.Home,
+                iconBg = Color(0xFF06B6D4),
+                title = "Home Page",
+                subtitle = if (settings.homepageUrl == "velocity://newtab") "Velocity Start" else settings.homepageUrl,
+                onClick = { showHomePageDialog = true }
+            )
+
+            // 10. Advanced (Cyan/Blue circle)
+            SettingsMockRow(
+                icon = Icons.Default.Code,
+                iconBg = Color(0xFF0284C7),
+                title = "Advanced",
+                onClick = { showAdvancedDialog = true }
+            )
+
+            // 11. About (Blue circle)
+            SettingsMockRow(
+                icon = Icons.Default.Info,
+                iconBg = Color(0xFF3B82F6),
+                title = "About",
+                onClick = { showAboutDialog = true }
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+
+        // Search Engine Selection Dialog
+        if (showSearchEnginesDialog) {
+            AlertDialog(
+                onDismissRequest = { showSearchEnginesDialog = false },
+                title = { Text("Default Search Engine", color = Color.White) },
+                text = {
+                    Column {
                         SearchEngine.entries.forEach { engine ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
                                         onUpdateSettings(settings.copy(defaultSearchEngine = engine))
-                                        showSearchEngines = false
+                                        showSearchEnginesDialog = false
                                     }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    .padding(vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 RadioButton(
                                     selected = settings.defaultSearchEngine == engine,
                                     onClick = {
                                         onUpdateSettings(settings.copy(defaultSearchEngine = engine))
-                                        showSearchEngines = false
+                                        showSearchEnginesDialog = false
                                     },
-                                    colors = RadioButtonDefaults.colors(selectedColor = VelocityCyan)
+                                    colors = RadioButtonDefaults.colors(selectedColor = VelocityBlue)
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = engine.displayName,
-                                    color = Color.White,
-                                    fontSize = 14.sp
-                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(engine.displayName, color = Color.White, fontSize = 15.sp)
                             }
                         }
                     }
-                }
-            }
-
-            SettingsNavRow(
-                icon = Icons.Default.Image,
-                title = "Wallpaper",
-                value = "${settings.wallpaperTheme} >",
-                onClick = onOpenAppearance
-            )
-
-            SettingsNavRow(
-                icon = Icons.Default.Tab,
-                title = "Tabs",
-                value = if (settings.desktopSiteDefault) "Desktop Site" else "Mobile Grid",
-                onClick = { showTabsDialog = true }
-            )
-
-            SettingsNavRow(
-                icon = Icons.Default.Home,
-                title = "Homepage",
-                value = if (settings.homepageUrl == "velocity://newtab") "Start Page" else "Custom URL",
-                onClick = { showHomepageDialog = true }
-            )
-
-            SettingsNavRow(
-                icon = Icons.Default.Accessibility,
-                title = "Accessibility & Text Zoom",
-                value = "${settings.textZoomPercent}% >",
-                onClick = { showAccessibilityDialog = true }
-            )
-
-            SettingsNavRow(
-                icon = Icons.Default.Language,
-                title = "Languages & Translation",
-                value = "English / Hindi >",
-                onClick = { showLanguagesDialog = true }
-            )
-
-            SettingsNavRow(
-                icon = Icons.Default.Download,
-                title = "Downloads Storage",
-                value = "Downloads folder >",
-                onClick = { showDownloadsDialog = true }
-            )
-
-            HorizontalDivider(
-                color = Color(0x2238BDF8),
-                thickness = 1.dp,
-                modifier = Modifier.padding(vertical = 12.dp)
-            )
-
-            // Switch items
-            Text(
-                text = "Browsing Engine",
-                color = VelocityCyan,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            SettingsSwitchRow(
-                icon = Icons.Default.Shield,
-                title = "Velocity Shield",
-                subtitle = "Block ads, trackers, and malicious scripts",
-                checked = settings.adBlockGlobalEnabled,
-                onCheckedChange = { onUpdateSettings(settings.copy(adBlockGlobalEnabled = it)) }
-            )
-
-            SettingsSwitchRow(
-                icon = Icons.Default.Lock,
-                title = "Do Not Track (DNT)",
-                subtitle = "Send DNT header with every page visit",
-                checked = settings.doNotTrackEnabled,
-                onCheckedChange = { onUpdateSettings(settings.copy(doNotTrackEnabled = it)) }
-            )
-
-            SettingsSwitchRow(
-                icon = Icons.Default.DesktopWindows,
-                title = "Desktop Site by Default",
-                subtitle = "Request desktop view for all sites",
-                checked = settings.desktopSiteDefault,
-                onCheckedChange = { onUpdateSettings(settings.copy(desktopSiteDefault = it)) }
-            )
-
-            SettingsSwitchRow(
-                icon = Icons.Default.Code,
-                title = "JavaScript Enabled",
-                subtitle = "Execute modern web application scripts",
-                checked = settings.javaScriptEnabled,
-                onCheckedChange = { onUpdateSettings(settings.copy(javaScriptEnabled = it)) }
-            )
-
-            SettingsSwitchRow(
-                icon = Icons.Default.Cookie,
-                title = "Allow Cookies",
-                subtitle = "Retain user session logins and preferences",
-                checked = settings.cookiesEnabled,
-                onCheckedChange = { onUpdateSettings(settings.copy(cookiesEnabled = it)) }
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Clear browsing data button
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onOpenClearData() }
-                    .padding(vertical = 12.dp)
-                    .testTag("setting_clear_data_btn"),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = Color(0x33EF4444),
-                    modifier = Modifier.size(38.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.CleaningServices,
-                            contentDescription = "Clear Data",
-                            tint = Color(0xFFEF4444),
-                            modifier = Modifier.size(20.dp)
-                        )
+                },
+                confirmButton = {
+                    TextButton(onClick = { showSearchEnginesDialog = false }) {
+                        Text("Done", color = VelocityCyan)
                     }
-                }
-                Spacer(modifier = Modifier.width(14.dp))
-                Column {
-                    Text(
-                        text = "Clear Browsing Data",
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 15.sp,
-                        color = Color(0xFFEF4444)
-                    )
-                    Text(
-                        text = "Clear history, cached images, cookies, and local storage",
-                        fontSize = 12.sp,
-                        color = Color(0xFF94A3B8)
-                    )
-                }
-            }
-
-            HorizontalDivider(
-                color = Color(0x2238BDF8),
-                thickness = 1.dp,
-                modifier = Modifier.padding(vertical = 12.dp)
+                },
+                containerColor = Color(0xFF131927)
             )
-
-            // About Velocity
-            SettingsNavRow(
-                icon = Icons.Default.Info,
-                title = "About Velocity",
-                value = "v1.0.0 >",
-                onClick = { showAboutDialog = true }
-            )
-
-            Spacer(modifier = Modifier.height(30.dp))
         }
-    }
 
-    // 1. General Settings Dialog
-    if (showGeneralDialog) {
-        val workspaces = listOf("Personal", "Work", "Study", "Entertainment")
-        AlertDialog(
-            onDismissRequest = { showGeneralDialog = false },
-            title = { Text("General Settings", color = Color.White, fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    Text("Active Workspace:", color = VelocityCyan, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    workspaces.forEach { ws ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onUpdateSettings(settings.copy(activeWorkspace = ws)) }
-                                .padding(vertical = 4.dp)
-                        ) {
-                            RadioButton(
-                                selected = settings.activeWorkspace == ws,
-                                onClick = { onUpdateSettings(settings.copy(activeWorkspace = ws)) },
-                                colors = RadioButtonDefaults.colors(selectedColor = VelocityCyan)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(ws, color = Color.White, fontSize = 14.sp)
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showGeneralDialog = false }) {
-                    Text("Done", color = VelocityCyan)
-                }
-            },
-            containerColor = Color(0xFF131926)
-        )
-    }
-
-    // 2. Privacy & Security Dialog
-    if (showPrivacyDialog) {
-        AlertDialog(
-            onDismissRequest = { showPrivacyDialog = false },
-            title = { Text("Privacy & Security", color = Color.White, fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    SettingsSwitchRow(
-                        icon = Icons.Default.CleaningServices,
-                        title = "Clear Data on Exit",
-                        subtitle = "Auto-clear cache and cookies when closed",
-                        checked = settings.clearDataOnExit,
-                        onCheckedChange = { onUpdateSettings(settings.copy(clearDataOnExit = it)) }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SettingsSwitchRow(
-                        icon = Icons.Default.Palette,
-                        title = "Force Dark Web Content",
-                        subtitle = "Invert web page colors for dark mode",
-                        checked = settings.forceDarkWebContent,
-                        onCheckedChange = { onUpdateSettings(settings.copy(forceDarkWebContent = it)) }
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showPrivacyDialog = false }) {
-                    Text("Close", color = VelocityCyan)
-                }
-            },
-            containerColor = Color(0xFF131926)
-        )
-    }
-
-    // 3. Tabs Dialog
-    if (showTabsDialog) {
-        AlertDialog(
-            onDismissRequest = { showTabsDialog = false },
-            title = { Text("Tabs Management", color = Color.White, fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    Text(
-                        text = "Velocity uses isolated Chromium process contexts for Incognito tabs, preventing cookies or cache leakage.",
-                        color = Color(0xFF94A3B8),
-                        fontSize = 13.sp,
-                        lineHeight = 18.sp
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                    SettingsSwitchRow(
-                        icon = Icons.Default.DesktopWindows,
-                        title = "Open Desktop View Always",
-                        subtitle = "Request PC user agent for all tabs",
-                        checked = settings.desktopSiteDefault,
-                        onCheckedChange = { onUpdateSettings(settings.copy(desktopSiteDefault = it)) }
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showTabsDialog = false }) {
-                    Text("Done", color = VelocityCyan)
-                }
-            },
-            containerColor = Color(0xFF131926)
-        )
-    }
-
-    // 4. Homepage Dialog
-    if (showHomepageDialog) {
-        var isCustom by remember { mutableStateOf(settings.homepageUrl != "velocity://newtab") }
-        var customUrl by remember { mutableStateOf(if (isCustom) settings.homepageUrl else "https://") }
-
-        AlertDialog(
-            onDismissRequest = { showHomepageDialog = false },
-            title = { Text("Homepage URL", color = Color.White, fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { isCustom = false }
-                            .padding(vertical = 6.dp)
-                    ) {
-                        RadioButton(
-                            selected = !isCustom,
-                            onClick = { isCustom = false },
-                            colors = RadioButtonDefaults.colors(selectedColor = VelocityCyan)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Velocity Start Page (Default)", color = Color.White, fontSize = 14.sp)
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { isCustom = true }
-                            .padding(vertical = 6.dp)
-                    ) {
-                        RadioButton(
-                            selected = isCustom,
-                            onClick = { isCustom = true },
-                            colors = RadioButtonDefaults.colors(selectedColor = VelocityCyan)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Custom Website URL", color = Color.White, fontSize = 14.sp)
-                    }
-
-                    if (isCustom) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = customUrl,
-                            onValueChange = { customUrl = it },
-                            label = { Text("Homepage Address") },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = VelocityCyan
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val finalUrl = if (!isCustom) "velocity://newtab" else {
-                            if (customUrl.startsWith("http")) customUrl.trim() else "https://${customUrl.trim()}"
-                        }
-                        onUpdateSettings(settings.copy(homepageUrl = finalUrl))
-                        showHomepageDialog = false
-                    }
-                ) {
-                    Text("Save", color = VelocityCyan, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showHomepageDialog = false }) {
-                    Text("Cancel", color = Color.Gray)
-                }
-            },
-            containerColor = Color(0xFF131926)
-        )
-    }
-
-    // 5. Accessibility & Text Zoom Dialog
-    if (showAccessibilityDialog) {
-        val zoomOptions = listOf(75, 90, 100, 115, 130, 150, 175, 200)
-        var selectedZoom by remember { mutableStateOf(settings.textZoomPercent) }
-
-        AlertDialog(
-            onDismissRequest = { showAccessibilityDialog = false },
-            title = { Text("Web Text Zoom", color = Color.White, fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    Text(
-                        text = "Adjust text size scaling for web pages (Current: $selectedZoom%):",
-                        color = Color(0xFF94A3B8),
-                        fontSize = 13.sp
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    zoomOptions.chunked(4).forEach { rowOptions ->
+        // Privacy & Security Dialog
+        if (showPrivacyDialog) {
+            AlertDialog(
+                onDismissRequest = { showPrivacyDialog = false },
+                title = { Text("Privacy & Security", color = Color.White) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            rowOptions.forEach { zoom ->
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = if (selectedZoom == zoom) VelocityBlue else Color(0xFF1E293B),
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        1.dp,
-                                        if (selectedZoom == zoom) VelocityCyan else Color(0x3394A3B8)
-                                    ),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(4.dp)
-                                        .clickable {
-                                            selectedZoom = zoom
-                                            onUpdateSettings(settings.copy(textZoomPercent = zoom))
-                                        }
-                                ) {
-                                    Text(
-                                        text = "$zoom%",
-                                        color = Color.White,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showAccessibilityDialog = false }) {
-                    Text("Done", color = VelocityCyan, fontWeight = FontWeight.Bold)
-                }
-            },
-            containerColor = Color(0xFF131926)
-        )
-    }
-
-    // 6. Languages Dialog
-    if (showLanguagesDialog) {
-        val languages = listOf("English", "Hindi (हिंदी)", "Spanish (Español)", "French (Français)", "German (Deutsch)", "Japanese (日本語)")
-        var selectedLang by remember { mutableStateOf("Hindi (हिंदी)") }
-
-        AlertDialog(
-            onDismissRequest = { showLanguagesDialog = false },
-            title = { Text("Languages & Translation", color = Color.White, fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    Text("Target Translation Language:", color = VelocityCyan, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    languages.forEach { lang ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { selectedLang = lang }
-                                .padding(vertical = 4.dp)
-                        ) {
-                            RadioButton(
-                                selected = selectedLang == lang,
-                                onClick = { selectedLang = lang },
-                                colors = RadioButtonDefaults.colors(selectedColor = VelocityCyan)
+                            Text("HTTPS-Only Mode", color = Color.White, fontSize = 14.sp)
+                            Switch(
+                                checked = settings.httpsOnlyMode,
+                                onCheckedChange = { onUpdateSettings(settings.copy(httpsOnlyMode = it)) },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF3B82F6))
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(lang, color = Color.White, fontSize = 14.sp)
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Safe Browsing Shield", color = Color.White, fontSize = 14.sp)
+                            Switch(
+                                checked = settings.safeBrowsingEnabled,
+                                onCheckedChange = { onUpdateSettings(settings.copy(safeBrowsingEnabled = it)) },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF3B82F6))
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Clear Data on Exit", color = Color.White, fontSize = 14.sp)
+                            Switch(
+                                checked = settings.clearDataOnExit,
+                                onCheckedChange = { onUpdateSettings(settings.copy(clearDataOnExit = it)) },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF3B82F6))
+                            )
                         }
                     }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showLanguagesDialog = false }) {
-                    Text("Save", color = VelocityCyan)
-                }
-            },
-            containerColor = Color(0xFF131926)
-        )
-    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showPrivacyDialog = false }) {
+                        Text("OK", color = VelocityCyan)
+                    }
+                },
+                containerColor = Color(0xFF131927)
+            )
+        }
 
-    // 7. Downloads Dialog
-    if (showDownloadsDialog) {
-        AlertDialog(
-            onDismissRequest = { showDownloadsDialog = false },
-            title = { Text("Downloads Location", color = Color.White, fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Default.Folder, contentDescription = null, tint = VelocityCyan, modifier = Modifier.size(24.dp))
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text("Default Directory", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            Text("/storage/emulated/0/Download", color = Color(0xFF94A3B8), fontSize = 12.sp)
+        // Homepage Dialog
+        if (showHomePageDialog) {
+            var customHome by remember { mutableStateOf(settings.homepageUrl) }
+            AlertDialog(
+                onDismissRequest = { showHomePageDialog = false },
+                title = { Text("Homepage", color = Color.White) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value = customHome,
+                            onValueChange = { customHome = it },
+                            label = { Text("Start Page URL") }
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            onUpdateSettings(settings.copy(homepageUrl = customHome.trim()))
+                            showHomePageDialog = false
+                        }
+                    ) {
+                        Text("Save", color = VelocityCyan)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            onUpdateSettings(settings.copy(homepageUrl = "velocity://newtab"))
+                            showHomePageDialog = false
+                        }
+                    ) {
+                        Text("Default", color = Color(0xFF94A3B8))
+                    }
+                },
+                containerColor = Color(0xFF131927)
+            )
+        }
+
+        // Languages Dialog
+        if (showLanguagesDialog) {
+            AlertDialog(
+                onDismissRequest = { showLanguagesDialog = false },
+                title = { Text("Languages", color = Color.White) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Preferred Display Language: English (US)", color = Color.White)
+                        Text("Web Page Translation: Enabled", color = Color(0xFF94A3B8))
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showLanguagesDialog = false }) {
+                        Text("OK", color = VelocityCyan)
+                    }
+                },
+                containerColor = Color(0xFF131927)
+            )
+        }
+
+        // Advanced Dialog
+        if (showAdvancedDialog) {
+            AlertDialog(
+                onDismissRequest = { showAdvancedDialog = false },
+                title = { Text("Advanced Settings", color = Color.White) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("JavaScript JIT Engine", color = Color.White, fontSize = 14.sp)
+                            Switch(
+                                checked = settings.javascriptEnabled,
+                                onCheckedChange = { onUpdateSettings(settings.copy(javascriptEnabled = it)) },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF3B82F6))
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Desktop View by Default", color = Color.White, fontSize = 14.sp)
+                            Switch(
+                                checked = settings.desktopSiteDefault,
+                                onCheckedChange = { onUpdateSettings(settings.copy(desktopSiteDefault = it)) },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF3B82F6))
+                            )
                         }
                     }
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Text(
-                        "Files downloaded in Velocity are saved to your device's standard Downloads folder and visible across all file managers.",
-                        color = Color(0xFF94A3B8),
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDownloadsDialog = false
-                        onOpenDownloads()
+                },
+                confirmButton = {
+                    TextButton(onClick = { showAdvancedDialog = false }) {
+                        Text("OK", color = VelocityCyan)
                     }
-                ) {
-                    Text("View Downloads", color = VelocityCyan, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDownloadsDialog = false }) {
-                    Text("Close", color = Color.Gray)
-                }
-            },
-            containerColor = Color(0xFF131926)
-        )
-    }
+                },
+                containerColor = Color(0xFF131927)
+            )
+        }
 
-    // 8. About Dialog
-    if (showAboutDialog) {
-        AlertDialog(
-            onDismissRequest = { showAboutDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    VelocityLogoIcon(size = 32.dp)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text("Velocity Browser", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                }
-            },
-            text = {
-                Column {
-                    Text("Version: 1.0.0 (Production Build)", color = VelocityCyan, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Engine: Android Chromium System WebView\n" +
-                                "Privacy: Built-in AdBlock & Tracker Protection\n" +
-                                "Security: TLS 1.3, DNT, Multi-profile Incognito\n" +
-                                "Extensions: Userscripts GM API Engine",
-                        color = Color(0xFFE2E8F0),
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        "Fast, private, and fully customizable next-generation browser.",
-                        color = Color(0xFF94A3B8),
-                        fontSize = 12.sp
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showAboutDialog = false }) {
-                    Text("OK", color = VelocityCyan, fontWeight = FontWeight.Bold)
-                }
-            },
-            containerColor = Color(0xFF131926)
-        )
+        // About Dialog
+        if (showAboutDialog) {
+            AlertDialog(
+                onDismissRequest = { showAboutDialog = false },
+                title = { Text("About Velocity Browser", color = Color.White) },
+                text = {
+                    Column {
+                        Text("Velocity Browser v2.4.0 (2026)", color = Color.White, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Fast • Secure • Private Native Web Browser engine powered by Kotlin and Jetpack Compose.", color = Color(0xFF94A3B8), fontSize = 13.sp)
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showAboutDialog = false }) {
+                        Text("OK", color = VelocityCyan)
+                    }
+                },
+                containerColor = Color(0xFF131927)
+            )
+        }
     }
 }
 
 @Composable
-private fun SettingsNavRow(
+private fun SettingsMockRow(
     icon: ImageVector,
+    iconBg: Color,
     title: String,
-    value: String,
+    subtitle: String? = null,
     onClick: () -> Unit
 ) {
     Row(
@@ -793,30 +476,46 @@ private fun SettingsNavRow(
             .fillMaxWidth()
             .clickable { onClick() }
             .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .background(iconBg, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
             Icon(
                 imageVector = icon,
                 contentDescription = title,
-                tint = Color(0xFF94A3B8),
-                modifier = Modifier.size(22.dp)
-            )
-            Spacer(modifier = Modifier.width(14.dp))
-            Text(
-                text = title,
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
             )
         }
 
+        Spacer(modifier = Modifier.width(14.dp))
+
         Text(
-            text = value,
-            color = Color(0xFF64748B),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Normal
+            text = title,
+            color = Color.White,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
+
+        if (subtitle != null) {
+            Text(
+                text = subtitle,
+                color = Color(0xFF94A3B8),
+                fontSize = 13.sp,
+                modifier = Modifier.padding(end = 8.dp)
+            )
+        }
+
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+            contentDescription = null,
+            tint = Color(0xFF475569),
+            modifier = Modifier.size(14.dp)
         )
     }
 }
@@ -824,45 +523,49 @@ private fun SettingsNavRow(
 @Composable
 private fun SettingsSwitchRow(
     icon: ImageVector,
+    iconBg: Color,
     title: String,
-    subtitle: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = Color(0xFF94A3B8),
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(modifier = Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                color = Color.White,
-                fontWeight = FontWeight.Medium,
-                fontSize = 14.sp
-            )
-            Text(
-                text = subtitle,
-                color = Color(0xFF64748B),
-                fontSize = 11.sp
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .background(iconBg, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
             )
         }
+
+        Spacer(modifier = Modifier.width(14.dp))
+
+        Text(
+            text = title,
+            color = Color.White,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
+
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = VelocityBlue,
-                uncheckedTrackColor = Color(0xFF1E293B)
+                checkedTrackColor = Color(0xFF3B82F6),
+                uncheckedThumbColor = Color(0xFF94A3B8),
+                uncheckedTrackColor = Color(0xFF1E283C)
             )
         )
     }

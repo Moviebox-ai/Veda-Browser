@@ -81,6 +81,7 @@ fun Omnibox(
     onOpenShield: () -> Unit,
     onOpenSsl: () -> Unit,
     onOpenExtensions: () -> Unit = {},
+    onGoHome: () -> Unit = {},
     onMenuAction: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -104,7 +105,7 @@ fun Omnibox(
         modifier = modifier
             .fillMaxWidth()
             .background(
-                if (isIncognito) Color(0xFF130E26) else MaterialTheme.colorScheme.surface
+                if (isIncognito) Color(0xFF090A14) else Color(0xFF070B19)
             )
     ) {
         Row(
@@ -113,6 +114,22 @@ fun Omnibox(
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Home icon on left (Matching Screen 7)
+            if (tab != null && !tab.isNewTab) {
+                IconButton(
+                    onClick = onGoHome,
+                    modifier = Modifier.size(36.dp).testTag("omnibox_home_btn")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Home,
+                        contentDescription = "Home",
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+            }
+
             // URL Input Capsule
             Surface(
                 modifier = Modifier
@@ -120,8 +137,8 @@ fun Omnibox(
                     .height(44.dp)
                     .clip(RoundedCornerShape(22.dp))
                     .testTag("omnibox_container"),
-                color = if (isIncognito) Color(0xFF241B42) else MaterialTheme.colorScheme.surfaceVariant,
-                tonalElevation = 2.dp
+                color = if (isIncognito) Color(0xFF16102B) else Color(0xFF12182B),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E283C))
             ) {
                 Row(
                     modifier = Modifier

@@ -79,6 +79,8 @@ fun BrowserScreen(
     val credentials by viewModel.credentials.collectAsState()
     val quickDials by viewModel.quickDials.collectAsState()
 
+    var showSplash by remember { mutableStateOf(true) }
+
     val snackbarHostState = remember { SnackbarHostState() }
     var currentWebView by remember { mutableStateOf<WebView?>(null) }
 
@@ -86,6 +88,11 @@ fun BrowserScreen(
     val isCurrentBookmarked = activeTab?.let { tab ->
         bookmarks.any { it.url == tab.url }
     } ?: false
+
+    if (showSplash) {
+        SplashScreen(onSplashFinished = { showSplash = false })
+        return
+    }
 
     // Handle Toast snackbars
     LaunchedEffect(toastMessage) {
@@ -133,54 +140,54 @@ fun BrowserScreen(
                 .background(if (activeTab?.isIncognito == true) Color(0xFF0D0A1A) else MaterialTheme.colorScheme.background)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top Omnibox / Address Bar (with status bar padding)
-                Omnibox(
-                    tab = activeTab,
-                    tabCount = tabs.size,
-                    isBookmarked = isCurrentBookmarked,
-                    onNavigate = { viewModel.navigateTo(it) },
-                    onReload = { currentWebView?.reload() },
-                    onOpenTabSwitcher = { viewModel.openSheet(SheetType.TAB_SWITCHER) },
-                    onToggleBookmark = { viewModel.toggleBookmarkCurrentTab() },
-                    onOpenShield = { viewModel.openSheet(SheetType.SHIELD_INFO) },
-                    onOpenSsl = { viewModel.openSheet(SheetType.SSL_CERTIFICATE) },
-                    onOpenExtensions = { viewModel.openSheet(SheetType.EXTENSIONS) },
-                    onMenuAction = { action ->
-                        when (action) {
-                            "NEW_TAB" -> viewModel.createNewTab(isIncognito = false)
-                            "NEW_INCOGNITO_TAB" -> viewModel.createNewTab(isIncognito = true)
-                            "BOOKMARKS" -> viewModel.openSheet(SheetType.BOOKMARKS)
-                            "HISTORY" -> viewModel.openSheet(SheetType.HISTORY)
-                            "DOWNLOADS" -> viewModel.openSheet(SheetType.DOWNLOADS)
-                            "EXTENSIONS" -> viewModel.openSheet(SheetType.EXTENSIONS)
-                            "TOGGLE_DESKTOP" -> activeTab?.id?.let { viewModel.toggleDesktopMode(it) }
-                            "FIND_IN_PAGE" -> viewModel.setFindInPageVisible(true)
-                            "SHIELD" -> viewModel.openSheet(SheetType.SHIELD_INFO)
-                            "SETTINGS" -> viewModel.openSheet(SheetType.SETTINGS)
-                            "AI_ASSISTANT" -> viewModel.openSheet(SheetType.AI_ASSISTANT)
-                            "PASSWORDS" -> viewModel.openSheet(SheetType.PASSWORDS)
-                            "APPEARANCE" -> viewModel.openSheet(SheetType.APPEARANCE)
-                            "TAB_SWITCHER" -> viewModel.openSheet(SheetType.TAB_SWITCHER)
-                            "TRANSLATE" -> viewModel.translateCurrentPage()
-                            "ADD_HOME_SCREEN" -> {
-                                activeTab?.let { tab ->
-                                    viewModel.addShortcutToHomeScreen(tab.title, tab.url)
+                // Top Omnibox / Address Bar (Only shown on real web pages matching Screen 7; Home Page has center search matching Screen 2)
+                if (activeTab != null && !activeTab.isNewTab) {
+                    Omnibox(
+                        tab = activeTab,
+                        tabCount = tabs.size,
+                        isBookmarked = isCurrentBookmarked,
+                        onNavigate = { viewModel.navigateTo(it) },
+                        onReload = { currentWebView?.reload() },
+                        onOpenTabSwitcher = { viewModel.openSheet(SheetType.TAB_SWITCHER) },
+                        onToggleBookmark = { viewModel.toggleBookmarkCurrentTab() },
+                        onOpenShield = { viewModel.openSheet(SheetType.SHIELD_INFO) },
+                        onOpenSsl = { viewModel.openSheet(SheetType.SSL_CERTIFICATE) },
+                        onOpenExtensions = { viewModel.openSheet(SheetType.EXTENSIONS) },
+                        onGoHome = { viewModel.navigateToHome() },
+                        onMenuAction = { action ->
+                            when (action) {
+                                "NEW_TAB" -> viewModel.createNewTab(isIncognito = false)
+                                "NEW_INCOGNITO_TAB" -> viewModel.createNewTab(isIncognito = true)
+                                "BOOKMARKS" -> viewModel.openSheet(SheetType.BOOKMARKS)
+                                "HISTORY" -> viewModel.openSheet(SheetType.HISTORY)
+                                "DOWNLOADS" -> viewModel.openSheet(SheetType.DOWNLOADS)
+                                "EXTENSIONS" -> viewModel.openSheet(SheetType.EXTENSIONS)
+                                "TOGGLE_DESKTOP" -> activeTab.id.let { viewModel.toggleDesktopMode(it) }
+                                "FIND_IN_PAGE" -> viewModel.setFindInPageVisible(true)
+                                "SHIELD" -> viewModel.openSheet(SheetType.SHIELD_INFO)
+                                "SETTINGS" -> viewModel.openSheet(SheetType.SETTINGS)
+                                "AI_ASSISTANT" -> viewModel.openSheet(SheetType.AI_ASSISTANT)
+                                "PASSWORDS" -> viewModel.openSheet(SheetType.PASSWORDS)
+                                "APPEARANCE" -> viewModel.openSheet(SheetType.APPEARANCE)
+                                "TAB_SWITCHER" -> viewModel.openSheet(SheetType.TAB_SWITCHER)
+                                "TRANSLATE" -> viewModel.translateCurrentPage()
+                                "RATE_APP" -> viewModel.showToast("Thanks for rating Velocity Browser! ★★★★★")
+                                "ADD_HOME_SCREEN" -> {
+                                    viewModel.addShortcutToHomeScreen(activeTab.title, activeTab.url)
                                 }
-                            }
-                            "SHARE" -> {
-                                activeTab?.url?.let { url ->
+                                "SHARE" -> {
                                     val sendIntent = Intent().apply {
                                         this.action = Intent.ACTION_SEND
-                                        putExtra(Intent.EXTRA_TEXT, url)
+                                        putExtra(Intent.EXTRA_TEXT, activeTab.url)
                                         type = "text/plain"
                                     }
                                     context.startActivity(Intent.createChooser(sendIntent, "Share Web Page"))
                                 }
                             }
-                        }
-                    },
-                    modifier = Modifier.statusBarsPadding()
-                )
+                        },
+                        modifier = Modifier.statusBarsPadding()
+                    )
+                }
 
                 // Optional Find In Page floating bar
                 AnimatedVisibility(
@@ -271,7 +278,7 @@ fun BrowserScreen(
                     }
                 }
 
-                // Bottom Navigation Bar matching mockup
+                // Bottom Navigation Bar matching mockup (Screen 2 & Screen 7)
                 BottomNavigationBar(
                     tab = activeTab,
                     tabCount = tabs.size,
@@ -279,7 +286,7 @@ fun BrowserScreen(
                     onGoForward = { currentWebView?.goForward() },
                     onGoHome = { viewModel.navigateToHome() },
                     onOpenTabs = { viewModel.openSheet(SheetType.TAB_SWITCHER) },
-                    onOpenAiAssistant = { viewModel.openSheet(SheetType.AI_ASSISTANT) },
+                    onOpenDownloads = { viewModel.openSheet(SheetType.DOWNLOADS) },
                     onOpenMenu = { viewModel.openSheet(SheetType.MENU) }
                 )
             }
@@ -371,6 +378,18 @@ fun BrowserScreen(
                                 "TAB_SWITCHER" -> viewModel.openSheet(SheetType.TAB_SWITCHER)
                                 "FIND_IN_PAGE" -> viewModel.setFindInPageVisible(true)
                                 "TRANSLATE" -> viewModel.translateCurrentPage()
+                                "RATE_APP" -> viewModel.showToast("Thanks for rating Velocity Browser! ★★★★★")
+                                "SHIELD" -> viewModel.openSheet(SheetType.SHIELD_INFO)
+                                "AI_ASSISTANT" -> viewModel.openSheet(SheetType.AI_ASSISTANT)
+                                "SHARE" -> {
+                                    val shareUrl = activeTab?.url ?: "https://github.com/aaryo/velocity"
+                                    val sendIntent = Intent().apply {
+                                        this.action = Intent.ACTION_SEND
+                                        putExtra(Intent.EXTRA_TEXT, shareUrl)
+                                        type = "text/plain"
+                                    }
+                                    context.startActivity(Intent.createChooser(sendIntent, "Share Web Page"))
+                                }
                                 "ADD_HOME_SCREEN" -> {
                                     activeTab?.let { tab ->
                                         viewModel.addShortcutToHomeScreen(tab.title, tab.url)

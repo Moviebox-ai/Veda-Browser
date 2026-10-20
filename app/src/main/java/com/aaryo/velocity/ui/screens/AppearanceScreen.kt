@@ -4,12 +4,12 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,52 +23,37 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.PhoneAndroid
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aaryo.velocity.model.BrowserSettings
-import com.aaryo.velocity.ui.components.VelocityLogoIcon
-import com.aaryo.velocity.ui.components.WallpaperCanvas
-import com.aaryo.velocity.ui.theme.AccentBlue
-import com.aaryo.velocity.ui.theme.AccentCyan
-import com.aaryo.velocity.ui.theme.AccentGreen
-import com.aaryo.velocity.ui.theme.AccentOrange
-import com.aaryo.velocity.ui.theme.AccentPink
-import com.aaryo.velocity.ui.theme.AccentPurple
-import com.aaryo.velocity.ui.theme.AccentYellow
-import com.aaryo.velocity.ui.theme.VelocityBlue
-import com.aaryo.velocity.ui.theme.VelocityCyan
-import com.aaryo.velocity.ui.theme.parseAccentColor
 
+data class ThemeColorOption(
+    val hex: String,
+    val color: Color
+)
+
+/**
+ * Screen 10: Theme & Colors
+ * Exact replica of the reference mockup:
+ * - Header: "← Theme"
+ * - 3 Theme Previews: Light, Dark, System
+ * - 10 Circular Color Accents (2 rows of 5)
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppearanceScreen(
@@ -81,33 +66,31 @@ fun AppearanceScreen(
         onDismiss()
     }
 
-    val scrollState = rememberScrollState()
+    val currentMode = settings.themeMode.uppercase()
+    val currentAccent = settings.accentColorHex.uppercase()
 
-    val accentColors = listOf(
-        Pair("#2563EB", AccentBlue),
-        Pair("#9333EA", AccentPurple),
-        Pair("#EC4899", AccentPink),
-        Pair("#F97316", AccentOrange),
-        Pair("#F59E0B", AccentYellow),
-        Pair("#10B981", AccentGreen),
-        Pair("#06B6D4", AccentCyan)
+    val row1Colors = listOf(
+        ThemeColorOption("#2563EB", Color(0xFF2563EB)), // Blue
+        ThemeColorOption("#8B5CF6", Color(0xFF8B5CF6)), // Purple
+        ThemeColorOption("#EC4899", Color(0xFFEC4899)), // Pink/Magenta
+        ThemeColorOption("#EF4444", Color(0xFFEF4444)), // Red
+        ThemeColorOption("#F97316", Color(0xFFF97316))  // Orange
     )
 
-    val wallpapers = listOf(
-        Pair("MOUNTAINS", "Alpine Twilight"),
-        Pair("FOREST", "Misty Dawn"),
-        Pair("CYBER", "Cyber Neon"),
-        Pair("MINIMAL", "Obsidian Mesh")
+    val row2Colors = listOf(
+        ThemeColorOption("#10B981", Color(0xFF10B981)), // Green
+        ThemeColorOption("#14B8A6", Color(0xFF14B8A6)), // Mint/Teal
+        ThemeColorOption("#06B6D4", Color(0xFF06B6D4)), // Cyan
+        ThemeColorOption("#0EA5E9", Color(0xFF0EA5E9)), // Sky Blue
+        ThemeColorOption("#A855F7", Color(0xFFA855F7))  // Violet
     )
-
-    val currentAccent = parseAccentColor(settings.accentColorHex, AccentBlue)
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = "Appearance",
+                        text = "Theme",
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
                         color = Color.White
@@ -116,7 +99,7 @@ fun AppearanceScreen(
                 navigationIcon = {
                     IconButton(
                         onClick = onDismiss,
-                        modifier = Modifier.testTag("appearance_back_btn")
+                        modifier = Modifier.testTag("theme_back_btn")
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -126,329 +109,255 @@ fun AppearanceScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF080B11)
+                    containerColor = Color(0xFF070B19)
                 )
             )
         },
-        containerColor = Color(0xFF080B11),
+        containerColor = Color(0xFF070B19),
         modifier = modifier.fillMaxSize()
-    ) { innerPadding ->
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(scrollState)
-                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            // 1. Live Preview Card (Matching Mobile 6 in mockup!)
-            Text(
-                text = "Preview",
-                color = Color(0xFF94A3B8),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(bottom = 10.dp)
-            )
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(170.dp),
-                shape = RoundedCornerShape(settings.cornerRadiusDp.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1523)),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, currentAccent.copy(alpha = 0.6f))
-            ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    WallpaperCanvas(theme = settings.wallpaperTheme, modifier = Modifier.fillMaxSize())
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        VelocityLogoIcon(size = 36.dp)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Velocity",
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = Color(0xCC111827),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, currentAccent.copy(alpha = 0.5f)),
-                            modifier = Modifier
-                                .fillMaxWidth(0.85f)
-                                .height(36.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "🔍 Search or type URL",
-                                    color = Color(0xFF94A3B8),
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // 2. Themes (Light / Dark / System)
-            Text(
-                text = "Theme",
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
+            // 3 Theme Mockup Cards Row: Light, Dark, System
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                ThemeOptionCard(
+                // 1. Light Card
+                ThemeModeCard(
                     title = "Light",
-                    icon = Icons.Default.LightMode,
-                    isSelected = settings.themeMode == "LIGHT",
-                    accentColor = currentAccent,
-                    onClick = { onUpdateSettings(settings.copy(themeMode = "LIGHT")) },
-                    modifier = Modifier.weight(1f)
+                    isSelected = currentMode == "LIGHT",
+                    isLight = true,
+                    isSystem = false,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        onUpdateSettings(settings.copy(themeMode = "LIGHT"))
+                    }
                 )
 
-                ThemeOptionCard(
+                // 2. Dark Card
+                ThemeModeCard(
                     title = "Dark",
-                    icon = Icons.Default.DarkMode,
-                    isSelected = settings.themeMode == "DARK",
-                    accentColor = currentAccent,
-                    onClick = { onUpdateSettings(settings.copy(themeMode = "DARK")) },
-                    modifier = Modifier.weight(1f)
+                    isSelected = currentMode == "DARK",
+                    isLight = false,
+                    isSystem = false,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        onUpdateSettings(settings.copy(themeMode = "DARK"))
+                    }
                 )
 
-                ThemeOptionCard(
+                // 3. System Card
+                ThemeModeCard(
                     title = "System",
-                    icon = Icons.Default.PhoneAndroid,
-                    isSelected = settings.themeMode == "SYSTEM",
-                    accentColor = currentAccent,
-                    onClick = { onUpdateSettings(settings.copy(themeMode = "SYSTEM")) },
-                    modifier = Modifier.weight(1f)
+                    isSelected = currentMode == "SYSTEM",
+                    isLight = false,
+                    isSystem = true,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        onUpdateSettings(settings.copy(themeMode = "SYSTEM"))
+                    }
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(36.dp))
 
-            // 3. Accent Color Swatches
-            Text(
-                text = "Accent Color",
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // Color Accent Section (2 rows of 5 round color dots)
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                accentColors.forEach { (hex, color) ->
-                    val isSelected = settings.accentColorHex.equals(hex, ignoreCase = true)
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(color)
-                            .clickable { onUpdateSettings(settings.copy(accentColorHex = hex)) }
-                            .then(
-                                if (isSelected) Modifier.border(2.5.dp, Color.White, CircleShape)
-                                else Modifier
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = "Selected",
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                // Row 1
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    row1Colors.forEach { option ->
+                        val isSelected = currentAccent == option.hex.uppercase()
+                        AccentColorCircle(
+                            color = option.color,
+                            isSelected = isSelected,
+                            onClick = {
+                                onUpdateSettings(settings.copy(accentColorHex = option.hex))
+                            }
+                        )
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // 4. Wallpaper Selection
-            Text(
-                text = "Wallpaper Atmosphere",
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                wallpapers.forEach { (themeKey, label) ->
-                    val isSelected = settings.wallpaperTheme == themeKey
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) currentAccent.copy(alpha = 0.2f) else Color(0xFF131926),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (isSelected) currentAccent else Color(0x3338BDF8)
-                        ),
-                        modifier = Modifier.clickable {
-                            onUpdateSettings(settings.copy(wallpaperTheme = themeKey))
-                        }
-                    ) {
-                        Text(
-                            text = label,
-                            color = if (isSelected) Color.White else Color(0xFF94A3B8),
-                            fontSize = 13.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                // Row 2
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    row2Colors.forEach { option ->
+                        val isSelected = currentAccent == option.hex.uppercase()
+                        AccentColorCircle(
+                            color = option.color,
+                            isSelected = isSelected,
+                            onClick = {
+                                onUpdateSettings(settings.copy(accentColorHex = option.hex))
+                            }
                         )
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // 5. Toolbar Style (Default / Compact / Bottom)
-            Text(
-                text = "Toolbar Style",
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                listOf("Default", "Compact", "Bottom").forEach { style ->
-                    val isSelected = settings.toolbarStyle.equals(style, ignoreCase = true)
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) currentAccent else Color(0xFF131926),
-                        border = if (isSelected) null else androidx.compose.foundation.BorderStroke(1.dp, Color(0x3394A3B8)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { onUpdateSettings(settings.copy(toolbarStyle = style.uppercase())) }
-                    ) {
-                        Text(
-                            text = style,
-                            color = if (isSelected) Color.White else Color(0xFF94A3B8),
-                            fontSize = 13.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 10.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // 6. Corner Radius Slider
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Corner Radius",
-                    color = Color.White,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Text(
-                    text = "${settings.cornerRadiusDp} dp",
-                    color = currentAccent,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            Slider(
-                value = settings.cornerRadiusDp.toFloat(),
-                onValueChange = { onUpdateSettings(settings.copy(cornerRadiusDp = it.toInt())) },
-                valueRange = 8f..28f,
-                steps = 4,
-                colors = SliderDefaults.colors(
-                    thumbColor = currentAccent,
-                    activeTrackColor = currentAccent,
-                    inactiveTrackColor = Color(0xFF1E293B)
-                )
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }
 
+/**
+ * Preview Card for Light / Dark / System mode matching the mock card design
+ */
 @Composable
-private fun ThemeOptionCard(
+private fun ThemeModeCard(
     title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
     isSelected: Boolean,
-    accentColor: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    isLight: Boolean,
+    isSystem: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
 ) {
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = if (isSelected) accentColor.copy(alpha = 0.15f) else Color(0xFF131926),
-        border = androidx.compose.foundation.BorderStroke(
-            1.5.dp,
-            if (isSelected) accentColor else Color(0x2238BDF8)
-        ),
-        modifier = modifier
-            .height(72.dp)
-            .clickable { onClick() }
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(130.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .border(
+                    width = if (isSelected) 2.dp else 1.dp,
+                    color = if (isSelected) Color(0xFF2563EB) else Color(0xFF1E283C),
+                    shape = RoundedCornerShape(14.dp)
+                )
+                .background(
+                    if (isLight) Color(0xFFFFFFFF)
+                    else if (isSystem) Color(0xFF1A2234)
+                    else Color(0xFF0F1523)
+                )
+                .clickable { onClick() },
+            contentAlignment = Alignment.Center
         ) {
+            if (isLight) {
+                // Light Mockup (White page, Google text, search bar)
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "Google",
+                        color = Color(0xFF4285F4),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .height(14.dp)
+                            .background(Color(0xFFE2E8F0), RoundedCornerShape(7.dp))
+                    )
+                }
+            } else if (isSystem) {
+                // Split Mockup
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxSize()
+                            .background(Color(0xFFFFFFFF))
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxSize()
+                            .background(Color(0xFF0F1523))
+                    )
+                }
+            } else {
+                // Dark Mockup with selected checkmark badge
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.75f)
+                            .height(12.dp)
+                            .background(Color(0xFF1E283C), RoundedCornerShape(6.dp))
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .height(14.dp)
+                            .background(Color(0xFF161F32), RoundedCornerShape(7.dp))
+                    )
+                }
+            }
+
+            // Blue checkmark circle if selected
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(24.dp)
+                        .background(Color(0xFF2563EB), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Selected",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = title,
+            color = if (isSelected) Color.White else Color(0xFF94A3B8),
+            fontSize = 12.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+private fun AccentColorCircle(
+    color: Color,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(46.dp)
+            .clip(CircleShape)
+            .background(color)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        if (isSelected) {
             Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = if (isSelected) accentColor else Color(0xFF94A3B8),
+                imageVector = Icons.Default.Check,
+                contentDescription = "Selected Accent",
+                tint = Color.White,
                 modifier = Modifier.size(22.dp)
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = title,
-                color = if (isSelected) Color.White else Color(0xFF94A3B8),
-                fontSize = 12.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
             )
         }
     }

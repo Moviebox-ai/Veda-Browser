@@ -14,37 +14,39 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Computer
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.FindInPage
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.DesktopWindows
+import androidx.compose.material.icons.filled.Eco
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.OpenInBrowser
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Tab
-import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -52,9 +54,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aaryo.velocity.model.Tab
-import com.aaryo.velocity.ui.theme.VelocityBlue
-import com.aaryo.velocity.ui.theme.VelocityCyan
 
+/**
+ * Screen 4: Menu
+ * Exact replica of the reference mockup:
+ * - Header: "Menu"
+ * - Sign in to sync profile card
+ * - 8 Quick action grid (New Tab, Incognito, History, Downloads, Bookmarks, Recent Tabs, Find in Page, Desktop Site)
+ * - 4 circular toggle pills: Dark Mode, Ad Block, Data Saver, Settings
+ * - Bottom list items: Share, Rate App, Help & Feedback
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VelocityMenuSheet(
@@ -69,7 +78,7 @@ fun VelocityMenuSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color(0xFF0F1523),
+        containerColor = Color(0xFF0C101F),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = null
     ) {
@@ -77,206 +86,235 @@ fun VelocityMenuSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(bottom = 16.dp)
+                .padding(horizontal = 16.dp, vertical = 16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Header: Velocity branding + Close button (Matches Mobile 3)
-            Row(
+            // Header: "Menu"
+            Text(
+                text = "Menu",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 4.dp, bottom = 16.dp)
+            )
+
+            // Top Card: Sign in to sync
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF131D33),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E2E4E)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .clickable {
+                        onDismiss()
+                        onMenuAction("PASSWORDS")
+                    }
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    VelocityLogoIcon(size = 32.dp)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Velocity",
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.testTag("menu_sheet_close_btn")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .background(Color(0xFF2563EB), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "User",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Sign in to sync",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Bookmarks, history, tabs",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 12.sp
+                        )
+                    }
+
                     Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close Menu",
-                        tint = Color(0xFF94A3B8)
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                        contentDescription = "Open",
+                        tint = Color(0xFF64748B),
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
 
-            HorizontalDivider(color = Color(0x2238BDF8), thickness = 1.dp)
+            Spacer(modifier = Modifier.height(20.dp))
 
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Menu Items List matching Mobile 3
-            MenuItemRow(
-                icon = Icons.Default.Add,
-                title = "New Tab",
-                shortcut = "Ctrl+T",
-                onClick = {
-                    onDismiss()
-                    onMenuAction("NEW_TAB")
-                }
-            )
-
-            MenuItemRow(
-                icon = Icons.Default.Security,
-                title = "New Incognito Tab",
-                shortcut = "Ctrl+Shift+N",
-                onClick = {
-                    onDismiss()
-                    onMenuAction("NEW_INCOGNITO_TAB")
-                }
-            )
-
-            MenuItemRow(
-                icon = Icons.Default.History,
-                title = "History",
-                onClick = {
-                    onDismiss()
-                    onMenuAction("HISTORY")
-                }
-            )
-
-            MenuItemRow(
-                icon = Icons.Default.Download,
-                title = "Downloads",
-                shortcut = "Ctrl+J",
-                onClick = {
-                    onDismiss()
-                    onMenuAction("DOWNLOADS")
-                }
-            )
-
-            MenuItemRow(
-                icon = Icons.Default.Bookmark,
-                title = "Bookmarks",
-                shortcut = "Ctrl+Shift+B",
-                onClick = {
-                    onDismiss()
-                    onMenuAction("BOOKMARKS")
-                }
-            )
-
-            MenuItemRow(
-                icon = Icons.Default.Tab,
-                title = "Recent Tabs",
-                onClick = {
-                    onDismiss()
-                    onMenuAction("TAB_SWITCHER")
-                }
-            )
-
-            MenuItemRow(
-                icon = Icons.Default.Extension,
-                title = "Extensions",
-                onClick = {
-                    onDismiss()
-                    onMenuAction("EXTENSIONS")
-                }
-            )
-
-            MenuItemRow(
-                icon = Icons.Default.Key,
-                title = "Passwords",
-                onClick = {
-                    onDismiss()
-                    onMenuAction("PASSWORDS")
-                }
-            )
-
-            MenuItemRow(
-                icon = Icons.Default.Palette,
-                title = "Appearance",
-                onClick = {
-                    onDismiss()
-                    onMenuAction("APPEARANCE")
-                }
-            )
-
-            MenuItemRow(
-                icon = Icons.Default.Settings,
-                title = "Settings",
-                onClick = {
-                    onDismiss()
-                    onMenuAction("SETTINGS")
-                }
-            )
-
-            HorizontalDivider(
-                color = Color(0x2238BDF8),
-                thickness = 1.dp,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
-
-            // Desktop Site with Switch Toggle (Matches Mobile 3)
+            // 8 Quick Actions Grid (2 rows x 4 columns)
+            // Row 1: New Tab, Incognito, History, Downloads
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onToggleDesktop() }
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Computer,
-                        contentDescription = "Desktop Site",
-                        tint = Color(0xFF94A3B8),
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Text(
-                        text = "Desktop Site",
-                        color = Color.White,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                Switch(
-                    checked = isDesktopMode,
-                    onCheckedChange = { onToggleDesktop() },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = VelocityBlue,
-                        uncheckedTrackColor = Color(0xFF1E293B)
-                    )
+                MenuQuickActionItem(
+                    icon = Icons.Default.Add,
+                    label = "New Tab",
+                    onClick = {
+                        onDismiss()
+                        onMenuAction("NEW_TAB")
+                    }
+                )
+                MenuQuickActionItem(
+                    icon = Icons.Default.VisibilityOff,
+                    label = "Incognito",
+                    onClick = {
+                        onDismiss()
+                        onMenuAction("NEW_INCOGNITO_TAB")
+                    }
+                )
+                MenuQuickActionItem(
+                    icon = Icons.Default.History,
+                    label = "History",
+                    onClick = {
+                        onDismiss()
+                        onMenuAction("HISTORY")
+                    }
+                )
+                MenuQuickActionItem(
+                    icon = Icons.Default.FileDownload,
+                    label = "Downloads",
+                    onClick = {
+                        onDismiss()
+                        onMenuAction("DOWNLOADS")
+                    }
                 )
             }
 
-            MenuItemRow(
-                icon = Icons.Default.FindInPage,
-                title = "Find in Page",
-                shortcut = "Ctrl+F",
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Row 2: Bookmarks, Recent Tabs, Find in Page, Desktop Site
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                MenuQuickActionItem(
+                    icon = Icons.Default.BookmarkBorder,
+                    label = "Bookmarks",
+                    onClick = {
+                        onDismiss()
+                        onMenuAction("BOOKMARKS")
+                    }
+                )
+                MenuQuickActionItem(
+                    icon = Icons.Default.Tab,
+                    label = "Recent Tabs",
+                    onClick = {
+                        onDismiss()
+                        onMenuAction("TAB_SWITCHER")
+                    }
+                )
+                MenuQuickActionItem(
+                    icon = Icons.Default.Search,
+                    label = "Find in Page",
+                    onClick = {
+                        onDismiss()
+                        onMenuAction("FIND_IN_PAGE")
+                    }
+                )
+                MenuQuickActionItem(
+                    icon = Icons.Default.DesktopWindows,
+                    label = "Desktop Site",
+                    isActive = isDesktopMode,
+                    onClick = {
+                        onToggleDesktop()
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 4 Round Feature Tiles: Dark Mode, Ad Block, Data Saver, Settings
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                RoundFeatureButton(
+                    icon = Icons.Default.DarkMode,
+                    label = "Dark Mode",
+                    badgeColor = Color(0xFF1E283C),
+                    iconTint = Color(0xFF60A5FA),
+                    onClick = {
+                        onDismiss()
+                        onMenuAction("APPEARANCE")
+                    }
+                )
+                RoundFeatureButton(
+                    icon = Icons.Default.Shield,
+                    label = "Ad Block",
+                    badgeColor = Color(0xFFDC2626),
+                    iconTint = Color.White,
+                    onClick = {
+                        onDismiss()
+                        onMenuAction("SHIELD")
+                    }
+                )
+                RoundFeatureButton(
+                    icon = Icons.Default.Eco,
+                    label = "Data Saver",
+                    badgeColor = Color(0xFF16A34A),
+                    iconTint = Color.White,
+                    onClick = {
+                        onDismiss()
+                        onMenuAction("SETTINGS")
+                    }
+                )
+                RoundFeatureButton(
+                    icon = Icons.Default.Settings,
+                    label = "Settings",
+                    badgeColor = Color(0xFF1E283C),
+                    iconTint = Color(0xFF94A3B8),
+                    onClick = {
+                        onDismiss()
+                        onMenuAction("SETTINGS")
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+            HorizontalDivider(color = Color(0xFF1A2338), thickness = 1.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // List Options: Share, Rate App, Help & Feedback
+            MenuListRow(
+                icon = Icons.Default.Share,
+                title = "Share",
                 onClick = {
                     onDismiss()
-                    onMenuAction("FIND_IN_PAGE")
+                    onMenuAction("SHARE")
                 }
             )
-
-            MenuItemRow(
-                icon = Icons.Default.Translate,
-                title = "Translate",
+            MenuListRow(
+                icon = Icons.Default.StarBorder,
+                title = "Rate App",
                 onClick = {
                     onDismiss()
-                    onMenuAction("TRANSLATE")
+                    onMenuAction("RATE_APP")
                 }
             )
-
-            MenuItemRow(
-                icon = Icons.Default.OpenInBrowser,
-                title = "Add to Home Screen",
+            MenuListRow(
+                icon = Icons.AutoMirrored.Filled.HelpOutline,
+                title = "Help & Feedback",
                 onClick = {
                     onDismiss()
-                    onMenuAction("ADD_HOME_SCREEN")
+                    onMenuAction("AI_ASSISTANT")
                 }
             )
         }
@@ -284,49 +322,111 @@ fun VelocityMenuSheet(
 }
 
 @Composable
-private fun MenuItemRow(
+private fun MenuQuickActionItem(
+    icon: ImageVector,
+    label: String,
+    isActive: Boolean = false,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clickable { onClick() }
+            .padding(vertical = 4.dp, horizontal = 6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (isActive) Color(0xFF2563EB) else Color(0xFF131B2E)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = if (isActive) Color.White else Color(0xFF94A3B8),
+                modifier = Modifier.size(22.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = label,
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+private fun RoundFeatureButton(
+    icon: ImageVector,
+    label: String,
+    badgeColor: Color,
+    iconTint: Color,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clickable { onClick() }
+            .padding(4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(46.dp)
+                .background(badgeColor, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = iconTint,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = label,
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+private fun MenuListRow(
     icon: ImageVector,
     title: String,
-    shortcut: String? = null,
     onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .padding(vertical = 12.dp, horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = Color(0xFF94A3B8),
-                modifier = Modifier.size(22.dp)
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                text = title,
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium
-            )
-        }
-
-        if (shortcut != null) {
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = Color(0x2238BDF8)
-            ) {
-                Text(
-                    text = shortcut,
-                    color = Color(0xFF94A3B8),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
-        }
+        Icon(
+            imageVector = icon,
+            contentDescription = title,
+            tint = Color(0xFF94A3B8),
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = title,
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+            contentDescription = null,
+            tint = Color(0xFF475569),
+            modifier = Modifier.size(14.dp)
+        )
     }
 }
