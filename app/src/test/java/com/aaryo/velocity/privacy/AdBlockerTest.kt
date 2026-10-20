@@ -49,6 +49,33 @@ class AdBlockerTest {
     }
 
     @Test
+    fun testCommonAdNetworksBlocked() {
+        // Google Ads & DoubleClick
+        assertTrue(AdBlocker.isAdOrTracker("https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"))
+        assertTrue(AdBlocker.isAdOrTracker("https://googleads.g.doubleclick.net/pagead/ads?client=ca-pub-123"))
+        assertTrue(AdBlocker.isAdOrTracker("https://securepubads.g.doubleclick.net/gampad/ads"))
+        assertTrue(AdBlocker.isAdOrTracker("https://www.googletagservices.com/tag/js/gpt.js"))
+        assertTrue(AdBlocker.isAdOrTracker("https://adservice.google.com/adsid/integrator.sync.js"))
+
+        // Native / Display / Video ad networks
+        assertTrue(AdBlocker.isAdOrTracker("https://aax.amazon-adsystem.com/e/dtb/bid"))
+        assertTrue(AdBlocker.isAdOrTracker("https://static.criteo.net/js/ld/ld.js"))
+        assertTrue(AdBlocker.isAdOrTracker("https://cdn.taboola.com/libtrc/loader.js"))
+        assertTrue(AdBlocker.isAdOrTracker("https://widgets.outbrain.com/outbrain.js"))
+        assertTrue(AdBlocker.isAdOrTracker("https://ib.adnxs.com/jpt"))
+        assertTrue(AdBlocker.isAdOrTracker("https://serve.popads.net/serve.js"))
+        assertTrue(AdBlocker.isAdOrTracker("https://jsc.mgid.com/site/123.js"))
+    }
+
+    @Test
+    fun testCleanWebsitesNotBlocked() {
+        assertFalse(AdBlocker.isAdOrTracker("https://en.wikipedia.org/wiki/Kotlin"))
+        assertFalse(AdBlocker.isAdOrTracker("https://github.com/torvalds/linux"))
+        assertFalse(AdBlocker.isAdOrTracker("https://www.google.com/search?q=android"))
+        assertFalse(AdBlocker.isAdOrTracker("https://stackoverflow.com/questions/12345/android-webview"))
+    }
+
+    @Test
     fun testInvalidOrNullUrlsSafe() {
         assertFalse(AdBlocker.isAdOrTracker(null))
         assertFalse(AdBlocker.isAdOrTracker(""))

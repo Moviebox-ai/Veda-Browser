@@ -98,6 +98,9 @@ class TabWebViewManager {
             allowContentAccess = true
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
 
+            javaScriptCanOpenWindowsAutomatically = false
+            setSupportMultipleWindows(true)
+
             userAgentString = if (isDesktopMode || settings.desktopSiteDefault) {
                 DESKTOP_USER_AGENT
             } else {

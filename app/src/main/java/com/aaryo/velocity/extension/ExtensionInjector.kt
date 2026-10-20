@@ -38,11 +38,10 @@ object ExtensionInjector {
             if (stage == RunAt.DOCUMENT_START && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
                 try {
                     WebViewCompat.addDocumentStartJavaScript(webView, executableJs, setOf("*"))
-                    injectedCount++
                 } catch (_: Exception) {
-                    webView.evaluateJavascript(executableJs, null)
-                    injectedCount++
                 }
+                webView.evaluateJavascript(executableJs, null)
+                injectedCount++
             } else {
                 webView.evaluateJavascript(executableJs, null)
                 injectedCount++
