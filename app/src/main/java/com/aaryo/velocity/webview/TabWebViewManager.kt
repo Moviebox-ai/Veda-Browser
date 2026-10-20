@@ -23,6 +23,36 @@ class TabWebViewManager {
     private val webViewMap = mutableMapOf<String, WebView>()
     private val tabStateBundles = mutableMapOf<String, Bundle>()
 
+    init {
+        setupServiceWorkerAdBlocker()
+    }
+
+    private fun setupServiceWorkerAdBlocker() {
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_BASIC_USAGE)) {
+            try {
+                val controller = androidx.webkit.ServiceWorkerControllerCompat.getInstance()
+                controller.setServiceWorkerClient(object : androidx.webkit.ServiceWorkerClientCompat() {
+                    override fun shouldInterceptRequest(request: android.webkit.WebResourceRequest): android.webkit.WebResourceResponse? {
+                        val url = request.url?.toString() ?: return null
+                        val headers = request.requestHeaders
+                        val refererHost = headers?.let { h ->
+                            (h["Referer"] ?: h["referer"])?.let { ref ->
+                                try { android.net.Uri.parse(ref).host } catch (_: Exception) { null }
+                            }
+                        } ?: if (request.isForMainFrame) request.url?.host else null
+
+                        val resType = com.aaryo.velocity.privacy.AdBlocker.detectResourceType(url, headers, request.isForMainFrame)
+                        if (com.aaryo.velocity.privacy.AdBlocker.isAdOrTracker(url, refererHost, resType, headers)) {
+                            return com.aaryo.velocity.privacy.AdBlocker.createEmptyResponse(url)
+                        }
+                        return null
+                    }
+                })
+            } catch (_: Throwable) {
+            }
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     fun getOrCreateWebView(
         context: Context,
@@ -65,6 +95,18 @@ class TabWebViewManager {
                 androidx.webkit.WebViewCompat.setProfile(webView, "incognito")
             } catch (_: Throwable) {
                 // Fallback to standard cookie/cache isolation handled on cleanup
+            }
+        }
+
+        // Inject cosmetic ad block at document start (runs before any page scripts or DOM rendering)
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            try {
+                androidx.webkit.WebViewCompat.addDocumentStartJavaScript(
+                    webView,
+                    com.aaryo.velocity.privacy.AdBlocker.getCosmeticDocumentStartScript(),
+                    setOf("*")
+                )
+            } catch (_: Throwable) {
             }
         }
 

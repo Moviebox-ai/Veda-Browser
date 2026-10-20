@@ -168,8 +168,13 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         }
         viewModelScope.launch {
             repository.settingsFlow.collect {
+                val oldGlobal = _settings.value.adBlockGlobalEnabled
                 _settings.value = it
                 tabWebViewManager.applySettingsToAll(it)
+                if (oldGlobal != it.adBlockGlobalEnabled) {
+                    _tabs.value = _tabs.value.map { tab -> tab.copy(adBlockEnabled = it.adBlockGlobalEnabled) }
+                    repository.requestSaveTabs(_tabs.value)
+                }
             }
         }
         viewModelScope.launch {
@@ -477,13 +482,14 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     fun toggleTabAdBlock(tabId: String) {
         val tab = _tabs.value.find { it.id == tabId } ?: return
-        val newState = !tab.adBlockEnabled
-        updateTab(tabId) { it.copy(adBlockEnabled = newState) }
+        val currentEffective = tab.adBlockEnabled && _settings.value.adBlockGlobalEnabled
+        val newEffective = !currentEffective
+        updateTab(tabId) { it.copy(adBlockEnabled = newEffective) }
 
-        // Also add or remove from AdBlocker allowlist
-        val domain = UriHelper.extractDomain(tab.url)
-        if (!domain.isNullOrEmpty()) {
-            if (!newState) {
+        // Also add or remove from AdBlocker allowlist using robust normalization
+        val domain = AdBlocker.normalizeDomain(tab.url)
+        if (domain.isNotEmpty() && domain != "velocity" && domain != "localhost") {
+            if (!newEffective) {
                 AdBlocker.addToAllowlist(domain)
                 showToast("Shield disabled for $domain")
             } else {
@@ -568,6 +574,12 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun updateSettings(newSettings: BrowserSettings) {
+        val globalAdBlockChanged = _settings.value.adBlockGlobalEnabled != newSettings.adBlockGlobalEnabled
+        _settings.value = newSettings
+        if (globalAdBlockChanged) {
+            _tabs.value = _tabs.value.map { it.copy(adBlockEnabled = newSettings.adBlockGlobalEnabled) }
+            repository.requestSaveTabs(_tabs.value)
+        }
         viewModelScope.launch {
             repository.saveSettings(newSettings)
             tabWebViewManager.applySettingsToAll(newSettings)
@@ -784,12 +796,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
 object UriHelper {
     fun extractDomain(url: String): String? {
-        return try {
-            val uri = android.net.Uri.parse(url)
-            val host = uri.host
-            if (host.isNullOrEmpty()) null else host.removePrefix("www.")
-        } catch (_: Exception) {
-            null
-        }
+        val normalized = AdBlocker.normalizeDomain(url)
+        return normalized.ifBlank { null }
     }
 }
