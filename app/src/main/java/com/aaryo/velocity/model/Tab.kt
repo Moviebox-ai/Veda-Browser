@@ -13,6 +13,7 @@ data class Tab(
     val canGoForward: Boolean = false,
     val isIncognito: Boolean = false,
     val isDesktopMode: Boolean = false,
+    val adBlockOverride: Boolean? = null,
     val adBlockEnabled: Boolean = true,
     val blockedTrackersCount: Int = 0,
     val isSecure: Boolean = true,
