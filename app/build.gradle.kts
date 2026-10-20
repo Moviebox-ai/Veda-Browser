@@ -50,16 +50,37 @@ fun resolveDebugKeystore(): File {
         return userHomeKeystore
     }
 
+    val javaHome = System.getProperty("java.home")
+    val keytoolExecutable = if (!javaHome.isNullOrEmpty() && file("$javaHome/bin/keytool").exists()) {
+        file("$javaHome/bin/keytool").absolutePath
+    } else {
+        "keytool"
+    }
+
+    // Attempt generation at standardKeystore location first
+    try {
+        val process = ProcessBuilder(
+            keytoolExecutable,
+            "-genkeypair",
+            "-alias", "androiddebugkey",
+            "-keypass", "android",
+            "-keystore", standardKeystore.absolutePath,
+            "-storepass", "android",
+            "-dname", "CN=Android Debug,O=Android,C=US",
+            "-keyalg", "RSA",
+            "-keysize", "2048",
+            "-validity", "10000"
+        ).redirectErrorStream(true).start()
+        process.waitFor()
+        if (standardKeystore.exists() && standardKeystore.length() > 0L) {
+            return standardKeystore
+        }
+    } catch (_: Exception) {
+    }
+
     // Fallback logic: Generate a temporary debug keystore if standard debug keystores are missing
     val tempKeystore = File(System.getProperty("java.io.tmpdir"), "velocity_temp_debug.keystore")
     if (!tempKeystore.exists() || tempKeystore.length() == 0L) {
-        val javaHome = System.getProperty("java.home")
-        val keytoolExecutable = if (!javaHome.isNullOrEmpty() && file("$javaHome/bin/keytool").exists()) {
-            file("$javaHome/bin/keytool").absolutePath
-        } else {
-            "keytool"
-        }
-
         try {
             val process = ProcessBuilder(
                 keytoolExecutable,
