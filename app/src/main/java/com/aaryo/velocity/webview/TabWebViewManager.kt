@@ -16,7 +16,10 @@ import androidx.webkit.WebViewFeature
 import com.aaryo.velocity.model.BrowserSettings
 
 const val DESKTOP_USER_AGENT =
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Velocity/1.0"
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+
+const val MOBILE_USER_AGENT =
+    "Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36"
 
 class TabWebViewManager {
 
@@ -85,6 +88,21 @@ class TabWebViewManager {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
+            // Attach baseline client immediately so early URL loading never delegates to external browser
+            webViewClient = object : android.webkit.WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+                    val url = request?.url?.toString() ?: return false
+                    val webUrl = com.aaryo.velocity.security.IntentValidator.extractWebUrlFromIntent(url)
+                    if (!webUrl.isNullOrBlank()) {
+                        view?.loadUrl(webUrl)
+                        return true
+                    }
+                    if (com.aaryo.velocity.security.IntentValidator.isBrowserIntent(url)) {
+                        return true
+                    }
+                    return false
+                }
+            }
         }
         gmBridge?.attachToWebView(webView)
 
@@ -146,7 +164,7 @@ class TabWebViewManager {
             userAgentString = if (isDesktopMode || settings.desktopSiteDefault) {
                 DESKTOP_USER_AGENT
             } else {
-                null
+                MOBILE_USER_AGENT
             }
 
             cacheMode = if (isIncognito) WebSettings.LOAD_NO_CACHE else WebSettings.LOAD_DEFAULT

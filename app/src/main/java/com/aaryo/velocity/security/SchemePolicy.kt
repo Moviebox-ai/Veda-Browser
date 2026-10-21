@@ -6,7 +6,8 @@ object SchemePolicy {
 
     private val WEB_SCHEMES = setOf("http", "https")
     private val SAFE_INTERNAL_SCHEMES = setOf("about", "javascript", "data", "blob", "velocity")
-    private val EXTERNAL_INTENT_SCHEMES = setOf("mailto", "tel", "sms", "geo", "intent", "market")
+    private val EXTERNAL_INTENT_SCHEMES = setOf("mailto", "tel", "sms", "geo", "intent", "market", "whatsapp")
+    private val BROWSER_CUSTOM_SCHEMES = setOf("googlechrome", "googlechromes", "chromenative", "chrome", "chrome-search", "android-app")
     private val BLOCKED_SCHEMES = setOf("file", "content")
 
     private fun extractScheme(url: String?): String? {
@@ -28,7 +29,12 @@ object SchemePolicy {
 
     fun isExternalScheme(url: String?): Boolean {
         val scheme = extractScheme(url) ?: return false
-        return scheme in EXTERNAL_INTENT_SCHEMES
+        return scheme in EXTERNAL_INTENT_SCHEMES && scheme !in BROWSER_CUSTOM_SCHEMES
+    }
+
+    fun isBrowserCustomScheme(url: String?): Boolean {
+        val scheme = extractScheme(url) ?: return false
+        return scheme in BROWSER_CUSTOM_SCHEMES
     }
 
     fun isSafeInternal(url: String?): Boolean {

@@ -159,6 +159,66 @@ fun WebViewContainer(
             webView.apply {
                 webViewClient = object : WebViewClient() {
 
+                    private fun handleUrlLoading(
+                        view: WebView?,
+                        urlString: String,
+                        refererHost: String?
+                    ): Boolean {
+                        // 1. Intercept ad or tracker redirects when Shield is enabled
+                        if (currentAdBlockEnabled && AdBlocker.isAdOrTracker(urlString, refererHost)) {
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                currentOnTrackerBlocked()
+                            }
+                            return true
+                        }
+
+                        // 2. Intercept *.user.js scripts to prompt install dialog
+                        if (urlString.endsWith(".user.js", ignoreCase = true) ||
+                            urlString.substringBefore('?').endsWith(".user.js", ignoreCase = true)
+                        ) {
+                            currentOnInterceptUserscript(urlString)
+                            return true
+                        }
+
+                        // 3. Special handling for intent:, chrome custom schemes, and search redirects
+                        // Extract embedded web URLs so searches and queries stay inside Velocity WebView!
+                        val extractedWebUrl = IntentValidator.extractWebUrlFromIntent(urlString)
+                        if (!extractedWebUrl.isNullOrBlank()) {
+                            view?.loadUrl(extractedWebUrl)
+                            return true
+                        }
+
+                        // 4. Block any intent or scheme attempting to escape to Chrome or external browsers
+                        if (IntentValidator.isBrowserIntent(urlString) || SchemePolicy.isBrowserCustomScheme(urlString)) {
+                            return true
+                        }
+
+                        // 5. Regular HTTP/HTTPS web schemes -> always stay inside Velocity WebView!
+                        if (SchemePolicy.isWebScheme(urlString)) {
+                            return false
+                        }
+
+                        // 6. Block unsafe internal schemes (file://, content://)
+                        if (SchemePolicy.isBlockedScheme(urlString)) {
+                            return true
+                        }
+
+                        // 7. Non-browser native app schemes (e.g. tel:, mailto:, sms:, geo:, whatsapp:, upi:)
+                        if (SchemePolicy.isExternalScheme(urlString) || urlString.startsWith("intent:", ignoreCase = true)) {
+                            val safeIntent = IntentValidator.parseSafeIntent(context, urlString)
+                            if (safeIntent != null) {
+                                try {
+                                    context.startActivity(safeIntent)
+                                } catch (_: Exception) {
+                                    // Activity not found on device
+                                }
+                            }
+                            return true
+                        }
+
+                        return true
+                    }
+
                     override fun shouldOverrideUrlLoading(
                         view: WebView?,
                         request: WebResourceRequest?
@@ -171,58 +231,14 @@ fun WebViewContainer(
                             }
                         } ?: try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
 
-                        // Intercept ad or tracker redirects when Shield is enabled
-                        if (currentAdBlockEnabled && AdBlocker.isAdOrTracker(urlString, refererHost)) {
-                            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                currentOnTrackerBlocked()
-                            }
-                            return true
-                        }
-
-                        // Intercept *.user.js scripts to prompt install dialog
-                        if (urlString.endsWith(".user.js", ignoreCase = true) || uri.path?.endsWith(".user.js", ignoreCase = true) == true) {
-                            currentOnInterceptUserscript(urlString)
-                            return true
-                        }
-
-                        if (SchemePolicy.isWebScheme(urlString)) {
-                            return false
-                        }
-
-                        if (SchemePolicy.isBlockedScheme(urlString)) {
-                            return true
-                        }
-
-                        if (SchemePolicy.isExternalScheme(urlString)) {
-                            val safeIntent = IntentValidator.parseSafeIntent(context, urlString)
-                            if (safeIntent != null) {
-                                try {
-                                    context.startActivity(safeIntent)
-                                } catch (_: Exception) {
-                                    // Activity not found
-                                }
-                            }
-                            return true
-                        }
-
-                        return false
+                        return handleUrlLoading(view, urlString, refererHost)
                     }
 
                     @Deprecated("Deprecated in Java")
                     override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                         if (url == null) return false
                         val currentSiteHost = try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
-                        if (currentAdBlockEnabled && AdBlocker.isAdOrTracker(url, currentSiteHost)) {
-                            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                currentOnTrackerBlocked()
-                            }
-                            return true
-                        }
-                        if (url.endsWith(".user.js", ignoreCase = true)) {
-                            currentOnInterceptUserscript(url)
-                            return true
-                        }
-                        return super.shouldOverrideUrlLoading(view, url)
+                        return handleUrlLoading(view, url, currentSiteHost)
                     }
 
                     override fun shouldInterceptRequest(
@@ -461,7 +477,7 @@ fun WebViewContainer(
                                 android.os.Handler(android.os.Looper.getMainLooper()).post {
                                     currentOnTrackerBlocked()
                                 }
-                                return false
+                                return true
                             }
                             val hitTest = view?.hitTestResult
                             val targetUrl = hitTest?.extra ?: ""
@@ -469,11 +485,11 @@ fun WebViewContainer(
                                 android.os.Handler(android.os.Looper.getMainLooper()).post {
                                     currentOnTrackerBlocked()
                                 }
-                                return false
+                                return true
                             }
                             if (targetUrl.isNotEmpty()) {
                                 currentOnOpenNewTab(targetUrl)
-                                return false
+                                return true
                             }
 
                             // Intercept window.open popups via transport WebView

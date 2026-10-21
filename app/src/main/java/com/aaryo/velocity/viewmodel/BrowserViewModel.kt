@@ -276,9 +276,17 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     fun createNewTab(url: String = "velocity://newtab", isIncognito: Boolean = false) {
         captureCurrentTabThumbnail()
 
+        val formattedUrl = if (url == "velocity://newtab" || url.isBlank()) {
+            "velocity://newtab"
+        } else {
+            formatUrl(url)
+        }
+
         val newTab = Tab(
-            title = if (isIncognito) "Private Tab" else "New Tab",
-            url = url,
+            title = if (isIncognito) "Private Tab" else if (formattedUrl == "velocity://newtab") "New Tab" else "Loading…",
+            url = formattedUrl,
+            isLoading = formattedUrl != "velocity://newtab",
+            progress = if (formattedUrl != "velocity://newtab") 10 else 0,
             isIncognito = isIncognito,
             adBlockEnabled = _settings.value.adBlockGlobalEnabled,
             isDesktopMode = _settings.value.desktopSiteDefault
