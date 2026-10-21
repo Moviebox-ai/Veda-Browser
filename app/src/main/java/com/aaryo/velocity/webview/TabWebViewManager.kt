@@ -44,9 +44,13 @@ class TabWebViewManager {
                             }
                         } ?: if (request.isForMainFrame) request.url?.host else null
 
-                        val resType = com.aaryo.velocity.privacy.AdBlocker.detectResourceType(url, headers, request.isForMainFrame)
-                        if (com.aaryo.velocity.privacy.AdBlocker.isAdOrTracker(url, refererHost, resType, headers)) {
-                            return com.aaryo.velocity.privacy.AdBlocker.createEmptyResponse(url)
+                        val adBlocker = com.aaryo.velocity.privacy.AdBlocker
+                        // Service Worker interception is process-wide, so it must obey the
+                        // global switch. Per-tab exclusions are also respected via allowlist.
+                        if (!adBlocker.globalEnabled) return null
+                        val resType = adBlocker.detectResourceType(url, headers, request.isForMainFrame)
+                        if (adBlocker.isAdOrTracker(url, refererHost, resType, headers)) {
+                            return adBlocker.createEmptyResponse(url)
                         }
                         return null
                     }
@@ -65,6 +69,7 @@ class TabWebViewManager {
         isDesktopMode: Boolean,
         gmBridge: com.aaryo.velocity.extension.GmBridge? = null
     ): WebView {
+        com.aaryo.velocity.privacy.AdBlocker.setGlobalEnabled(settings.adBlockGlobalEnabled)
         val existing = webViewMap[tabId]
         if (existing != null) {
             applyWebSettings(existing, settings, isDesktopMode, isIncognito)
@@ -191,6 +196,7 @@ class TabWebViewManager {
     }
 
     fun applySettingsToAll(settings: BrowserSettings) {
+        com.aaryo.velocity.privacy.AdBlocker.setGlobalEnabled(settings.adBlockGlobalEnabled)
         if (webViewMap.isEmpty()) return
         for ((_, webView) in webViewMap) {
             webView.settings.javaScriptEnabled = settings.javaScriptEnabled
