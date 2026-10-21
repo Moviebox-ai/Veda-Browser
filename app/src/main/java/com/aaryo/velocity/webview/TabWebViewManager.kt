@@ -93,19 +93,75 @@ class TabWebViewManager {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
-            // Attach baseline client immediately so early URL loading never delegates to external browser
+            // Attach robust client immediately so early URL loading and ad blocking are always active
             webViewClient = object : android.webkit.WebViewClient() {
+                override fun shouldInterceptRequest(
+                    view: WebView?,
+                    request: android.webkit.WebResourceRequest?
+                ): android.webkit.WebResourceResponse? {
+                    val reqUrl = request?.url?.toString() ?: return super.shouldInterceptRequest(view, request)
+                    val headers = request.requestHeaders
+                    val refererHost = headers?.let { h ->
+                        (h["Referer"] ?: h["referer"])?.let { ref ->
+                            try { android.net.Uri.parse(ref).host } catch (_: Exception) { null }
+                        }
+                    } ?: if (request.isForMainFrame) request.url?.host else null
+                    val resType = com.aaryo.velocity.privacy.AdBlocker.detectResourceType(reqUrl, headers, request.isForMainFrame)
+                    if (settings.adBlockGlobalEnabled && com.aaryo.velocity.privacy.AdBlocker.isAdOrTracker(reqUrl, refererHost, resType, headers)) {
+                        return com.aaryo.velocity.privacy.AdBlocker.createEmptyResponse(reqUrl)
+                    }
+                    return super.shouldInterceptRequest(view, request)
+                }
+
+                @Deprecated("Deprecated in Java")
+                override fun shouldInterceptRequest(view: WebView?, url: String?): android.webkit.WebResourceResponse? {
+                    if (url != null && settings.adBlockGlobalEnabled && com.aaryo.velocity.privacy.AdBlocker.isAdOrTracker(url)) {
+                        return com.aaryo.velocity.privacy.AdBlocker.createEmptyResponse(url)
+                    }
+                    return super.shouldInterceptRequest(view, url)
+                }
+
                 override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
                     val url = request?.url?.toString() ?: return false
+                    return handleBaselineUrlLoading(view, url)
+                }
+
+                @Deprecated("Deprecated in Java")
+                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                    if (url == null) return false
+                    return handleBaselineUrlLoading(view, url)
+                }
+
+                private fun handleBaselineUrlLoading(view: WebView?, url: String): Boolean {
+                    // Block ad or tracker redirect
+                    if (settings.adBlockGlobalEnabled && com.aaryo.velocity.privacy.AdBlocker.isAdOrTracker(url)) {
+                        return true
+                    }
+                    // Extract embedded web URLs so searches and queries stay inside Velocity
                     val webUrl = com.aaryo.velocity.security.IntentValidator.extractWebUrlFromIntent(url)
                     if (!webUrl.isNullOrBlank()) {
                         view?.loadUrl(webUrl)
                         return true
                     }
-                    if (com.aaryo.velocity.security.IntentValidator.isBrowserIntent(url)) {
+                    // Block escaping to Chrome
+                    if (com.aaryo.velocity.security.IntentValidator.isBrowserIntent(url) ||
+                        com.aaryo.velocity.security.SchemePolicy.isBrowserCustomScheme(url)
+                    ) {
                         return true
                     }
-                    return false
+                    // Keep web navigation in-app
+                    if (com.aaryo.velocity.security.SchemePolicy.isWebScheme(url)) {
+                        return false
+                    }
+                    // Non-browser external schemes
+                    if (com.aaryo.velocity.security.SchemePolicy.isExternalScheme(url) || url.startsWith("intent:", ignoreCase = true)) {
+                        val safeIntent = com.aaryo.velocity.security.IntentValidator.parseSafeIntent(context, url)
+                        if (safeIntent != null) {
+                            try { context.startActivity(safeIntent) } catch (_: Exception) {}
+                        }
+                        return true
+                    }
+                    return true
                 }
             }
         }

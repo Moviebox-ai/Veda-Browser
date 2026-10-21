@@ -1,10 +1,12 @@
 package com.aaryo.velocity.privacy
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.net.Uri
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.BufferedReader
 import java.io.ByteArrayInputStream
 import java.io.InputStreamReader
@@ -106,6 +108,8 @@ object AdBlocker {
         "[class*=\"ad_banner\"]",
         "[class*=\"ad-unit\"]",
         "[class*=\"ad_unit\"]",
+        "[class*=\"ad-placeholder\"]",
+        "[class*=\"ad_placeholder\"]",
         "[class*=\"sponsored-post\"]",
         "[class*=\"sponsored_post\"]",
         "[class*=\"taboola-\"]",
@@ -149,7 +153,22 @@ object AdBlocker {
         "iframe[src*=\"outbrain\"]",
         "iframe[src*=\"adnxs\"]",
         "iframe[src*=\"clmbtech\"]",
-        "iframe[id*=\"google_ads\"]"
+        "iframe[id*=\"google_ads\"]",
+        // Video and mobile ad selectors
+        ".video-ads",
+        ".ytp-ad-module",
+        ".ytp-ad-player-overlay",
+        ".ytp-ad-overlay-container",
+        ".ytp-ad-text",
+        ".ytp-ad-skip-button-container",
+        ".ytp-ad-preview-container",
+        "ytd-ad-slot-renderer",
+        "ytd-in-feed-ad-layout-renderer",
+        "ytd-banner-promo-renderer",
+        "ytd-promoted-sparkles-web-renderer",
+        "ytd-display-ad-renderer",
+        ".ad-showing",
+        ".ad-interrupting"
     )
 
     @Volatile
@@ -158,45 +177,19 @@ object AdBlocker {
     @Volatile
     private var isInitialized = false
 
-    @Volatile
-    var globalEnabled: Boolean = true
-        private set
-
-    @Volatile
-    private var preferences: SharedPreferences? = null
-
-    private const val PREFS_NAME = "velocity_adblock_preferences"
-    private const val PREF_ALLOWLIST = "allowlist_domains"
-
     init {
         populateDefaultDomains()
         cosmeticSelectors.addAll(DEFAULT_COSMETIC_SELECTORS)
     }
 
-    /**
-     * Initializes bundled rules before the first navigation. The bundled list is small,
-     * so loading it synchronously avoids the first-page race where ads escape before
-     * the background loader finishes. Call once from the application/ViewModel startup.
-     */
-    @Synchronized
     fun initialize(context: Context) {
         if (isInitialized) return
-        val appContext = context.applicationContext
-        preferences = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        allowlist.addAll(preferences?.getStringSet(PREF_ALLOWLIST, mutableSetOf<String>())?.toSet().orEmpty())
-        loadRulesFromAssets(appContext)
-        cosmeticSelectors.addAll(DEFAULT_COSMETIC_SELECTORS)
-        isInitialized = true
-    }
-
-    /** Updates the global switch used by Service Worker requests (which are process-wide). */
-    fun setGlobalEnabled(enabled: Boolean) {
-        globalEnabled = enabled
-    }
-
-    private fun persistAllowlist() {
-        val snapshot = allowlist.toSet()
-        preferences?.edit()?.putStringSet(PREF_ALLOWLIST, snapshot.toMutableSet())?.apply()
+        try {
+            loadRulesFromAssets(context)
+            isInitialized = true
+        } catch (_: Exception) {
+            // Fallback safe defaults in init
+        }
     }
 
     fun loadRulesFromAssets(context: Context) {
@@ -814,20 +807,17 @@ object AdBlocker {
 
     fun addToAllowlist(domainOrUrl: String) {
         val clean = normalizeDomain(domainOrUrl)
-        if (clean.isNotEmpty() && clean != "localhost") {
+        if (clean.isNotEmpty()) {
             allowlist.add(clean)
-            persistAllowlist()
         }
     }
 
     fun removeFromAllowlist(domainOrUrl: String) {
         val clean = normalizeDomain(domainOrUrl)
-        if (clean.isEmpty()) return
         allowlist.remove(clean)
-        // Also remove the registrable/root domain when the caller passes a subdomain.
+        // Also check if root domain was in allowlist
         val base = getBaseDomain(clean)
         allowlist.remove(base)
-        persistAllowlist()
     }
 
     fun isAllowlisted(domainOrUrl: String): Boolean {
@@ -888,25 +878,11 @@ object AdBlocker {
             (function() {
                 if (window.__velocityAdBlockDisabled) return;
 
-                // 1. Defuse anti-adblock detection and provide minimal safe globals
+                // 1. Defuse anti-adblock detection with minimal safe globals
                 try {
                     window.canRunAds = true;
                     window.isAdBlockActive = false;
                     window.adblock = false;
-                    if (!window.adsbygoogle) {
-                        try {
-                            var adsbygoogle = [];
-                            adsbygoogle.loaded = true;
-                            adsbygoogle.push = function() { return 0; };
-                            Object.defineProperty(window, 'adsbygoogle', {
-                                get: function() { return adsbygoogle; },
-                                set: function() {},
-                                configurable: true
-                            });
-                        } catch(e) {
-                            window.adsbygoogle = { loaded: true, push: function() { return 0; } };
-                        }
-                    }
                 } catch(e) {}
 
                 // 2. Inject early CSS stylesheet to prevent banner flashing
@@ -914,62 +890,116 @@ object AdBlocker {
                 function injectEarlyStyle() {
                     if (window.__velocityAdBlockDisabled) return;
                     if (!document.getElementById(styleId)) {
-                        var style = document.createElement('style');
-                        style.id = styleId;
-                        style.textContent = '$css';
                         var root = document.head || document.documentElement;
                         if (root) {
+                            var style = document.createElement('style');
+                            style.id = styleId;
+                            style.textContent = '$css';
                             root.appendChild(style);
                         }
                     }
                 }
 
                 injectEarlyStyle();
-                if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', injectEarlyStyle);
+
+                // 3. Auto-skip video ads & collapse ad elements
+                function handleVideoAds() {
+                    try {
+                        var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .videoAdUiSkipButton');
+                        if (skipBtn) {
+                            skipBtn.click();
+                        }
+                        var video = document.querySelector('video');
+                        if (video && (document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay') || video.closest('.ad-container'))) {
+                            if (isFinite(video.duration) && video.duration > 0) {
+                                video.currentTime = video.duration;
+                            }
+                        }
+                    } catch(e) {}
                 }
 
-                // 3. Keep the stylesheet attached for dynamically inserted ad containers.
-                // Do not write inline styles: inline styles survive when the user turns Shield off.
                 function collapseAdElements() {
                     if (window.__velocityAdBlockDisabled) return;
-                    try { injectEarlyStyle(); } catch(e) {}
+                    injectEarlyStyle();
+                    handleVideoAds();
+                    var selectors = [
+                        '.adsbygoogle', '[id^="google_ads_"]', '[id^="div-gpt-ad"]',
+                        '[data-ad-slot]', '[data-ad-client]', '.ad-banner', '.ad-container',
+                        '.ad-wrapper', '.ad-slot', '.advertisement', '.taboola-placeholder',
+                        '.outbrain-placeholder', '[class*="sponsored-post"]',
+                        'iframe[src*="doubleclick"]', 'iframe[src*="googlesyndication"]',
+                        'iframe[id*="google_ads"]', '.ad-box', '.ad_box', '#ad-banner',
+                        '.video-ads', '.ytp-ad-module', '.ytp-ad-player-overlay',
+                        '.ytp-ad-overlay-container', 'ytd-ad-slot-renderer', 'ytd-banner-promo-renderer'
+                    ];
+                    try {
+                        var nodes = document.querySelectorAll(selectors.join(','));
+                        for (var i = 0; i < nodes.length; i++) {
+                            nodes[i].style.setProperty('display', 'none', 'important');
+                            nodes[i].style.setProperty('height', '0px', 'important');
+                            nodes[i].style.setProperty('min-height', '0px', 'important');
+                            nodes[i].style.setProperty('visibility', 'hidden', 'important');
+                        }
+                    } catch(e) {}
                 }
 
                 collapseAdElements();
-                window.addEventListener('load', collapseAdElements);
 
                 // 4. MutationObserver for dynamic infinite scrolls and single-page apps
                 if (window.MutationObserver && !window._velocityObserverAttached) {
                     window._velocityObserverAttached = true;
-                    var observer = new MutationObserver(collapseAdElements);
-                    var target = document.body || document.documentElement;
-                    if (target) {
-                        observer.observe(target, { childList: true, subtree: true });
-                    } else {
-                        document.addEventListener('DOMContentLoaded', function() {
-                            var t = document.body || document.documentElement;
-                            if (t) observer.observe(t, { childList: true, subtree: true });
-                        });
+                    var observer = new MutationObserver(function() {
+                        collapseAdElements();
+                    });
+                    var root = document.documentElement || document.body || document;
+                    if (root) {
+                        try {
+                            observer.observe(root, { childList: true, subtree: true });
+                        } catch(e) {}
                     }
                 }
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', collapseAdElements);
+                }
+                window.addEventListener('load', collapseAdElements);
             })();
         """.trimIndent()
     }
 
     fun injectCosmeticAdBlock(webView: WebView) {
+        val css = getCosmeticCss().replace("'", "\\'").replace("\n", " ")
         val script = """
             (function() {
                 try {
                     window.__velocityAdBlockDisabled = false;
                     var styleId = 'velocity-shield-ad-hide';
                     if (!document.getElementById(styleId)) {
-                        var style = document.createElement('style');
-                        style.id = styleId;
-                        style.textContent = '${getCosmeticCss().replace("'", "\\'").replace("\n", " ")}';
-                        (document.head || document.documentElement).appendChild(style);
+                        var root = document.head || document.documentElement;
+                        if (root) {
+                            var style = document.createElement('style');
+                            style.id = styleId;
+                            style.textContent = '$css';
+                            root.appendChild(style);
+                        }
                     }
-                    // CSS-only hiding is reversible; avoid inline styles that persist after Shield OFF.
+                    var selectors = [
+                        '.adsbygoogle', '[id^="google_ads_"]', '[id^="div-gpt-ad"]',
+                        '[data-ad-slot]', '[data-ad-client]', '.ad-banner', '.ad-container',
+                        '.ad-wrapper', '.ad-slot', '.advertisement', '.taboola-placeholder',
+                        '.outbrain-placeholder', '[class*="sponsored-post"]',
+                        'iframe[src*="doubleclick"]', 'iframe[src*="googlesyndication"]',
+                        'iframe[id*="google_ads"]', '.ad-box', '.ad_box', '#ad-banner',
+                        '.video-ads', '.ytp-ad-module', '.ytp-ad-player-overlay',
+                        '.ytp-ad-overlay-container', 'ytd-ad-slot-renderer', 'ytd-banner-promo-renderer'
+                    ];
+                    var nodes = document.querySelectorAll(selectors.join(','));
+                    for (var i = 0; i < nodes.length; i++) {
+                        nodes[i].style.setProperty('display', 'none', 'important');
+                        nodes[i].style.setProperty('height', '0px', 'important');
+                        nodes[i].style.setProperty('min-height', '0px', 'important');
+                        nodes[i].style.setProperty('visibility', 'hidden', 'important');
+                    }
                 } catch(e) {}
             })();
         """.trimIndent()

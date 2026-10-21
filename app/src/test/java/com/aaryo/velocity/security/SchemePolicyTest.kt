@@ -35,11 +35,13 @@ class SchemePolicyTest {
     }
 
     @Test
-    fun testSafeInternalSchemes() {
-        assertTrue(SchemePolicy.isSafeInternal("about:blank"))
-        assertTrue(SchemePolicy.isSafeInternal("javascript:void(0)"))
-        assertTrue(SchemePolicy.isSafeInternal("velocity://newtab"))
-        assertTrue(SchemePolicy.isSafeInternal("data:text/html,<h1>Hello</h1>"))
-        assertFalse(SchemePolicy.isSafeInternal("https://example.com"))
+    fun testBrowserCustomSchemes() {
+        assertTrue(SchemePolicy.isBrowserCustomScheme("googlechrome://navigate?url=https%3A%2F%2Fgoogle.com"))
+        assertTrue(SchemePolicy.isBrowserCustomScheme("googlechromes://navigate?url=https%3A%2F%2Fgoogle.com"))
+        assertTrue(SchemePolicy.isBrowserCustomScheme("chromenative://"))
+        assertTrue(SchemePolicy.isBrowserCustomScheme("chrome://flags"))
+        assertTrue(SchemePolicy.isBrowserCustomScheme("android-app://com.android.chrome"))
+        assertFalse(SchemePolicy.isBrowserCustomScheme("https://google.com"))
+        assertFalse(SchemePolicy.isBrowserCustomScheme("tel:123"))
     }
 }

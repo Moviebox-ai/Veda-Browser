@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -228,52 +229,54 @@ fun BrowserScreen(
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            WebViewContainer(
-                                tab = activeTab,
-                                settings = settings,
-                                tabWebViewManager = viewModel.tabWebViewManager,
-                                extensions = extensions,
-                                isExtensionsGlobalEnabled = extensionsGlobalEnabled,
-                                gmBridge = viewModel.gmBridge,
-                                onPageStarted = { viewModel.onPageStarted(activeTab.id, it) },
-                                onPageFinished = { url, title, certInfo ->
-                                    viewModel.onPageFinished(activeTab.id, url, title, certInfo)
-                                },
-                                onProgressChanged = { viewModel.onProgressChanged(activeTab.id, it) },
-                                onTitleReceived = { viewModel.onTitleReceived(activeTab.id, it) },
-                                onFaviconReceived = { viewModel.onFaviconReceived(activeTab.id, it) },
-                                onNavigationStateChanged = { canBack, canFwd ->
-                                    viewModel.onNavigationStateChanged(activeTab.id, canBack, canFwd)
-                                },
-                                onTrackerBlocked = { viewModel.onTrackerBlocked(activeTab.id) },
-                                onExtensionsCountChanged = { count ->
-                                    viewModel.onExtensionsCountUpdated(activeTab.id, count)
-                                },
-                                onInterceptUserscript = { url ->
-                                    viewModel.fetchAndPromptUserscript(url)
-                                },
-                                onDownloadStart = { url, disposition, mime, ua ->
-                                    viewModel.startDownload(url, disposition, mime, ua)
-                                },
-                                onOpenNewTabRequested = { targetUrl ->
-                                    viewModel.createNewTab(url = if (targetUrl.isNotEmpty()) targetUrl else "velocity://newtab")
-                                },
-                                onShowCustomView = { view, callback ->
-                                    viewModel.setCustomView(view, callback)
-                                },
-                                onHideCustomView = {
-                                    viewModel.hideCustomView()
-                                },
-                                onSslErrorOccurred = { warningState ->
-                                    viewModel.setSslWarning(warningState)
-                                },
-                                onPermissionRequested = { permState ->
-                                    viewModel.setWebPermission(permState)
-                                },
-                                findInPageQuery = findInPageQuery,
-                                onWebViewReady = { currentWebView = it },
-                                modifier = Modifier.fillMaxSize()
-                            )
+                            key(activeTab.id) {
+                                WebViewContainer(
+                                    tab = activeTab,
+                                    settings = settings,
+                                    tabWebViewManager = viewModel.tabWebViewManager,
+                                    extensions = extensions,
+                                    isExtensionsGlobalEnabled = extensionsGlobalEnabled,
+                                    gmBridge = viewModel.gmBridge,
+                                    onPageStarted = { viewModel.onPageStarted(activeTab.id, it) },
+                                    onPageFinished = { url, title, certInfo ->
+                                        viewModel.onPageFinished(activeTab.id, url, title, certInfo)
+                                    },
+                                    onProgressChanged = { viewModel.onProgressChanged(activeTab.id, it) },
+                                    onTitleReceived = { viewModel.onTitleReceived(activeTab.id, it) },
+                                    onFaviconReceived = { viewModel.onFaviconReceived(activeTab.id, it) },
+                                    onNavigationStateChanged = { canBack, canFwd ->
+                                        viewModel.onNavigationStateChanged(activeTab.id, canBack, canFwd)
+                                    },
+                                    onTrackerBlocked = { viewModel.onTrackerBlocked(activeTab.id) },
+                                    onExtensionsCountChanged = { count ->
+                                        viewModel.onExtensionsCountUpdated(activeTab.id, count)
+                                    },
+                                    onInterceptUserscript = { url ->
+                                        viewModel.fetchAndPromptUserscript(url)
+                                    },
+                                    onDownloadStart = { url, disposition, mime, ua ->
+                                        viewModel.startDownload(url, disposition, mime, ua)
+                                    },
+                                    onOpenNewTabRequested = { targetUrl ->
+                                        viewModel.createNewTab(url = if (targetUrl.isNotEmpty()) targetUrl else "velocity://newtab")
+                                    },
+                                    onShowCustomView = { view, callback ->
+                                        viewModel.setCustomView(view, callback)
+                                    },
+                                    onHideCustomView = {
+                                        viewModel.hideCustomView()
+                                    },
+                                    onSslErrorOccurred = { warningState ->
+                                        viewModel.setSslWarning(warningState)
+                                    },
+                                    onPermissionRequested = { permState ->
+                                        viewModel.setWebPermission(permState)
+                                    },
+                                    findInPageQuery = findInPageQuery,
+                                    onWebViewReady = { currentWebView = it },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                         }
                     }
                 }

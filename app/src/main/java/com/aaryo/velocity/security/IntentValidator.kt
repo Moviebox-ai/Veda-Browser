@@ -254,6 +254,7 @@ object IntentValidator {
                 return null
             }
 
+            intent.`package` = resolvedPackage
             intent
         } catch (_: Exception) {
             null
