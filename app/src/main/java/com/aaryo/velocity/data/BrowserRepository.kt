@@ -243,6 +243,22 @@ class BrowserRepository(private val context: Context) {
         }
     }
 
+    suspend fun addAllowlistedDomain(domain: String) = withContext(Dispatchers.IO) {
+        val current = settingsFlow.first()
+        val normalized = domain.lowercase().trim()
+        if (normalized.isNotEmpty()) {
+            val updated = current.copy(allowlistedDomains = current.allowlistedDomains + normalized)
+            saveSettings(updated)
+        }
+    }
+
+    suspend fun removeAllowlistedDomain(domain: String) = withContext(Dispatchers.IO) {
+        val current = settingsFlow.first()
+        val normalized = domain.lowercase().trim()
+        val updated = current.copy(allowlistedDomains = current.allowlistedDomains - normalized)
+        saveSettings(updated)
+    }
+
     val shieldStatsFlow: Flow<ShieldStats> = context.dataStore.data
         .catch { exception ->
             if (exception is IOException) emit(emptyPreferences()) else throw exception
@@ -256,13 +272,15 @@ class BrowserRepository(private val context: Context) {
             }
         }
 
-    suspend fun incrementShieldStats(count: Int) = withContext(Dispatchers.IO) {
+    suspend fun incrementShieldStats(adsCount: Int = 0, trackersCount: Int = 0) = withContext(Dispatchers.IO) {
+        val total = adsCount + trackersCount
+        if (total <= 0) return@withContext
         val current = shieldStatsFlow.first()
         val updated = current.copy(
-            totalAdsBlocked = current.totalAdsBlocked + count,
-            totalTrackersBlocked = current.totalTrackersBlocked + count,
-            totalBandwidthSavedMb = current.totalBandwidthSavedMb + (count * 0.15f),
-            totalTimeSavedSeconds = current.totalTimeSavedSeconds + (count * 0.25f)
+            totalAdsBlocked = current.totalAdsBlocked + adsCount,
+            totalTrackersBlocked = current.totalTrackersBlocked + trackersCount,
+            totalBandwidthSavedMb = current.totalBandwidthSavedMb + (total * 0.15f),
+            totalTimeSavedSeconds = current.totalTimeSavedSeconds + (total * 0.25f)
         )
         context.dataStore.edit { preferences ->
             preferences[KEY_SHIELD_STATS] = gson.toJson(updated)

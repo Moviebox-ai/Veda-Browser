@@ -4,11 +4,15 @@ import android.content.Context
 import android.net.Uri
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
+import com.aaryo.velocity.model.BrowserSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.ByteArrayInputStream
+import java.io.File
+import java.io.InputStream
 import java.io.InputStreamReader
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
@@ -19,6 +23,10 @@ enum class ResourceType {
     STYLESHEET,
     SUBDOCUMENT,
     XMLHTTPREQUEST,
+    MEDIA,
+    FONT,
+    WEBSOCKET,
+    PING,
     OTHER
 }
 
@@ -27,8 +35,11 @@ data class FilterRule(
     val isException: Boolean,
     val anchorDomain: String? = null,
     val regex: Regex? = null,
+    val isImportant: Boolean = false,
     val thirdPartyOnly: Boolean = false,
     val firstPartyOnly: Boolean = false,
+    val permittedDomains: Set<String>? = null,
+    val excludedDomains: Set<String>? = null,
     val resourceTypes: Set<ResourceType>? = null
 ) {
     fun matches(
@@ -46,6 +57,15 @@ data class FilterRule(
         if (resourceTypes != null && !resourceTypes.contains(resourceType)) {
             return false
         }
+        if (siteHost != null) {
+            val baseSite = AdBlocker.getBaseDomain(siteHost)
+            if (excludedDomains != null && (excludedDomains.contains(siteHost) || excludedDomains.contains(baseSite))) {
+                return false
+            }
+            if (permittedDomains != null && !permittedDomains.contains(siteHost) && !permittedDomains.contains(baseSite)) {
+                return false
+            }
+        }
         if (anchorDomain != null && !AdBlocker.matchesDomain(requestHost, anchorDomain)) {
             return false
         }
@@ -61,57 +81,30 @@ object AdBlocker {
     private val blockedDomains = ConcurrentHashMap.newKeySet<String>()
     private val exceptionDomains = ConcurrentHashMap.newKeySet<String>()
     private val allowlist = ConcurrentHashMap.newKeySet<String>()
-    private val cosmeticSelectors = ConcurrentHashMap.newKeySet<String>()
 
-    // Indexed complex rules
+    // Complex indexed network rules
     private val anchoredRules = ConcurrentHashMap<String, CopyOnWriteArrayList<FilterRule>>()
     private val globalRules = CopyOnWriteArrayList<FilterRule>()
 
-    // Login-critical domains that must NEVER be blocked in standard mode to prevent broken logins
-    private val LOGIN_CRITICAL_DOMAINS = setOf(
-        "facebook.net",
-        "connect.facebook.net",
-        "branch.io",
-        "segment.com",
-        "segment.io",
-        "accounts.google.com",
-        "appleid.apple.com",
-        "github.com",
-        "twitter.com",
-        "x.com"
-    )
+    // Cosmetic rules
+    private val globalCosmeticSelectors = ConcurrentHashMap.newKeySet<String>()
+    private val domainCosmeticSelectors = ConcurrentHashMap<String, MutableSet<String>>()
+    private val cosmeticExceptions = ConcurrentHashMap<String, MutableSet<String>>()
 
-    // 1x1 transparent PNG byte array for blocking image ads without showing broken image icons
-    private val TRANSPARENT_1X1_PNG = byteArrayOf(
-        0x89.toByte(), 0x50.toByte(), 0x4E.toByte(), 0x47.toByte(), 0x0D.toByte(), 0x0A.toByte(), 0x1A.toByte(), 0x0A.toByte(),
-        0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x0D.toByte(), 0x49.toByte(), 0x48.toByte(), 0x44.toByte(), 0x52.toByte(),
-        0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x01.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x01.toByte(),
-        0x08.toByte(), 0x06.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x1F.toByte(), 0x15.toByte(), 0xC4.toByte(),
-        0x89.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x0A.toByte(), 0x49.toByte(), 0x44.toByte(), 0x41.toByte(),
-        0x54.toByte(), 0x78.toByte(), 0x9C.toByte(), 0x63.toByte(), 0x00.toByte(), 0x01.toByte(), 0x00.toByte(), 0x00.toByte(),
-        0x05.toByte(), 0x00.toByte(), 0x01.toByte(), 0x0D.toByte(), 0x0A.toByte(), 0x2D.toByte(), 0xB4.toByte(), 0x00.toByte(),
-        0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x49.toByte(), 0x45.toByte(), 0x4E.toByte(), 0x44.toByte(), 0xAE.toByte(),
-        0x42.toByte(), 0x60.toByte(), 0x82.toByte()
-    )
-
-    // Base built-in cosmetic selectors
-    private val DEFAULT_COSMETIC_SELECTORS = listOf(
+    // Default global selectors (clean and specific, avoiding overbroad wildcards like [class*="-ad-"])
+    private val DEFAULT_GLOBAL_COSMETIC_SELECTORS = setOf(
         ".adsbygoogle",
+        "ins.adsbygoogle",
         "[id^=\"google_ads_\"]",
         "[id^=\"div-gpt-ad\"]",
-        "[id*=\"-ad-\"]",
-        "[class*=\"-ad-\"]",
-        "[class*=\"ad-container\"]",
-        "[class*=\"ad-wrapper\"]",
-        "[class*=\"ad-slot\"]",
-        "[class*=\"ad-banner\"]",
-        "[class*=\"ad_banner\"]",
-        "[class*=\"ad-unit\"]",
-        "[class*=\"ad_unit\"]",
-        "[class*=\"ad-placeholder\"]",
-        "[class*=\"ad_placeholder\"]",
-        "[class*=\"sponsored-post\"]",
-        "[class*=\"sponsored_post\"]",
+        "[id^=\"ad-slot-\"]",
+        "[id^=\"ad_unit_\"]",
+        "[class^=\"ad-container\"]",
+        "[class^=\"ad-wrapper\"]",
+        "[class^=\"ad-slot\"]",
+        "[class^=\"ad-banner\"]",
+        "[class^=\"ad_banner\"]",
+        "[class^=\"sponsored-post\"]",
         "[class*=\"taboola-\"]",
         "[class*=\"outbrain-\"]",
         "[data-ad-slot]",
@@ -139,6 +132,14 @@ object AdBlocker {
         ".native-ad",
         ".sponsor-post",
         ".sponsored-content",
+        ".taboola-placeholder",
+        ".outbrain-placeholder",
+        ".clmb-placeholder",
+        ".clmbe-ad",
+        ".colombia-ad",
+        ".inmobi-ad",
+        ".adpushup-container",
+        ".mgid-container",
         "#ad-banner",
         "#ad-header",
         "#ad-footer",
@@ -154,7 +155,6 @@ object AdBlocker {
         "iframe[src*=\"adnxs\"]",
         "iframe[src*=\"clmbtech\"]",
         "iframe[id*=\"google_ads\"]",
-        // Search ads (Google Search, etc.)
         "#tads",
         "#tadsb",
         "#bottomads",
@@ -170,36 +170,33 @@ object AdBlocker {
         ".pla-unit",
         ".pla-unit-container",
         "div[jscontroller][data-ved*=\"ad\"]",
-        // Indian and regional publishers
-        "ins.adsbygoogle",
         ".trc_related_container",
-        ".trc_rbox_div",
-        ".outbrain",
-        ".taboola",
-        "#taboola-below-article-thumbnails",
-        ".clmb-placeholder",
-        ".clmbe-ad",
-        ".colombia-ad",
-        ".inmobi-ad",
-        ".adpushup-container",
-        ".mgid-container",
-        // Video and mobile ad selectors
-        ".video-ads",
-        ".ytp-ad-module",
-        ".ytp-ad-player-overlay",
-        ".ytp-ad-overlay-container",
-        ".ytp-ad-text",
-        ".ytp-ad-skip-button-container",
-        ".ytp-ad-preview-container",
-        "ytd-ad-slot-renderer",
-        "ytd-in-feed-ad-layout-renderer",
-        "ytd-banner-promo-renderer",
-        "ytd-promoted-sparkles-web-renderer",
-        "ytd-promoted-video-renderer",
-        "ytd-compact-promoted-video-renderer",
-        "ytd-display-ad-renderer",
-        ".ad-showing",
-        ".ad-interrupting"
+        ".trc_rbox_div"
+    )
+
+    // 1x1 transparent PNG
+    private val TRANSPARENT_1X1_PNG = byteArrayOf(
+        0x89.toByte(), 0x50.toByte(), 0x4E.toByte(), 0x47.toByte(), 0x0D.toByte(), 0x0A.toByte(), 0x1A.toByte(), 0x0A.toByte(),
+        0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x0D.toByte(), 0x49.toByte(), 0x48.toByte(), 0x44.toByte(), 0x52.toByte(),
+        0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x01.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x01.toByte(),
+        0x08.toByte(), 0x06.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x1F.toByte(), 0x15.toByte(), 0xC4.toByte(),
+        0x89.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x0A.toByte(), 0x49.toByte(), 0x44.toByte(), 0x41.toByte(),
+        0x54.toByte(), 0x78.toByte(), 0x9C.toByte(), 0x63.toByte(), 0x00.toByte(), 0x01.toByte(), 0x00.toByte(), 0x00.toByte(),
+        0x05.toByte(), 0x00.toByte(), 0x01.toByte(), 0x0D.toByte(), 0x0A.toByte(), 0x2D.toByte(), 0xB4.toByte(), 0x00.toByte(),
+        0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x49.toByte(), 0x45.toByte(), 0x4E.toByte(), 0x44.toByte(), 0xAE.toByte(),
+        0x42.toByte(), 0x60.toByte(), 0x82.toByte()
+    )
+
+    // 1x1 transparent GIF
+    private val TRANSPARENT_1X1_GIF = byteArrayOf(
+        0x47.toByte(), 0x49.toByte(), 0x46.toByte(), 0x38.toByte(), 0x39.toByte(), 0x61.toByte(),
+        0x01.toByte(), 0x00.toByte(), 0x01.toByte(), 0x00.toByte(), 0x80.toByte(), 0x00.toByte(),
+        0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0xFF.toByte(), 0xFF.toByte(),
+        0xFF.toByte(), 0x21.toByte(), 0xF9.toByte(), 0x04.toByte(), 0x01.toByte(), 0x00.toByte(),
+        0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x2C.toByte(), 0x00.toByte(), 0x00.toByte(),
+        0x00.toByte(), 0x00.toByte(), 0x01.toByte(), 0x00.toByte(), 0x01.toByte(), 0x00.toByte(),
+        0x00.toByte(), 0x02.toByte(), 0x02.toByte(), 0x44.toByte(), 0x01.toByte(), 0x00.toByte(),
+        0x3B.toByte()
     )
 
     @Volatile
@@ -218,30 +215,93 @@ object AdBlocker {
 
     init {
         populateDefaultDomains()
-        cosmeticSelectors.addAll(DEFAULT_COSMETIC_SELECTORS)
+        globalCosmeticSelectors.addAll(DEFAULT_GLOBAL_COSMETIC_SELECTORS)
     }
 
-    fun initialize(context: Context) {
-        if (isInitialized) return
-        try {
-            loadRulesFromAssets(context)
-            isInitialized = true
-        } catch (_: Exception) {
-            // Fallback safe defaults in init
+    fun syncAllowlist(allowlistedDomains: Set<String>) {
+        allowlist.clear()
+        for (d in allowlistedDomains) {
+            val norm = normalizeDomain(d)
+            if (norm.isNotEmpty()) {
+                allowlist.add(norm)
+            }
         }
     }
 
-    fun loadRulesFromAssets(context: Context) {
-        try {
-            context.assets.open("easylist_subset.txt").use { inputStream ->
-                BufferedReader(InputStreamReader(inputStream)).useLines { lines ->
-                    for (rawLine in lines) {
-                        parseRuleLine(rawLine)
+    fun initialize(context: Context, settings: BrowserSettings? = null) {
+        if (isInitialized) return
+        isInitialized = true
+        isStrictMode = settings?.adBlockStrictMode ?: false
+        globalEnabled = settings?.adBlockGlobalEnabled ?: true
+        settings?.allowlistedDomains?.let { syncAllowlist(it) }
+
+        CoroutineScope(Dispatchers.IO).launch {
+            loadRules(context, settings, forceReload = false)
+        }
+    }
+
+    suspend fun loadRules(
+        context: Context,
+        settings: BrowserSettings? = null,
+        forceReload: Boolean = false
+    ) = withContext(Dispatchers.IO) {
+        val listsDir = File(context.filesDir, "filter_lists")
+
+        val easyListFile = File(listsDir, "easylist.txt")
+        val easyPrivacyFile = File(listsDir, "easyprivacy.txt")
+        val ublockFile = File(listsDir, "ublock_filters.txt")
+        val indianFile = File(listsDir, "indian_filters.txt")
+
+        val easyListEnabled = settings?.easyListEnabled ?: true
+        val easyPrivacyEnabled = settings?.easyPrivacyEnabled ?: true
+        val uBlockEnabled = settings?.uBlockFiltersEnabled ?: true
+        val indianEnabled = settings?.indianFiltersEnabled ?: true
+
+        // Reset rule collections
+        blockedDomains.clear()
+        exceptionDomains.clear()
+        anchoredRules.clear()
+        globalRules.clear()
+        domainCosmeticSelectors.clear()
+        cosmeticExceptions.clear()
+        globalCosmeticSelectors.clear()
+
+        // Always re-add defaults
+        populateDefaultDomains()
+        globalCosmeticSelectors.addAll(DEFAULT_GLOBAL_COSMETIC_SELECTORS)
+
+        // Helper to load file or asset
+        fun loadList(localFile: File, assetName: String) {
+            val stream: InputStream? = try {
+                if (localFile.exists() && localFile.length() > 0L) {
+                    localFile.inputStream()
+                } else {
+                    context.assets.open(assetName)
+                }
+            } catch (_: Exception) {
+                null
+            }
+
+            stream?.use { input ->
+                BufferedReader(InputStreamReader(input, Charsets.UTF_8)).useLines { lines ->
+                    for (line in lines) {
+                        parseRuleLine(line)
                     }
                 }
             }
-        } catch (_: Exception) {
-            // Safe fallback to defaults in init
+        }
+
+        if (easyListEnabled) {
+            loadList(easyListFile, "easylist.txt")
+        }
+        if (easyPrivacyEnabled) {
+            loadList(easyPrivacyFile, "easyprivacy.txt")
+        }
+        if (uBlockEnabled) {
+            loadList(ublockFile, "ublock_filters.txt")
+        }
+        if (indianEnabled) {
+            loadList(indianFile, "indian_filters.txt")
         }
     }
 
@@ -250,16 +310,14 @@ object AdBlocker {
         if (line.isEmpty() || line.startsWith("!") || line.startsWith("[")) {
             return
         }
-        if (line.startsWith("#") && !line.startsWith("##")) {
+
+        // 1. Cosmetic rules (##, #@#)
+        if (line.contains("##") || line.contains("#@#")) {
+            parseCosmeticRule(line)
             return
         }
 
-        // 1. Cosmetic rules (##)
-        if (line.contains("##")) {
-            val selector = line.substringAfter("##").trim()
-            if (selector.isNotEmpty()) {
-                cosmeticSelectors.add(selector)
-            }
+        if (line.startsWith("#")) {
             return
         }
 
@@ -271,47 +329,68 @@ object AdBlocker {
         val patternPart = if (cleanLine.contains("$")) cleanLine.substringBefore("$").trim() else cleanLine
         val modifiersPart = if (cleanLine.contains("$")) cleanLine.substringAfter("$").trim() else ""
 
+        var isImportant = false
         var thirdPartyOnly = false
         var firstPartyOnly = false
+        var permittedDomains: MutableSet<String>? = null
+        var excludedDomains: MutableSet<String>? = null
         val resourceTypes = mutableSetOf<ResourceType>()
 
         if (modifiersPart.isNotEmpty()) {
             val mods = modifiersPart.split(',')
             for (mod in mods) {
                 val m = mod.trim().lowercase()
-                when (m) {
-                    "third-party", "3p" -> thirdPartyOnly = true
-                    "~third-party", "~3p" -> firstPartyOnly = true
-                    "script" -> resourceTypes.add(ResourceType.SCRIPT)
-                    "image" -> resourceTypes.add(ResourceType.IMAGE)
-                    "stylesheet", "css" -> resourceTypes.add(ResourceType.STYLESHEET)
-                    "subdocument" -> resourceTypes.add(ResourceType.SUBDOCUMENT)
-                    "xmlhttprequest", "xhr" -> resourceTypes.add(ResourceType.XMLHTTPREQUEST)
+                when {
+                    m == "important" -> isImportant = true
+                    m == "third-party" || m == "3p" -> thirdPartyOnly = true
+                    m == "~third-party" || m == "~3p" -> firstPartyOnly = true
+                    m == "script" -> resourceTypes.add(ResourceType.SCRIPT)
+                    m == "image" -> resourceTypes.add(ResourceType.IMAGE)
+                    m == "stylesheet" || m == "css" -> resourceTypes.add(ResourceType.STYLESHEET)
+                    m == "subdocument" || m == "document" -> resourceTypes.add(ResourceType.SUBDOCUMENT)
+                    m == "xmlhttprequest" || m == "xhr" -> resourceTypes.add(ResourceType.XMLHTTPREQUEST)
+                    m == "media" -> resourceTypes.add(ResourceType.MEDIA)
+                    m == "font" -> resourceTypes.add(ResourceType.FONT)
+                    m == "websocket" -> resourceTypes.add(ResourceType.WEBSOCKET)
+                    m == "ping" -> resourceTypes.add(ResourceType.PING)
+                    m.startsWith("domain=") -> {
+                        val domList = m.substringAfter("domain=").split('|')
+                        for (domEntry in domList) {
+                            val cleanD = domEntry.trim().lowercase()
+                            if (cleanD.startsWith("~")) {
+                                if (excludedDomains == null) excludedDomains = mutableSetOf()
+                                excludedDomains.add(cleanD.removePrefix("~"))
+                            } else if (cleanD.isNotEmpty()) {
+                                if (permittedDomains == null) permittedDomains = mutableSetOf()
+                                permittedDomains.add(cleanD)
+                            }
+                        }
+                    }
                 }
             }
         }
 
         val resTypes = if (resourceTypes.isNotEmpty()) resourceTypes.toSet() else null
 
-        // 4. Simple domain rules without paths or wildcards -> Store directly for O(1) lookup
+        // 4. Simple domain rule without path/wildcard -> store directly for O(1) lookup
         if (patternPart.startsWith("||") && !patternPart.contains("/") && !patternPart.contains("*")) {
             val rawDomain = patternPart.removePrefix("||").removeSuffix("^").trim().lowercase()
             if (rawDomain.isNotEmpty()) {
                 if (isException) {
                     exceptionDomains.add(rawDomain)
-                } else if (resTypes == null && !thirdPartyOnly && !firstPartyOnly) {
-                    if (!LOGIN_CRITICAL_DOMAINS.contains(rawDomain)) {
-                        blockedDomains.add(rawDomain)
-                    }
+                } else if (resTypes == null && !thirdPartyOnly && !firstPartyOnly && permittedDomains == null && excludedDomains == null && !isImportant) {
+                    blockedDomains.add(rawDomain)
                 } else {
-                    // Domain rule has modifiers
                     val filterRule = FilterRule(
                         raw = line,
                         isException = isException,
                         anchorDomain = rawDomain,
                         regex = null,
+                        isImportant = isImportant,
                         thirdPartyOnly = thirdPartyOnly,
                         firstPartyOnly = firstPartyOnly,
+                        permittedDomains = permittedDomains,
+                        excludedDomains = excludedDomains,
                         resourceTypes = resTypes
                     )
                     anchoredRules.computeIfAbsent(rawDomain) { CopyOnWriteArrayList() }.add(filterRule)
@@ -320,7 +399,7 @@ object AdBlocker {
             }
         }
 
-        // 5. Complex anchored / path / wildcard rules
+        // 5. Complex anchored or wildcard path rule
         var anchorDomain: String? = null
         if (patternPart.startsWith("||")) {
             val afterAnchor = patternPart.removePrefix("||")
@@ -341,8 +420,11 @@ object AdBlocker {
             isException = isException,
             anchorDomain = anchorDomain,
             regex = regex,
+            isImportant = isImportant,
             thirdPartyOnly = thirdPartyOnly,
             firstPartyOnly = firstPartyOnly,
+            permittedDomains = permittedDomains,
+            excludedDomains = excludedDomains,
             resourceTypes = resTypes
         )
 
@@ -350,6 +432,44 @@ object AdBlocker {
             anchoredRules.computeIfAbsent(anchorDomain) { CopyOnWriteArrayList() }.add(rule)
         } else {
             globalRules.add(rule)
+        }
+    }
+
+    private fun parseCosmeticRule(line: String) {
+        val isUnhide = line.contains("#@#")
+        val delimiter = if (isUnhide) "#@#" else "##"
+        val domainPart = line.substringBefore(delimiter).trim()
+        val selector = line.substringAfter(delimiter).trim()
+
+        if (selector.isEmpty()) return
+
+        // Skip unsupported procedural selectors that break browser CSS parsers
+        if (selector.contains(":has-text(") ||
+            selector.contains(":-abp-") ||
+            selector.contains(":matches-path(") ||
+            selector.contains(":xpath(") ||
+            selector.contains("[-abp-")
+        ) {
+            return
+        }
+
+        if (domainPart.isEmpty()) {
+            if (!isUnhide) {
+                globalCosmeticSelectors.add(selector)
+            }
+        } else {
+            val domains = domainPart.split(',')
+            for (d in domains) {
+                val cleanD = d.trim().lowercase()
+                if (cleanD.isEmpty() || cleanD.startsWith("~")) continue
+                if (isUnhide) {
+                    val set = cosmeticExceptions.computeIfAbsent(cleanD) { ConcurrentHashMap.newKeySet() }
+                    set.add(selector)
+                } else {
+                    val set = domainCosmeticSelectors.computeIfAbsent(cleanD) { ConcurrentHashMap.newKeySet() }
+                    set.add(selector)
+                }
+            }
         }
     }
 
@@ -370,17 +490,9 @@ object AdBlocker {
             val c = pattern[i]
             when (c) {
                 '*' -> sb.append(".*")
-                '^' -> sb.append("""(?:[^a-zA-Z0-9._%-]|$)""")
-                '|' -> {
-                    if (i == len - 1) {
-                        sb.append("$")
-                    } else {
-                        sb.append("\\|")
-                    }
-                }
-                '.', '\\', '+', '?', '{', '}', '(', ')', '[', ']', '$' -> {
-                    sb.append('\\').append(c)
-                }
+                '^' -> sb.append("""(?:[^\w\d_.-]|$)""")
+                '|' -> if (i == len - 1) sb.append("$") else sb.append("""\|""")
+                '.', '?', '+', '(', ')', '[', ']', '{', '}', '$', '\\' -> sb.append('\\').append(c)
                 else -> sb.append(c)
             }
             i++
@@ -391,186 +503,33 @@ object AdBlocker {
 
     private fun populateDefaultDomains() {
         val defaults = listOf(
-            // Google Ads & Syndication
-            "doubleclick.net",
-            "googleadservices.com",
-            "googlesyndication.com",
-            "adservice.google.com",
-            "pagead2.googlesyndication.com",
-            "googletagservices.com",
-            "googletagmanager.com",
-            "google-analytics.com",
-            "analytics.google.com",
-            "admob.com",
-            "ads.google.com",
-            "googleads.g.doubleclick.net",
-            "securepubads.g.doubleclick.net",
-            "adclick.g.doubleclick.net",
-            "stats.g.doubleclick.net",
-            "tpc.googlesyndication.com",
-            "partner.googleadservices.com",
-            "pubads.g.doubleclick.net",
-
-            // Global Exchanges & Networks
-            "amazon-adsystem.com",
-            "aax.amazon-adsystem.com",
-            "aax-us-east.amazon-adsystem.com",
-            "c.amazon-adsystem.com",
-            "adnxs.com",
-            "adnxs-simple.com",
-            "ib.adnxs.com",
-            "criteo.com",
-            "criteo.net",
-            "static.criteo.net",
-            "taboola.com",
-            "cdn.taboola.com",
-            "outbrain.com",
-            "widgets.outbrain.com",
-            "scorecardresearch.com",
-            "moatads.com",
-            "rubiconproject.com",
-            "pubmatic.com",
-            "openx.net",
-            "casalemedia.com",
-            "yieldmo.com",
-            "smartadserver.com",
-            "media.net",
-            "sovrn.com",
-            "lijit.com",
-            "sharethrough.com",
-            "sonobi.com",
-            "spotxchange.com",
-            "teads.tv",
-            "teads.com",
-            "tribalfusion.com",
-            "undertone.com",
-            "adblade.com",
-            "adbutler.com",
-            "adform.net",
-            "adfox.ru",
-            "adriver.ru",
-            "adsafeprotected.com",
-            "adserver.org",
-            "adspirit.de",
-            "adsrvr.org",
-            "adsystem.com",
-            "adtarget.io",
-            "adtech.de",
-            "adtechus.com",
-            "advertising.com",
-            "advertserve.com",
-            "adroll.com",
-            "adroll.net",
-            "bidswitch.net",
-            "contextweb.com",
-            "exponential.com",
-            "mathtag.com",
-            "mgid.com",
-            "jsc.mgid.com",
-            "revcontent.com",
-            "zergnet.com",
-            "indexexchange.com",
-            "gumgum.com",
-            "kargo.com",
-            "liveintent.com",
-            "connatix.com",
-            "aniview.com",
-            "aniview.net",
-            "truvid.com",
-            "brid.tv",
-            "primis.tech",
-            "vi-serve.com",
-            "targetspot.com",
-            "dianomi.com",
-            "speakol.com",
-
-            // India & South Asia Curated Ad Networks
-            "colombiaonline.com",
-            "clmbtech.com",
-            "static.clmbtech.com",
-            "clmbe.com",
-            "adelement.com",
-            "adpushup.com",
-            "vserv.com",
-            "vserv.mobi",
-            "tyroo.com",
-            "affinity.com",
-            "admagnet.com",
-            "komli.com",
-            "adnetworkindia.com",
-            "pokkt.com",
-            "cubecdn.net",
-            "jioads.com",
-            "paytmads.com",
-            "adsolut.in",
-            "zapr.in",
-            "silverpush.co",
-            "verseads.in",
-            "adgebra.co.in",
-            "inuxu.co.in",
-
-            // Mobile & Video Ad Networks
-            "applovin.com",
-            "unityads.unity3d.com",
-            "chartboost.com",
-            "inmobi.com",
-            "inmobi.net",
-            "vungle.com",
-            "ironsrc.com",
-            "adcolony.com",
-            "pangle.io",
-            "mintegral.com",
-            "fyber.com",
-            "tapjoy.com",
-            "mobfox.com",
-            "flurry.com",
-            "appsflyer.com",
-            "adjust.com",
-
-            // Pop-up & High-Frequency Redirect Networks
-            "popads.net",
-            "popcash.net",
-            "propellerads.com",
-            "exoclick.com",
-            "trafficjunky.com",
-            "trafficjunky.net",
-            "adsterra.com",
-            "richads.com",
-            "trafficstars.com",
-            "monetag.com",
-            "hilltopads.com",
-            "clickadu.com",
-            "adcash.com",
-            "yllix.com",
-            "bidvertiser.com",
-            "adkernel.com",
-            "adtrue.com",
-            "bet365affiliates.com",
-            "revenuehits.com",
-            "ero-advertising.com",
-            "juicyads.com",
-            "clicksor.com",
-            "ad-maven.com",
-            "admaven.com",
-
-            // Trackers & Analytics
-            "amplitude.com",
-            "mixpanel.com",
-            "hotjar.com",
-            "mouseflow.com",
-            "crazyegg.com",
-            "clarity.ms",
-            "optimizely.com",
-            "quantserve.com",
-            "quantcount.com",
-            "newrelic.com",
-            "crwdcntrl.net",
-            "demdex.net",
-            "statcounter.com",
-            "histats.com",
-            "chartbeat.com",
-            "an.yandex.ru",
-            "mc.yandex.ru"
+            "doubleclick.net", "googleadservices.com", "googlesyndication.com",
+            "adservice.google.com", "pagead2.googlesyndication.com", "googletagservices.com",
+            "googletagmanager.com", "google-analytics.com", "analytics.google.com",
+            "admob.com", "ads.google.com", "amazon-adsystem.com", "adnxs.com",
+            "criteo.com", "criteo.net", "taboola.com", "outbrain.com", "rubiconproject.com",
+            "pubmatic.com", "openx.net", "casalemedia.com", "yieldmo.com", "smartadserver.com",
+            "media.net", "sovrn.com", "lijit.com", "sharethrough.com", "sonobi.com",
+            "spotxchange.com", "teads.tv", "teads.com", "tribalfusion.com", "undertone.com",
+            "adblade.com", "adbutler.com", "adform.net", "adfox.ru", "adriver.ru",
+            "adsafeprotected.com", "adserver.org", "adspirit.de", "adsrvr.org", "adsystem.com",
+            "adtarget.io", "adtech.de", "adtechus.com", "advertising.com", "advertserve.com",
+            "adroll.com", "bidswitch.net", "contextweb.com", "exponential.com", "mathtag.com",
+            "mgid.com", "revcontent.com", "indexexchange.com", "gumgum.com", "kargo.com",
+            "liveintent.com", "connatix.com", "aniview.com", "aniview.net", "adzerk.net",
+            "yieldlove.com", "yieldoptimizer.com", "zedo.com", "zemanta.com", "turn.com",
+            "truvid.com", "brid.tv", "primis.tech", "vi-serve.com", "targetspot.com",
+            "dianomi.com", "speakol.com", "simpli.fi", "snigelweb.com", "stackadapt.com",
+            "tapad.com", "trustx.org", "unrulymedia.com", "viglink.com", "applovin.com",
+            "unityads.unity3d.com", "chartboost.com", "inmobi.com", "vungle.com", "ironsrc.com",
+            "adcolony.com", "pangle.io", "mintegral.com", "fyber.com", "tapjoy.com", "mobfox.com",
+            "popads.net", "popcash.net", "propellerads.com", "exoclick.com", "trafficjunky.com",
+            "adsterra.com", "richads.com", "trafficstars.com", "monetag.com", "hilltopads.com",
+            "clickadu.com", "adcash.com", "yllix.com", "bidvertiser.com", "adkernel.com",
+            "adtrue.com", "bet365affiliates.com", "revenuehits.com", "ad-maven.com", "admaven.com",
+            "colombiaonline.com", "clmbtech.com", "clmbe.com", "adelement.com", "adpushup.com",
+            "vserv.com", "vserv.mobi", "jioads.com", "paytmads.com", "tyroo.com", "affinity.com",
+            "admagnet.com", "komli.com", "adnetworkindia.com", "adsolut.in", "zapr.in", "silverpush.co"
         )
         blockedDomains.addAll(defaults)
     }
@@ -637,39 +596,46 @@ object AdBlocker {
         headers: Map<String, String>? = null,
         isForMainFrame: Boolean = false
     ): ResourceType {
-        if (isForMainFrame) return ResourceType.OTHER
+        if (isForMainFrame) return ResourceType.SUBDOCUMENT
         if (url == null) return ResourceType.OTHER
 
-        // Check Sec-Fetch-Dest
+        // 1. Check Sec-Fetch-Dest header
         val fetchDest = headers?.let { h -> (h["Sec-Fetch-Dest"] ?: h["sec-fetch-dest"])?.lowercase() }
         if (fetchDest != null) {
             when (fetchDest) {
                 "script" -> return ResourceType.SCRIPT
                 "image" -> return ResourceType.IMAGE
                 "style" -> return ResourceType.STYLESHEET
-                "iframe", "embed" -> return ResourceType.SUBDOCUMENT
+                "iframe", "embed", "frame" -> return ResourceType.SUBDOCUMENT
                 "empty" -> return ResourceType.XMLHTTPREQUEST
+                "video", "audio" -> return ResourceType.MEDIA
+                "font" -> return ResourceType.FONT
             }
         }
 
-        // Check Accept Header
+        // 2. Check Accept Header
         val accept = headers?.let { h -> (h["Accept"] ?: h["accept"])?.lowercase() }
         if (accept != null) {
             when {
                 accept.contains("text/css") -> return ResourceType.STYLESHEET
                 accept.contains("image/") -> return ResourceType.IMAGE
                 accept.contains("text/javascript") || accept.contains("application/javascript") -> return ResourceType.SCRIPT
+                accept.contains("text/html") -> return ResourceType.SUBDOCUMENT
+                accept.contains("application/json") -> return ResourceType.XMLHTTPREQUEST
             }
         }
 
-        // Fallback to URL extension
-        val lower = url.lowercase().substringBefore('?').substringBefore('#')
+        // 3. Fallback to clean URL extension
+        val cleanPath = url.substringBefore('?').substringBefore('#').lowercase()
         return when {
-            lower.endsWith(".js") || lower.endsWith(".mjs") -> ResourceType.SCRIPT
-            lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg") ||
-                    lower.endsWith(".gif") || lower.endsWith(".webp") || lower.endsWith(".svg") ||
-                    lower.endsWith(".ico") -> ResourceType.IMAGE
-            lower.endsWith(".css") -> ResourceType.STYLESHEET
+            cleanPath.endsWith(".js") || cleanPath.endsWith(".mjs") -> ResourceType.SCRIPT
+            cleanPath.endsWith(".png") || cleanPath.endsWith(".jpg") || cleanPath.endsWith(".jpeg") ||
+                    cleanPath.endsWith(".gif") || cleanPath.endsWith(".webp") || cleanPath.endsWith(".svg") ||
+                    cleanPath.endsWith(".ico") -> ResourceType.IMAGE
+            cleanPath.endsWith(".css") -> ResourceType.STYLESHEET
+            cleanPath.endsWith(".mp4") || cleanPath.endsWith(".webm") || cleanPath.endsWith(".mp3") -> ResourceType.MEDIA
+            cleanPath.endsWith(".woff") || cleanPath.endsWith(".woff2") || cleanPath.endsWith(".ttf") -> ResourceType.FONT
+            cleanPath.endsWith(".html") || cleanPath.endsWith(".htm") -> ResourceType.SUBDOCUMENT
             else -> ResourceType.OTHER
         }
     }
@@ -686,6 +652,23 @@ object AdBlocker {
             input.substringBefore('/').substringBefore(':')
         }
         return rawHost.trim().lowercase().removePrefix("www.")
+    }
+
+    /**
+     * Narrows login exemptions to real authentication/oauth endpoints.
+     * Prevents tracking scripts (like connect.facebook.net/en_US/fbevents.js) from escaping ad blocking.
+     */
+    fun isLoginEndpoint(url: String): Boolean {
+        val lower = url.lowercase()
+        return lower.contains("accounts.google.com/o/oauth2") ||
+                lower.contains("accounts.google.com/signin") ||
+                lower.contains("accounts.google.com/servicelogin") ||
+                lower.contains("appleid.apple.com/auth") ||
+                lower.contains("github.com/login") ||
+                lower.contains("github.com/session") ||
+                lower.contains("x.com/i/oauth") ||
+                lower.contains("twitter.com/i/oauth") ||
+                lower.contains("facebook.com/v") && lower.contains("/dialog/oauth")
     }
 
     fun isAdOrTracker(
@@ -705,7 +688,7 @@ object AdBlocker {
             }
         }
 
-        // 2. Extract and normalize request host
+        // 2. Extract request host
         val requestHost = try {
             val uri = Uri.parse(url)
             uri.host?.lowercase()
@@ -721,12 +704,12 @@ object AdBlocker {
 
         val normalizedHost = requestHost.removePrefix("www.")
 
-        // 3. Prevent breaking logins for essential OAuth/Identity providers in standard mode
-        if (!isStrictMode && isLoginCritical(normalizedHost)) {
+        // 3. Narrowed login check (only authentic OAuth endpoints exempted in non-strict mode)
+        if (!isStrictMode && isLoginEndpoint(url)) {
             return false
         }
 
-        // 4. Check domain exceptions (@@ rules)
+        // 4. Domain exceptions (@@ rules)
         if (isHostException(normalizedHost)) {
             return false
         }
@@ -785,7 +768,7 @@ object AdBlocker {
             }
         }
 
-        // 10. Tightly tuned path & keyword heuristics (prevents false positives like vega.js or broadserver)
+        // 10. Tightly tuned ad path rules
         val path = try {
             Uri.parse(url).path?.lowercase() ?: ""
         } catch (_: Exception) {
@@ -794,17 +777,16 @@ object AdBlocker {
             if (rawPath.isNotEmpty()) "/${rawPath.substringBefore('?')}" else ""
         }
 
-        if (matchesTightAdPath(path, url.lowercase(), is3p)) {
+        if (matchesTightAdPath(path, is3p)) {
             return true
         }
 
         return false
     }
 
-    private fun matchesTightAdPath(path: String, lowerUrl: String, isThirdParty: Boolean): Boolean {
+    private fun matchesTightAdPath(path: String, isThirdParty: Boolean): Boolean {
         if (path.isEmpty()) return false
 
-        // Precise script filenames that must match on segment boundaries
         if (path.endsWith("/ga.js") || path.contains("/ga.js?") ||
             path.endsWith("/gtm.js") || path.contains("/gtm.js?") ||
             path.endsWith("/fbevents.js") || path.contains("/fbevents.js?") ||
@@ -815,7 +797,6 @@ object AdBlocker {
             return true
         }
 
-        // Standard Google ad paths
         if (path.contains("/pagead/js/") || path.contains("/pagead/ads") || path.contains("/pagead/lvz")) {
             return true
         }
@@ -823,7 +804,6 @@ object AdBlocker {
             return true
         }
 
-        // Third-party adserver / sponsor / popup patterns
         if (isThirdParty) {
             if (path.contains("/adserver.") || path.contains("/adserver/") ||
                 path.contains("/ad-loader") || path.contains("/popunder") ||
@@ -836,13 +816,20 @@ object AdBlocker {
         return false
     }
 
-    fun isLoginCritical(host: String): Boolean {
-        for (critical in LOGIN_CRITICAL_DOMAINS) {
-            if (host == critical || host.endsWith(".$critical")) {
-                return true
-            }
+    fun isPopupAllowed(url: String?, isUserGesture: Boolean, sourceHost: String?): Boolean {
+        if (!globalEnabled) return true
+        if (url.isNullOrBlank()) return isUserGesture
+
+        if (isAdOrTracker(url, sourceHost)) {
+            return false
         }
-        return false
+
+        // Block popups triggered without direct user gesture
+        if (!isUserGesture) {
+            return false
+        }
+
+        return true
     }
 
     fun addToAllowlist(domainOrUrl: String) {
@@ -855,7 +842,6 @@ object AdBlocker {
     fun removeFromAllowlist(domainOrUrl: String) {
         val clean = normalizeDomain(domainOrUrl)
         allowlist.remove(clean)
-        // Also check if root domain was in allowlist
         val base = getBaseDomain(clean)
         allowlist.remove(base)
     }
@@ -875,57 +861,123 @@ object AdBlocker {
 
     fun getAllowlist(): Set<String> = allowlist.toSet()
 
-    fun createEmptyResponse(url: String? = null): WebResourceResponse {
-        val lowerUrl = url?.lowercase() ?: ""
+    /**
+     * Generates proper HTTP 204 or empty responses based on Sec-Fetch-Dest, Accept, or ResourceType.
+     * Eliminates crude URL-guessing heuristics.
+     */
+    fun createEmptyResponse(url: String? = null, resourceType: ResourceType? = null): WebResourceResponse {
+        val resType = resourceType ?: detectResourceType(url)
 
-        val (mimeType, dataBytes) = when {
-            lowerUrl.endsWith(".png") || lowerUrl.endsWith(".jpg") || lowerUrl.endsWith(".jpeg") ||
-            lowerUrl.endsWith(".gif") || lowerUrl.endsWith(".webp") || lowerUrl.endsWith(".svg") ||
-            lowerUrl.contains("/image") || lowerUrl.contains("/ad-img") -> {
-                "image/png" to TRANSPARENT_1X1_PNG
+        return when (resType) {
+            ResourceType.SCRIPT -> {
+                WebResourceResponse("application/javascript", "UTF-8", ByteArrayInputStream("/* blocked by velocity */".toByteArray(Charsets.UTF_8))).apply {
+                    responseHeaders = mapOf(
+                        "Access-Control-Allow-Origin" to "*",
+                        "Cache-Control" to "no-cache, no-store, must-revalidate"
+                    )
+                }
             }
-            lowerUrl.endsWith(".js") || lowerUrl.contains("/js") || lowerUrl.contains("script") -> {
-                "application/javascript" to "/* blocked by velocity shield */".toByteArray(Charsets.UTF_8)
+            ResourceType.IMAGE -> {
+                val isGif = url?.lowercase()?.contains(".gif") == true
+                val bytes = if (isGif) TRANSPARENT_1X1_GIF else TRANSPARENT_1X1_PNG
+                val mime = if (isGif) "image/gif" else "image/png"
+                WebResourceResponse(mime, "UTF-8", ByteArrayInputStream(bytes)).apply {
+                    responseHeaders = mapOf(
+                        "Access-Control-Allow-Origin" to "*",
+                        "Cache-Control" to "no-cache, no-store, must-revalidate"
+                    )
+                }
             }
-            lowerUrl.endsWith(".css") || lowerUrl.contains("style") -> {
-                "text/css" to "/* blocked */".toByteArray(Charsets.UTF_8)
-            }
-            lowerUrl.endsWith(".html") || lowerUrl.endsWith(".htm") -> {
-                "text/html" to "<!-- blocked -->".toByteArray(Charsets.UTF_8)
+            ResourceType.STYLESHEET -> {
+                WebResourceResponse("text/css", "UTF-8", ByteArrayInputStream("/* blocked */".toByteArray(Charsets.UTF_8))).apply {
+                    responseHeaders = mapOf(
+                        "Access-Control-Allow-Origin" to "*",
+                        "Cache-Control" to "no-cache, no-store, must-revalidate"
+                    )
+                }
             }
             else -> {
-                "text/plain" to ByteArray(0)
+                // Return clean HTTP 204 No Content for XHR, Subdocuments, Fonts, Media, and other subresources
+                WebResourceResponse("text/plain", "UTF-8", 204, "No Content", mapOf(
+                    "Access-Control-Allow-Origin" to "*",
+                    "Cache-Control" to "no-cache, no-store, must-revalidate"
+                ), ByteArrayInputStream(ByteArray(0)))
             }
-        }
-
-        return WebResourceResponse(mimeType, "UTF-8", ByteArrayInputStream(dataBytes)).apply {
-            responseHeaders = mapOf(
-                "Access-Control-Allow-Origin" to "*",
-                "Cache-Control" to "no-cache, no-store, must-revalidate"
-            )
         }
     }
 
-    fun getCosmeticCss(): String {
-        val allSelectors = (DEFAULT_COSMETIC_SELECTORS + cosmeticSelectors).distinct()
-        val selectorsJoined = allSelectors.joinToString(", ")
+    /**
+     * Builds dynamic cosmetic stylesheet specifically tailored for the target siteHost.
+     * Combines global rules, filters out #@# exceptions, and adds domain-specific rules.
+     */
+    fun getCosmeticCss(siteHost: String? = null): String {
+        val activeSelectors = mutableSetOf<String>()
+        val exceptions = mutableSetOf<String>()
+
+        if (!siteHost.isNullOrBlank()) {
+            val cleanHost = normalizeDomain(siteHost)
+            val baseHost = getBaseDomain(cleanHost)
+
+            cosmeticExceptions[cleanHost]?.let { exceptions.addAll(it) }
+            cosmeticExceptions[baseHost]?.let { exceptions.addAll(it) }
+
+            domainCosmeticSelectors[cleanHost]?.let { activeSelectors.addAll(it) }
+            domainCosmeticSelectors[baseHost]?.let { activeSelectors.addAll(it) }
+        }
+
+        for (selector in globalCosmeticSelectors) {
+            if (!exceptions.contains(selector)) {
+                activeSelectors.add(selector)
+            }
+        }
+
+        if (activeSelectors.isEmpty()) return ""
+
+        val selectorsJoined = activeSelectors.joinToString(", ")
         return "$selectorsJoined { display: none !important; visibility: hidden !important; height: 0px !important; min-height: 0px !important; max-height: 0px !important; padding: 0px !important; margin: 0px !important; opacity: 0 !important; pointer-events: none !important; }"
     }
 
-    fun getCosmeticDocumentStartScript(): String {
-        val css = getCosmeticCss().replace("'", "\\'").replace("\n", " ")
+    /**
+     * Document start script with:
+     * 1. YouTube player ad payload defuser (strips adPlacements, playerAds, adSlots from JSON.parse and player fetch)
+     * 2. Anti-adblock defusers
+     * 3. Early CSS stylesheet
+     * 4. Video ad skip and fast-forward
+     * 5. MutationObserver
+     */
+    fun getCosmeticDocumentStartScript(siteHost: String? = null): String {
+        val css = getCosmeticCss(siteHost).replace("'", "\\'").replace("\n", " ")
+        val isYouTube = siteHost?.contains("youtube.com") == true
+
         return """
             (function() {
                 if (window.__velocityAdBlockDisabled) return;
 
-                // 1. Defuse anti-adblock detection with minimal safe globals
+                // 1. YouTube Player Ad Defuser
+                ${if (isYouTube) """
+                try {
+                    var originalJsonParse = JSON.parse;
+                    JSON.parse = function(text, reviver) {
+                        var parsed = originalJsonParse.call(this, text, reviver);
+                        if (parsed && typeof parsed === 'object') {
+                            if (parsed.adPlacements) delete parsed.adPlacements;
+                            if (parsed.playerAds) delete parsed.playerAds;
+                            if (parsed.adSlots) delete parsed.adSlots;
+                            if (parsed.adBreakHeartbeatParams) delete parsed.adBreakHeartbeatParams;
+                        }
+                        return parsed;
+                    };
+                } catch(e) {}
+                """ else ""}
+
+                // 2. Anti-adblock Defusers
                 try {
                     window.canRunAds = true;
                     window.isAdBlockActive = false;
                     window.adblock = false;
                 } catch(e) {}
 
-                // 2. Inject early CSS stylesheet to prevent banner flashing
+                // 3. Early CSS Injection
                 var styleId = 'velocity-shield-ad-hide';
                 function injectEarlyStyle() {
                     if (window.__velocityAdBlockDisabled) return;
@@ -939,18 +991,19 @@ object AdBlocker {
                         }
                     }
                 }
-
                 injectEarlyStyle();
 
-                // 3. Auto-skip video ads & collapse ad elements
+                // 4. Video Ad Skipper & Fast-Forward Fallback
                 function handleVideoAds() {
                     try {
-                        var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .videoAdUiSkipButton');
-                        if (skipBtn) {
-                            skipBtn.click();
-                        }
+                        var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .videoAdUiSkipButton, [id^="skip-button"]');
+                        if (skipBtn) skipBtn.click();
+
                         var video = document.querySelector('video');
-                        if (video && (document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay') || video.closest('.ad-container'))) {
+                        var isAdPlaying = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay') != null;
+                        if (video && isAdPlaying) {
+                            video.muted = true;
+                            video.playbackRate = 16.0;
                             if (isFinite(video.duration) && video.duration > 0) {
                                 video.currentTime = video.duration;
                             }
@@ -958,47 +1011,19 @@ object AdBlocker {
                     } catch(e) {}
                 }
 
-                function collapseAdElements() {
+                function collapseAds() {
                     if (window.__velocityAdBlockDisabled) return;
                     injectEarlyStyle();
                     handleVideoAds();
-                    var selectors = [
-                        '.adsbygoogle', 'ins.adsbygoogle', '[id^="google_ads_"]', '[id^="div-gpt-ad"]',
-                        '#tads', '#tadsb', '#bottomads', 'div[data-text-ad="1"]', '.commercial-unit-mobile-top',
-                        '.commercial-unit-mobile-bottom', '[aria-label="Ads"]', '[aria-label="Ad"]',
-                        '[aria-label="Sponsored"]', '.uEierd', '[data-ad-slot]', '[data-ad-client]',
-                        '.ad-banner', '.ad-container', '.ad-wrapper', '.ad-slot', '.advertisement',
-                        '.taboola-placeholder', '.outbrain-placeholder', '[class*="sponsored-post"]',
-                        '.clmb-placeholder', '.clmbe-ad', '.colombia-ad', '.inmobi-ad', '.adpushup-container',
-                        'iframe[src*="doubleclick"]', 'iframe[src*="googlesyndication"]',
-                        'iframe[id*="google_ads"]', 'iframe[src*="clmbtech"]', 'iframe[src*="taboola"]',
-                        'iframe[src*="outbrain"]', '.ad-box', '.ad_box', '#ad-banner',
-                        '.video-ads', '.ytp-ad-module', '.ytp-ad-player-overlay',
-                        '.ytp-ad-overlay-container', 'ytd-ad-slot-renderer', 'ytd-banner-promo-renderer',
-                        'ytd-promoted-video-renderer', 'ytd-promoted-sparkles-web-renderer',
-                        '.trc_related_container', '.trc_rbox_div'
-                    ];
-                    try {
-                        var nodes = document.querySelectorAll(selectors.join(','));
-                        for (var i = 0; i < nodes.length; i++) {
-                            nodes[i].style.setProperty('display', 'none', 'important');
-                            nodes[i].style.setProperty('height', '0px', 'important');
-                            nodes[i].style.setProperty('min-height', '0px', 'important');
-                            nodes[i].style.setProperty('max-height', '0px', 'important');
-                            nodes[i].style.setProperty('visibility', 'hidden', 'important');
-                            nodes[i].style.setProperty('margin', '0px', 'important');
-                            nodes[i].style.setProperty('padding', '0px', 'important');
-                        }
-                    } catch(e) {}
                 }
 
-                collapseAdElements();
+                collapseAds();
 
-                // 4. MutationObserver for dynamic infinite scrolls and single-page apps
+                // 5. Dynamic MutationObserver
                 if (window.MutationObserver && !window._velocityObserverAttached) {
                     window._velocityObserverAttached = true;
                     var observer = new MutationObserver(function() {
-                        collapseAdElements();
+                        collapseAds();
                     });
                     var root = document.documentElement || document.body || document;
                     if (root) {
@@ -1009,127 +1034,15 @@ object AdBlocker {
                 }
 
                 if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', collapseAdElements);
+                    document.addEventListener('DOMContentLoaded', collapseAds);
                 }
-                window.addEventListener('load', collapseAdElements);
+                window.addEventListener('load', collapseAds);
             })();
         """.trimIndent()
     }
 
-    fun injectCosmeticAdBlock(webView: WebView) {
-        val css = getCosmeticCss().replace("'", "\\'").replace("\n", " ")
-        val script = """
-            (function() {
-                try {
-                    window.__velocityAdBlockDisabled = false;
-                    var styleId = 'velocity-shield-ad-hide';
-
-                    function ensureStyle() {
-                        if (window.__velocityAdBlockDisabled) return;
-                        if (!document.getElementById(styleId)) {
-                            var root = document.head || document.documentElement;
-                            if (root) {
-                                var style = document.createElement('style');
-                                style.id = styleId;
-                                style.textContent = '$css';
-                                root.appendChild(style);
-                            }
-                        }
-                    }
-                    ensureStyle();
-
-                    // 1. Defuse anti-adblock detection with minimal safe globals
-                    try {
-                        window.canRunAds = true;
-                        window.isAdBlockActive = false;
-                        window.adblock = false;
-                    } catch(e) {}
-
-                    // 2. Auto-skip video ads (YouTube and mobile video players)
-                    function handleVideoAds() {
-                        try {
-                            var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .videoAdUiSkipButton');
-                            if (skipBtn) skipBtn.click();
-                            var video = document.querySelector('video');
-                            if (video && (document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay') || video.closest('.ad-container'))) {
-                                if (isFinite(video.duration) && video.duration > 0) {
-                                    video.currentTime = video.duration;
-                                }
-                            }
-                        } catch(e) {}
-                    }
-
-                    // 3. Dynamic element collapsing and placeholder zeroing
-                    function collapseAdElements() {
-                        if (window.__velocityAdBlockDisabled) return;
-                        ensureStyle();
-                        handleVideoAds();
-                        var selectors = [
-                            '.adsbygoogle', 'ins.adsbygoogle', '[id^="google_ads_"]', '[id^="div-gpt-ad"]',
-                            '#tads', '#tadsb', '#bottomads', 'div[data-text-ad="1"]', '.commercial-unit-mobile-top',
-                            '.commercial-unit-mobile-bottom', '[aria-label="Ads"]', '[aria-label="Ad"]',
-                            '[aria-label="Sponsored"]', '.uEierd', '[data-ad-slot]', '[data-ad-client]',
-                            '.ad-banner', '.ad-container', '.ad-wrapper', '.ad-slot', '.advertisement',
-                            '.taboola-placeholder', '.outbrain-placeholder', '[class*="sponsored-post"]',
-                            '.clmb-placeholder', '.clmbe-ad', '.colombia-ad', '.inmobi-ad', '.adpushup-container',
-                            'iframe[src*="doubleclick"]', 'iframe[src*="googlesyndication"]',
-                            'iframe[id*="google_ads"]', 'iframe[src*="clmbtech"]', 'iframe[src*="taboola"]',
-                            'iframe[src*="outbrain"]', '.ad-box', '.ad_box', '#ad-banner',
-                            '.video-ads', '.ytp-ad-module', '.ytp-ad-player-overlay',
-                            '.ytp-ad-overlay-container', 'ytd-ad-slot-renderer', 'ytd-banner-promo-renderer',
-                            'ytd-promoted-video-renderer', 'ytd-promoted-sparkles-web-renderer',
-                            '.trc_related_container', '.trc_rbox_div'
-                        ];
-                        try {
-                            var nodes = document.querySelectorAll(selectors.join(','));
-                            for (var i = 0; i < nodes.length; i++) {
-                                nodes[i].style.setProperty('display', 'none', 'important');
-                                nodes[i].style.setProperty('height', '0px', 'important');
-                                nodes[i].style.setProperty('min-height', '0px', 'important');
-                                nodes[i].style.setProperty('max-height', '0px', 'important');
-                                nodes[i].style.setProperty('visibility', 'hidden', 'important');
-                                nodes[i].style.setProperty('margin', '0px', 'important');
-                                nodes[i].style.setProperty('padding', '0px', 'important');
-                            }
-                        } catch(e) {}
-                    }
-
-                    collapseAdElements();
-
-                    // 4. MutationObserver for continuous dynamic ad insertion handling
-                    if (window.MutationObserver && !window._velocityObserverAttached) {
-                        window._velocityObserverAttached = true;
-                        var observer = new MutationObserver(function() {
-                            collapseAdElements();
-                        });
-                        var target = document.documentElement || document.body || document;
-                        if (target) {
-                            try {
-                                observer.observe(target, { childList: true, subtree: true });
-                            } catch(e) {}
-                        }
-                    }
-
-                    // 5. Short retry timer for asynchronous ad loading
-                    if (!window._velocityIntervalAttached) {
-                        window._velocityIntervalAttached = true;
-                        var checkCount = 0;
-                        var intervalId = setInterval(function() {
-                            if (window.__velocityAdBlockDisabled) {
-                                clearInterval(intervalId);
-                                window._velocityIntervalAttached = false;
-                                return;
-                            }
-                            collapseAdElements();
-                            if (++checkCount >= 8) {
-                                clearInterval(intervalId);
-                                window._velocityIntervalAttached = false;
-                            }
-                        }, 500);
-                    }
-                } catch(e) {}
-            })();
-        """.trimIndent()
+    fun injectCosmeticAdBlock(webView: WebView, siteHost: String? = null) {
+        val script = getCosmeticDocumentStartScript(siteHost)
         webView.evaluateJavascript(script, null)
     }
 
@@ -1148,9 +1061,9 @@ object AdBlocker {
         webView.evaluateJavascript(script, null)
     }
 
-    fun setCosmeticAdBlockState(webView: WebView, enabled: Boolean) {
+    fun setCosmeticAdBlockState(webView: WebView, enabled: Boolean, siteHost: String? = null) {
         if (enabled) {
-            injectCosmeticAdBlock(webView)
+            injectCosmeticAdBlock(webView, siteHost)
         } else {
             removeCosmeticAdBlock(webView)
         }

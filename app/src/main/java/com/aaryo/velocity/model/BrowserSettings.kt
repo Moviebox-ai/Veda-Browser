@@ -3,6 +3,13 @@ package com.aaryo.velocity.model
 data class BrowserSettings(
     val defaultSearchEngine: SearchEngine = SearchEngine.GOOGLE,
     val adBlockGlobalEnabled: Boolean = true,
+    val adBlockStrictMode: Boolean = false,
+    val easyListEnabled: Boolean = true,
+    val easyPrivacyEnabled: Boolean = true,
+    val uBlockFiltersEnabled: Boolean = true,
+    val indianFiltersEnabled: Boolean = true,
+    val filterListsLastUpdated: Long = 0L,
+    val allowlistedDomains: Set<String> = emptySet(),
     val doNotTrackEnabled: Boolean = true,
     val javaScriptEnabled: Boolean = true,
     val cookiesEnabled: Boolean = true,

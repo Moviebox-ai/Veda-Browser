@@ -58,7 +58,8 @@ fun WebViewContainer(
     onTitleReceived: (String) -> Unit,
     onFaviconReceived: (Bitmap) -> Unit,
     onNavigationStateChanged: (Boolean, Boolean) -> Unit,
-    onTrackerBlocked: () -> Unit,
+    onTrackerBlocked: () -> Unit = {},
+    onItemBlocked: (isTracker: Boolean) -> Unit = {},
     onExtensionsCountChanged: (Int) -> Unit = {},
     onInterceptUserscript: (String) -> Unit = {},
     onDownloadStart: (String, String, String, String) -> Unit,
@@ -84,6 +85,7 @@ fun WebViewContainer(
     val currentOnFaviconReceived by rememberUpdatedState(onFaviconReceived)
     val currentOnNavChanged by rememberUpdatedState(onNavigationStateChanged)
     val currentOnTrackerBlocked by rememberUpdatedState(onTrackerBlocked)
+    val currentOnItemBlocked by rememberUpdatedState(onItemBlocked)
     val currentOnDownloadStart by rememberUpdatedState(onDownloadStart)
     val currentOnOpenNewTab by rememberUpdatedState(onOpenNewTabRequested)
     val currentOnShowCustomView by rememberUpdatedState(onShowCustomView)

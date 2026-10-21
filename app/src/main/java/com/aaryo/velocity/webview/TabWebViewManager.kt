@@ -50,7 +50,7 @@ class TabWebViewManager {
                         if (!adBlocker.globalEnabled) return null
                         val resType = adBlocker.detectResourceType(url, headers, request.isForMainFrame)
                         if (adBlocker.isAdOrTracker(url, refererHost, resType, headers)) {
-                            return adBlocker.createEmptyResponse(url)
+                            return adBlocker.createEmptyResponse(url, resType)
                         }
                         return null
                     }
@@ -108,15 +108,18 @@ class TabWebViewManager {
                     } ?: if (request.isForMainFrame) request.url?.host else null
                     val resType = com.aaryo.velocity.privacy.AdBlocker.detectResourceType(reqUrl, headers, request.isForMainFrame)
                     if (settings.adBlockGlobalEnabled && com.aaryo.velocity.privacy.AdBlocker.isAdOrTracker(reqUrl, refererHost, resType, headers)) {
-                        return com.aaryo.velocity.privacy.AdBlocker.createEmptyResponse(reqUrl)
+                        return com.aaryo.velocity.privacy.AdBlocker.createEmptyResponse(reqUrl, resType)
                     }
                     return super.shouldInterceptRequest(view, request)
                 }
 
                 @Deprecated("Deprecated in Java")
                 override fun shouldInterceptRequest(view: WebView?, url: String?): android.webkit.WebResourceResponse? {
-                    if (url != null && settings.adBlockGlobalEnabled && com.aaryo.velocity.privacy.AdBlocker.isAdOrTracker(url)) {
-                        return com.aaryo.velocity.privacy.AdBlocker.createEmptyResponse(url)
+                    if (url != null && settings.adBlockGlobalEnabled) {
+                        val resType = com.aaryo.velocity.privacy.AdBlocker.detectResourceType(url)
+                        if (com.aaryo.velocity.privacy.AdBlocker.isAdOrTracker(url, null, resType)) {
+                            return com.aaryo.velocity.privacy.AdBlocker.createEmptyResponse(url, resType)
+                        }
                     }
                     return super.shouldInterceptRequest(view, url)
                 }

@@ -15,6 +15,7 @@ data class Tab(
     val isDesktopMode: Boolean = false,
     val adBlockOverride: Boolean? = null,
     val adBlockEnabled: Boolean = true,
+    val blockedAdsCount: Int = 0,
     val blockedTrackersCount: Int = 0,
     val isSecure: Boolean = true,
     val favicon: Bitmap? = null,
@@ -22,6 +23,8 @@ data class Tab(
     val activeExtensionsCount: Int = 0,
     val lastVisitedTimestamp: Long = System.currentTimeMillis()
 ) {
+    val totalBlockedCount: Int
+        get() = blockedAdsCount + blockedTrackersCount
     val isNewTab: Boolean
         get() = url == "velocity://newtab" || url.isEmpty()
 
