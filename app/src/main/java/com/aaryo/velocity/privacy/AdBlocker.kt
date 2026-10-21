@@ -154,6 +154,35 @@ object AdBlocker {
         "iframe[src*=\"adnxs\"]",
         "iframe[src*=\"clmbtech\"]",
         "iframe[id*=\"google_ads\"]",
+        // Search ads (Google Search, etc.)
+        "#tads",
+        "#tadsb",
+        "#bottomads",
+        "div[data-text-ad=\"1\"]",
+        ".commercial-unit-mobile-top",
+        ".commercial-unit-mobile-bottom",
+        ".commercial-unit-desktop-top",
+        ".commercial-unit-desktop-bottom",
+        "[aria-label=\"Ads\"]",
+        "[aria-label=\"Ad\"]",
+        "[aria-label=\"Sponsored\"]",
+        ".uEierd",
+        ".pla-unit",
+        ".pla-unit-container",
+        "div[jscontroller][data-ved*=\"ad\"]",
+        // Indian and regional publishers
+        "ins.adsbygoogle",
+        ".trc_related_container",
+        ".trc_rbox_div",
+        ".outbrain",
+        ".taboola",
+        "#taboola-below-article-thumbnails",
+        ".clmb-placeholder",
+        ".clmbe-ad",
+        ".colombia-ad",
+        ".inmobi-ad",
+        ".adpushup-container",
+        ".mgid-container",
         // Video and mobile ad selectors
         ".video-ads",
         ".ytp-ad-module",
@@ -166,6 +195,8 @@ object AdBlocker {
         "ytd-in-feed-ad-layout-renderer",
         "ytd-banner-promo-renderer",
         "ytd-promoted-sparkles-web-renderer",
+        "ytd-promoted-video-renderer",
+        "ytd-compact-promoted-video-renderer",
         "ytd-display-ad-renderer",
         ".ad-showing",
         ".ad-interrupting"
@@ -173,6 +204,14 @@ object AdBlocker {
 
     @Volatile
     var isStrictMode: Boolean = false
+
+    @Volatile
+    var globalEnabled: Boolean = true
+        private set
+
+    fun setGlobalEnabled(enabled: Boolean) {
+        globalEnabled = enabled
+    }
 
     @Volatile
     private var isInitialized = false
@@ -655,6 +694,7 @@ object AdBlocker {
         resourceType: ResourceType? = null,
         requestHeaders: Map<String, String>? = null
     ): Boolean {
+        if (!globalEnabled) return false
         if (url.isNullOrBlank()) return false
 
         // 1. Check user site allowlist
@@ -923,14 +963,20 @@ object AdBlocker {
                     injectEarlyStyle();
                     handleVideoAds();
                     var selectors = [
-                        '.adsbygoogle', '[id^="google_ads_"]', '[id^="div-gpt-ad"]',
-                        '[data-ad-slot]', '[data-ad-client]', '.ad-banner', '.ad-container',
-                        '.ad-wrapper', '.ad-slot', '.advertisement', '.taboola-placeholder',
-                        '.outbrain-placeholder', '[class*="sponsored-post"]',
+                        '.adsbygoogle', 'ins.adsbygoogle', '[id^="google_ads_"]', '[id^="div-gpt-ad"]',
+                        '#tads', '#tadsb', '#bottomads', 'div[data-text-ad="1"]', '.commercial-unit-mobile-top',
+                        '.commercial-unit-mobile-bottom', '[aria-label="Ads"]', '[aria-label="Ad"]',
+                        '[aria-label="Sponsored"]', '.uEierd', '[data-ad-slot]', '[data-ad-client]',
+                        '.ad-banner', '.ad-container', '.ad-wrapper', '.ad-slot', '.advertisement',
+                        '.taboola-placeholder', '.outbrain-placeholder', '[class*="sponsored-post"]',
+                        '.clmb-placeholder', '.clmbe-ad', '.colombia-ad', '.inmobi-ad', '.adpushup-container',
                         'iframe[src*="doubleclick"]', 'iframe[src*="googlesyndication"]',
-                        'iframe[id*="google_ads"]', '.ad-box', '.ad_box', '#ad-banner',
+                        'iframe[id*="google_ads"]', 'iframe[src*="clmbtech"]', 'iframe[src*="taboola"]',
+                        'iframe[src*="outbrain"]', '.ad-box', '.ad_box', '#ad-banner',
                         '.video-ads', '.ytp-ad-module', '.ytp-ad-player-overlay',
-                        '.ytp-ad-overlay-container', 'ytd-ad-slot-renderer', 'ytd-banner-promo-renderer'
+                        '.ytp-ad-overlay-container', 'ytd-ad-slot-renderer', 'ytd-banner-promo-renderer',
+                        'ytd-promoted-video-renderer', 'ytd-promoted-sparkles-web-renderer',
+                        '.trc_related_container', '.trc_rbox_div'
                     ];
                     try {
                         var nodes = document.querySelectorAll(selectors.join(','));
@@ -938,7 +984,10 @@ object AdBlocker {
                             nodes[i].style.setProperty('display', 'none', 'important');
                             nodes[i].style.setProperty('height', '0px', 'important');
                             nodes[i].style.setProperty('min-height', '0px', 'important');
+                            nodes[i].style.setProperty('max-height', '0px', 'important');
                             nodes[i].style.setProperty('visibility', 'hidden', 'important');
+                            nodes[i].style.setProperty('margin', '0px', 'important');
+                            nodes[i].style.setProperty('padding', '0px', 'important');
                         }
                     } catch(e) {}
                 }
@@ -974,31 +1023,109 @@ object AdBlocker {
                 try {
                     window.__velocityAdBlockDisabled = false;
                     var styleId = 'velocity-shield-ad-hide';
-                    if (!document.getElementById(styleId)) {
-                        var root = document.head || document.documentElement;
-                        if (root) {
-                            var style = document.createElement('style');
-                            style.id = styleId;
-                            style.textContent = '$css';
-                            root.appendChild(style);
+
+                    function ensureStyle() {
+                        if (window.__velocityAdBlockDisabled) return;
+                        if (!document.getElementById(styleId)) {
+                            var root = document.head || document.documentElement;
+                            if (root) {
+                                var style = document.createElement('style');
+                                style.id = styleId;
+                                style.textContent = '$css';
+                                root.appendChild(style);
+                            }
                         }
                     }
-                    var selectors = [
-                        '.adsbygoogle', '[id^="google_ads_"]', '[id^="div-gpt-ad"]',
-                        '[data-ad-slot]', '[data-ad-client]', '.ad-banner', '.ad-container',
-                        '.ad-wrapper', '.ad-slot', '.advertisement', '.taboola-placeholder',
-                        '.outbrain-placeholder', '[class*="sponsored-post"]',
-                        'iframe[src*="doubleclick"]', 'iframe[src*="googlesyndication"]',
-                        'iframe[id*="google_ads"]', '.ad-box', '.ad_box', '#ad-banner',
-                        '.video-ads', '.ytp-ad-module', '.ytp-ad-player-overlay',
-                        '.ytp-ad-overlay-container', 'ytd-ad-slot-renderer', 'ytd-banner-promo-renderer'
-                    ];
-                    var nodes = document.querySelectorAll(selectors.join(','));
-                    for (var i = 0; i < nodes.length; i++) {
-                        nodes[i].style.setProperty('display', 'none', 'important');
-                        nodes[i].style.setProperty('height', '0px', 'important');
-                        nodes[i].style.setProperty('min-height', '0px', 'important');
-                        nodes[i].style.setProperty('visibility', 'hidden', 'important');
+                    ensureStyle();
+
+                    // 1. Defuse anti-adblock detection with minimal safe globals
+                    try {
+                        window.canRunAds = true;
+                        window.isAdBlockActive = false;
+                        window.adblock = false;
+                    } catch(e) {}
+
+                    // 2. Auto-skip video ads (YouTube and mobile video players)
+                    function handleVideoAds() {
+                        try {
+                            var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .videoAdUiSkipButton');
+                            if (skipBtn) skipBtn.click();
+                            var video = document.querySelector('video');
+                            if (video && (document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay') || video.closest('.ad-container'))) {
+                                if (isFinite(video.duration) && video.duration > 0) {
+                                    video.currentTime = video.duration;
+                                }
+                            }
+                        } catch(e) {}
+                    }
+
+                    // 3. Dynamic element collapsing and placeholder zeroing
+                    function collapseAdElements() {
+                        if (window.__velocityAdBlockDisabled) return;
+                        ensureStyle();
+                        handleVideoAds();
+                        var selectors = [
+                            '.adsbygoogle', 'ins.adsbygoogle', '[id^="google_ads_"]', '[id^="div-gpt-ad"]',
+                            '#tads', '#tadsb', '#bottomads', 'div[data-text-ad="1"]', '.commercial-unit-mobile-top',
+                            '.commercial-unit-mobile-bottom', '[aria-label="Ads"]', '[aria-label="Ad"]',
+                            '[aria-label="Sponsored"]', '.uEierd', '[data-ad-slot]', '[data-ad-client]',
+                            '.ad-banner', '.ad-container', '.ad-wrapper', '.ad-slot', '.advertisement',
+                            '.taboola-placeholder', '.outbrain-placeholder', '[class*="sponsored-post"]',
+                            '.clmb-placeholder', '.clmbe-ad', '.colombia-ad', '.inmobi-ad', '.adpushup-container',
+                            'iframe[src*="doubleclick"]', 'iframe[src*="googlesyndication"]',
+                            'iframe[id*="google_ads"]', 'iframe[src*="clmbtech"]', 'iframe[src*="taboola"]',
+                            'iframe[src*="outbrain"]', '.ad-box', '.ad_box', '#ad-banner',
+                            '.video-ads', '.ytp-ad-module', '.ytp-ad-player-overlay',
+                            '.ytp-ad-overlay-container', 'ytd-ad-slot-renderer', 'ytd-banner-promo-renderer',
+                            'ytd-promoted-video-renderer', 'ytd-promoted-sparkles-web-renderer',
+                            '.trc_related_container', '.trc_rbox_div'
+                        ];
+                        try {
+                            var nodes = document.querySelectorAll(selectors.join(','));
+                            for (var i = 0; i < nodes.length; i++) {
+                                nodes[i].style.setProperty('display', 'none', 'important');
+                                nodes[i].style.setProperty('height', '0px', 'important');
+                                nodes[i].style.setProperty('min-height', '0px', 'important');
+                                nodes[i].style.setProperty('max-height', '0px', 'important');
+                                nodes[i].style.setProperty('visibility', 'hidden', 'important');
+                                nodes[i].style.setProperty('margin', '0px', 'important');
+                                nodes[i].style.setProperty('padding', '0px', 'important');
+                            }
+                        } catch(e) {}
+                    }
+
+                    collapseAdElements();
+
+                    // 4. MutationObserver for continuous dynamic ad insertion handling
+                    if (window.MutationObserver && !window._velocityObserverAttached) {
+                        window._velocityObserverAttached = true;
+                        var observer = new MutationObserver(function() {
+                            collapseAdElements();
+                        });
+                        var target = document.documentElement || document.body || document;
+                        if (target) {
+                            try {
+                                observer.observe(target, { childList: true, subtree: true });
+                            } catch(e) {}
+                        }
+                    }
+
+                    // 5. Short retry timer for asynchronous ad loading
+                    if (!window._velocityIntervalAttached) {
+                        window._velocityIntervalAttached = true;
+                        var checkCount = 0;
+                        var intervalId = setInterval(function() {
+                            if (window.__velocityAdBlockDisabled) {
+                                clearInterval(intervalId);
+                                window._velocityIntervalAttached = false;
+                                return;
+                            }
+                            collapseAdElements();
+                            if (++checkCount >= 8) {
+                                clearInterval(intervalId);
+                                window._velocityIntervalAttached = false;
+                            }
+                        }, 500);
                     }
                 } catch(e) {}
             })();

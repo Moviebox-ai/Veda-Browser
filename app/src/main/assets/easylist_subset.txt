@@ -67,6 +67,38 @@
 ##iframe[src*="adnxs"]
 ##iframe[src*="clmbtech"]
 ##iframe[id*="google_ads"]
+###tads
+###tadsb
+###bottomads
+##div[data-text-ad="1"]
+##.commercial-unit-mobile-top
+##.commercial-unit-mobile-bottom
+##.commercial-unit-desktop-top
+##.commercial-unit-desktop-bottom
+##[aria-label="Ads"]
+##[aria-label="Ad"]
+##[aria-label="Sponsored"]
+##.uEierd
+##.pla-unit
+##.pla-unit-container
+##ins.adsbygoogle
+##.trc_related_container
+##.trc_rbox_div
+##.mgid-container
+##.video-ads
+##.ytp-ad-module
+##.ytp-ad-player-overlay
+##.ytp-ad-overlay-container
+##.ytp-ad-text
+##ytd-ad-slot-renderer
+##ytd-in-feed-ad-layout-renderer
+##ytd-banner-promo-renderer
+##ytd-promoted-sparkles-web-renderer
+##ytd-promoted-video-renderer
+##ytd-compact-promoted-video-renderer
+##ytd-display-ad-renderer
+##.ad-showing
+##.ad-interrupting
 
 # ==============================================================================
 # 2. Login & Critical Service Exceptions (@@)

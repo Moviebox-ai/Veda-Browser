@@ -11,6 +11,19 @@ class AdBlockerTest {
     @Before
     fun setUp() {
         AdBlocker.isStrictMode = false
+        AdBlocker.setGlobalEnabled(true)
+    }
+
+    @Test
+    fun testGlobalEnabledToggle() {
+        val trackerUrl = "https://doubleclick.net/pagead/ads"
+        assertTrue(AdBlocker.isAdOrTracker(trackerUrl))
+
+        AdBlocker.setGlobalEnabled(false)
+        assertFalse(AdBlocker.isAdOrTracker(trackerUrl))
+
+        AdBlocker.setGlobalEnabled(true)
+        assertTrue(AdBlocker.isAdOrTracker(trackerUrl))
     }
 
     @Test
