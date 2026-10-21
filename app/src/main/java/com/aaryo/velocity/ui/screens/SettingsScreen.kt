@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -23,19 +22,27 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -66,24 +73,10 @@ import com.aaryo.velocity.model.BrowserSettings
 import com.aaryo.velocity.model.SearchEngine
 import com.aaryo.velocity.ui.theme.VelocityBlue
 import com.aaryo.velocity.ui.theme.VelocityCyan
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-/**
- * Screen 5: Settings
- * Exact replica of the reference mockup:
- * - Header: "← Settings"
- * - List rows with circular colored icon badges:
- *   1. Search Engine (Blue circle) -> "Google" >
- *   2. Privacy & Security (Blue circle) >
- *   3. Ad Blocker (Red circle) -> Switch (ON)
- *   4. Data Saver (Green circle) -> Switch (ON)
- *   5. Theme (Orange circle) -> "System" >
- *   6. Appearance (Purple circle) >
- *   7. Download Settings (Blue circle) >
- *   8. Languages (Magenta circle) >
- *   9. Home Page (Cyan circle) >
- *   10. Advanced (Cyan circle) >
- *   11. About (Blue circle) >
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -92,6 +85,9 @@ fun SettingsScreen(
     onOpenClearData: () -> Unit,
     onOpenAppearance: () -> Unit,
     onOpenDownloads: () -> Unit = {},
+    onRemoveAllowlistedDomain: (String) -> Unit = {},
+    onUpdateFilterListsNow: () -> Unit = {},
+    isUpdatingFilterLists: Boolean = false,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -104,6 +100,8 @@ fun SettingsScreen(
     // Dialogs
     var showSearchEnginesDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
+    var showFilterListsDialog by remember { mutableStateOf(false) }
+    var showAllowlistDialog by remember { mutableStateOf(false) }
     var showHomePageDialog by remember { mutableStateOf(false) }
     var showLanguagesDialog by remember { mutableStateOf(false) }
     var showAdvancedDialog by remember { mutableStateOf(false) }
@@ -147,7 +145,7 @@ fun SettingsScreen(
                 .verticalScroll(scrollState)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            // 1. Search Engine (Blue circle)
+            // 1. Search Engine
             SettingsMockRow(
                 icon = Icons.Default.Search,
                 iconBg = Color(0xFF2563EB),
@@ -156,7 +154,7 @@ fun SettingsScreen(
                 onClick = { showSearchEnginesDialog = true }
             )
 
-            // 2. Privacy & Security (Blue circle)
+            // 2. Privacy & Security
             SettingsMockRow(
                 icon = Icons.Default.Security,
                 iconBg = Color(0xFF2563EB),
@@ -164,7 +162,7 @@ fun SettingsScreen(
                 onClick = { showPrivacyDialog = true }
             )
 
-            // 3. Ad Blocker (Red circle) with Switch
+            // 3. Ad Blocker Global Switch
             SettingsSwitchRow(
                 icon = Icons.Default.Shield,
                 iconBg = Color(0xFFEF4444),
@@ -173,7 +171,36 @@ fun SettingsScreen(
                 onCheckedChange = { onUpdateSettings(settings.copy(adBlockGlobalEnabled = it)) }
             )
 
-            // 4. Data Saver (Green circle) with Switch
+            // 4. Strict Mode Switch
+            SettingsSwitchRow(
+                icon = Icons.Default.Block,
+                iconBg = Color(0xFFDC2626),
+                title = "Strict Ad & Tracking Shield",
+                checked = settings.adBlockStrictMode,
+                onCheckedChange = { onUpdateSettings(settings.copy(adBlockStrictMode = it)) }
+            )
+
+            // 5. Filter Lists & Live Updates
+            SettingsMockRow(
+                icon = Icons.Default.FilterList,
+                iconBg = Color(0xFF0EA5E9),
+                title = "Filter Lists & Rules",
+                subtitle = if (settings.filterListsLastUpdated > 0L) {
+                    SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()).format(Date(settings.filterListsLastUpdated))
+                } else "Bundled (24k+ rules)",
+                onClick = { showFilterListsDialog = true }
+            )
+
+            // 6. Allowlisted Sites Manager
+            SettingsMockRow(
+                icon = Icons.Default.Security,
+                iconBg = Color(0xFF14B8A6),
+                title = "Allowlisted Sites",
+                subtitle = "${settings.allowlistedDomains.size} sites",
+                onClick = { showAllowlistDialog = true }
+            )
+
+            // 7. Data Saver Switch
             SettingsSwitchRow(
                 icon = Icons.Default.Eco,
                 iconBg = Color(0xFF10B981),
@@ -182,7 +209,7 @@ fun SettingsScreen(
                 onCheckedChange = { onUpdateSettings(settings.copy(blockThirdPartyCookies = it)) }
             )
 
-            // 5. Theme (Orange circle) -> "System" >
+            // 8. Theme
             SettingsMockRow(
                 icon = Icons.Default.Palette,
                 iconBg = Color(0xFFF97316),
@@ -191,7 +218,7 @@ fun SettingsScreen(
                 onClick = onOpenAppearance
             )
 
-            // 6. Appearance (Purple circle)
+            // 9. Appearance
             SettingsMockRow(
                 icon = Icons.Default.Tune,
                 iconBg = Color(0xFF8B5CF6),
@@ -199,7 +226,7 @@ fun SettingsScreen(
                 onClick = onOpenAppearance
             )
 
-            // 7. Download Settings (Blue circle)
+            // 10. Download Settings
             SettingsMockRow(
                 icon = Icons.Default.FileDownload,
                 iconBg = Color(0xFF2563EB),
@@ -207,7 +234,7 @@ fun SettingsScreen(
                 onClick = onOpenDownloads
             )
 
-            // 8. Languages (Magenta circle)
+            // 11. Languages
             SettingsMockRow(
                 icon = Icons.Default.Language,
                 iconBg = Color(0xFFD946EF),
@@ -216,7 +243,7 @@ fun SettingsScreen(
                 onClick = { showLanguagesDialog = true }
             )
 
-            // 9. Home Page (Cyan circle)
+            // 12. Home Page
             SettingsMockRow(
                 icon = Icons.Default.Home,
                 iconBg = Color(0xFF06B6D4),
@@ -225,7 +252,7 @@ fun SettingsScreen(
                 onClick = { showHomePageDialog = true }
             )
 
-            // 10. Advanced (Cyan/Blue circle)
+            // 13. Advanced
             SettingsMockRow(
                 icon = Icons.Default.Code,
                 iconBg = Color(0xFF0284C7),
@@ -233,7 +260,7 @@ fun SettingsScreen(
                 onClick = { showAdvancedDialog = true }
             )
 
-            // 11. About (Blue circle)
+            // 14. About
             SettingsMockRow(
                 icon = Icons.Default.Info,
                 iconBg = Color(0xFF3B82F6),
@@ -242,6 +269,167 @@ fun SettingsScreen(
             )
 
             Spacer(modifier = Modifier.height(24.dp))
+        }
+
+        // Filter Lists Dialog
+        if (showFilterListsDialog) {
+            AlertDialog(
+                onDismissRequest = { showFilterListsDialog = false },
+                title = { Text("Filter Lists & Updates", color = Color.White, fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Text(
+                            text = "Enable or disable filter lists. Over 24,000 rules are bundled for offline speed.",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 12.sp
+                        )
+
+                        FilterListToggleRow(
+                            name = "EasyList Core",
+                            desc = "Blocks web advertisements and video popups",
+                            checked = settings.easyListEnabled,
+                            onCheckedChange = { onUpdateSettings(settings.copy(easyListEnabled = it)) }
+                        )
+
+                        FilterListToggleRow(
+                            name = "EasyPrivacy",
+                            desc = "Blocks analytics, telemetry & cross-site trackers",
+                            checked = settings.easyPrivacyEnabled,
+                            onCheckedChange = { onUpdateSettings(settings.copy(easyPrivacyEnabled = it)) }
+                        )
+
+                        FilterListToggleRow(
+                            name = "uBlock Filters",
+                            desc = "Video ad defusers and aggressive anti-adblock bypasses",
+                            checked = settings.uBlockFiltersEnabled,
+                            onCheckedChange = { onUpdateSettings(settings.copy(uBlockFiltersEnabled = it)) }
+                        )
+
+                        FilterListToggleRow(
+                            name = "Indian Regional Filters",
+                            desc = "Colombia, JioAds, Paytm, and South Asian networks",
+                            checked = settings.indianFiltersEnabled,
+                            onCheckedChange = { onUpdateSettings(settings.copy(indianFiltersEnabled = it)) }
+                        )
+
+                        HorizontalDivider(color = Color(0xFF1E283C))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Last Updated", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    text = if (settings.filterListsLastUpdated > 0L) {
+                                        SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date(settings.filterListsLastUpdated))
+                                    } else "Bundled Version (Up to date)",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 11.sp
+                                )
+                            }
+
+                            Button(
+                                onClick = { onUpdateFilterListsNow() },
+                                enabled = !isUpdatingFilterLists,
+                                colors = ButtonDefaults.buttonColors(containerColor = VelocityCyan, contentColor = Color.Black),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                if (isUpdatingFilterLists) {
+                                    CircularProgressIndicator(
+                                        color = Color.Black,
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Updating...", fontSize = 12.sp)
+                                } else {
+                                    Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Update Now", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showFilterListsDialog = false }) {
+                        Text("Done", color = VelocityCyan)
+                    }
+                },
+                containerColor = Color(0xFF131927)
+            )
+        }
+
+        // Allowlisted Sites Dialog
+        if (showAllowlistDialog) {
+            AlertDialog(
+                onDismissRequest = { showAllowlistDialog = false },
+                title = { Text("Allowlisted Sites", color = Color.White, fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (settings.allowlistedDomains.isEmpty()) {
+                            Text(
+                                text = "No sites are currently allowlisted.\n\nWhen browsing, tap the Velocity Shield icon to disable ad blocking on any site if needed.",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(vertical = 12.dp)
+                            )
+                        } else {
+                            Text(
+                                text = "Shield protection is paused on these websites:",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 12.sp
+                            )
+                            settings.allowlistedDomains.forEach { domain ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color(0xFF1E283C), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = domain,
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(
+                                        onClick = { onRemoveAllowlistedDomain(domain) },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Remove",
+                                            tint = Color(0xFFEF4444),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showAllowlistDialog = false }) {
+                        Text("Close", color = VelocityCyan)
+                    }
+                },
+                containerColor = Color(0xFF131927)
+            )
         }
 
         // Search Engine Selection Dialog
@@ -460,6 +648,33 @@ fun SettingsScreen(
                 containerColor = Color(0xFF131927)
             )
         }
+    }
+}
+
+@Composable
+private fun FilterListToggleRow(
+    name: String,
+    desc: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+            Text(text = name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(text = desc, color = Color(0xFF94A3B8), fontSize = 11.sp)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = Color(0xFF3B82F6)
+            )
+        )
     }
 }
 

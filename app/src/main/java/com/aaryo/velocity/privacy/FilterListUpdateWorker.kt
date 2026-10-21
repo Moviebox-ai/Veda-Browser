@@ -49,54 +49,57 @@ class FilterListUpdateWorker(
                 workRequest
             )
         }
-    }
 
-    private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
+        suspend fun performDirectUpdate(context: Context): Boolean = withContext(Dispatchers.IO) {
+            val targetDir = File(context.filesDir, "filter_lists")
+            if (!targetDir.exists()) {
+                targetDir.mkdirs()
+            }
 
-    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        val targetDir = File(applicationContext.filesDir, "filter_lists")
-        if (!targetDir.exists()) {
-            targetDir.mkdirs()
-        }
+            val httpClient = OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .build()
 
-        var anyUpdated = false
+            var anyUpdated = false
 
-        for ((filename, url) in FILTER_URLS) {
-            try {
-                val request = Request.Builder()
-                    .url(url)
-                    .header("User-Agent", "VelocityBrowser/1.0 AdBlocker")
-                    .build()
+            for ((filename, url) in FILTER_URLS) {
+                try {
+                    val request = Request.Builder()
+                        .url(url)
+                        .header("User-Agent", "VelocityBrowser/1.0 AdBlocker")
+                        .build()
 
-                val response = httpClient.newCall(request).execute()
-                if (response.isSuccessful) {
-                    val bodyString = response.body?.string()
-                    if (!bodyString.isNullOrBlank() && bodyString.length > 500) {
-                        val tempFile = File(targetDir, "$filename.tmp")
-                        tempFile.writeText(bodyString, Charsets.UTF_8)
-                        val finalFile = File(targetDir, filename)
-                        if (tempFile.renameTo(finalFile) || (finalFile.delete() && tempFile.renameTo(finalFile))) {
-                            anyUpdated = true
+                    val response = httpClient.newCall(request).execute()
+                    if (response.isSuccessful) {
+                        val bodyString = response.body?.string()
+                        if (!bodyString.isNullOrBlank() && bodyString.length > 500) {
+                            val tempFile = File(targetDir, "$filename.tmp")
+                            tempFile.writeText(bodyString, Charsets.UTF_8)
+                            val finalFile = File(targetDir, filename)
+                            if (tempFile.renameTo(finalFile) || (finalFile.delete() && tempFile.renameTo(finalFile))) {
+                                anyUpdated = true
+                            }
                         }
                     }
+                    response.close()
+                } catch (_: Exception) {
+                    // Fallback gracefully to existing local or bundled lists
                 }
-                response.close()
-            } catch (_: Exception) {
-                // Graceful fallback: maintain existing local files or bundled assets
             }
-        }
 
-        if (anyUpdated) {
-            val now = System.currentTimeMillis()
-            val repository = BrowserRepository(applicationContext)
+            val repository = BrowserRepository(context)
             val currentSettings = repository.settingsFlow.first()
+            val now = System.currentTimeMillis()
             repository.saveSettings(currentSettings.copy(filterListsLastUpdated = now))
-            AdBlocker.loadRules(applicationContext, currentSettings, forceReload = true)
-        }
+            AdBlocker.loadRules(context, currentSettings, forceReload = true)
 
+            anyUpdated
+        }
+    }
+
+    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        performDirectUpdate(applicationContext)
         Result.success()
     }
 }

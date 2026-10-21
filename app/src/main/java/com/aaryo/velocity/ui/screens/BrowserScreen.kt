@@ -353,12 +353,16 @@ fun BrowserScreen(
                     )
                 }
                 SheetType.SETTINGS -> {
+                    val isUpdatingFilterLists by viewModel.isUpdatingFilterLists.collectAsState()
                     SettingsScreen(
                         settings = settings,
                         onUpdateSettings = { viewModel.updateSettings(it) },
                         onOpenClearData = { viewModel.openSheet(SheetType.CLEAR_DATA) },
                         onOpenAppearance = { viewModel.openSheet(SheetType.APPEARANCE) },
                         onOpenDownloads = { viewModel.openSheet(SheetType.DOWNLOADS) },
+                        onRemoveAllowlistedDomain = { viewModel.removeAllowlistedDomain(it) },
+                        onUpdateFilterListsNow = { viewModel.updateFilterListsNow() },
+                        isUpdatingFilterLists = isUpdatingFilterLists,
                         onDismiss = { viewModel.closeSheet() }
                     )
                 }

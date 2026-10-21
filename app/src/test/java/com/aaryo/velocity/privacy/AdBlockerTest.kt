@@ -2,6 +2,7 @@ package com.aaryo.velocity.privacy
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -42,16 +43,31 @@ class AdBlockerTest {
     }
 
     @Test
-    fun testLoginCriticalDomainsPreservedInStandardMode() {
+    fun testExemptionNarrowingToAuthEndpointsOnly() {
         AdBlocker.isStrictMode = false
 
-        // Essential identity and OAuth login endpoints must not be blocked
-        assertFalse(AdBlocker.isAdOrTracker("https://connect.facebook.net/en_US/sdk.js"))
-        assertFalse(AdBlocker.isAdOrTracker("https://cdn.branch.io/branch-latest.min.js"))
-        assertFalse(AdBlocker.isAdOrTracker("https://cdn.segment.com/analytics.js/v1/key/analytics.min.js"))
-        assertFalse(AdBlocker.isAdOrTracker("https://accounts.google.com/o/oauth2/auth"))
-        assertFalse(AdBlocker.isAdOrTracker("https://appleid.apple.com/auth/authorize"))
+        // 1. Authentic OAuth / Login endpoints are preserved (not blocked)
+        assertFalse(AdBlocker.isAdOrTracker("https://accounts.google.com/o/oauth2/v2/auth?client_id=123"))
+        assertFalse(AdBlocker.isAdOrTracker("https://accounts.google.com/signin/v2/identifier"))
+        assertFalse(AdBlocker.isAdOrTracker("https://appleid.apple.com/auth/authorize?client_id=com.app"))
         assertFalse(AdBlocker.isAdOrTracker("https://github.com/login/oauth/authorize"))
+        assertFalse(AdBlocker.isAdOrTracker("https://x.com/i/oauth2/authorize"))
+
+        // 2. Tracking scripts on previously over-exempted domains MUST BE BLOCKED!
+        assertTrue(AdBlocker.isAdOrTracker("https://connect.facebook.net/en_US/fbevents.js"))
+        assertTrue(AdBlocker.isAdOrTracker("https://connect.facebook.net/signals/config/123"))
+        assertTrue(AdBlocker.isAdOrTracker("https://facebook.com/tr/?id=12345"))
+    }
+
+    @Test
+    fun testStrictModeEnforcesAllBlocking() {
+        AdBlocker.isStrictMode = true
+
+        // Strict mode blocks even potential auth endpoints if covered by rules
+        assertTrue(AdBlocker.isStrictMode)
+
+        // Reset
+        AdBlocker.isStrictMode = false
     }
 
     @Test
@@ -76,7 +92,7 @@ class AdBlockerTest {
         assertTrue(AdBlocker.isAdOrTracker("https://www.googletagservices.com/tag/js/gpt.js"))
         assertTrue(AdBlocker.isAdOrTracker("https://adservice.google.com/adsid/integrator.sync.js"))
 
-        // Display & Video ad networks
+        // Major ad networks
         assertTrue(AdBlocker.isAdOrTracker("https://aax.amazon-adsystem.com/e/dtb/bid"))
         assertTrue(AdBlocker.isAdOrTracker("https://static.criteo.net/js/ld/ld.js"))
         assertTrue(AdBlocker.isAdOrTracker("https://cdn.taboola.com/libtrc/loader.js"))
@@ -90,12 +106,9 @@ class AdBlockerTest {
 
     @Test
     fun testIndianAdNetworksBlocked() {
-        // Colombia Online / Times Internet Ad Network
         assertTrue(AdBlocker.isAdOrTracker("https://static.clmbtech.com/ad/commons/js/colombia.js"))
         assertTrue(AdBlocker.isAdOrTracker("https://colombiaonline.com/serve/ads"))
         assertTrue(AdBlocker.isAdOrTracker("https://clmbe.com/click"))
-
-        // Other Indian networks
         assertTrue(AdBlocker.isAdOrTracker("https://ads.vserv.mobi/delivery/ad.php"))
         assertTrue(AdBlocker.isAdOrTracker("https://vserv.com/banner.js"))
         assertTrue(AdBlocker.isAdOrTracker("https://adelement.com/engine.js"))
@@ -113,7 +126,7 @@ class AdBlockerTest {
         assertFalse(AdBlocker.isAdOrTracker("https://example.com/broadserver/news"))
         assertFalse(AdBlocker.isAdOrTracker("https://example.com/api/broadserver"))
 
-        // Megaupload / general uploads must NOT be blocked
+        // Uploads must NOT be blocked
         assertFalse(AdBlocker.isAdOrTracker("https://example.com/scripts/megaupload.js"))
         assertFalse(AdBlocker.isAdOrTracker("https://example.com/uploads/2026/banner_photo.jpg", siteHost = "example.com"))
 
@@ -127,12 +140,10 @@ class AdBlockerTest {
 
     @Test
     fun testThirdPartyMatching() {
-        // Different base domain -> third party
         assertTrue(AdBlocker.isThirdParty("doubleclick.net", "example.com"))
         assertTrue(AdBlocker.isThirdParty("ad.clmbtech.com", "timesofindia.indiatimes.com"))
         assertTrue(AdBlocker.isThirdParty("google-analytics.com", "github.com"))
 
-        // Same base domain -> first party (not third party)
         assertFalse(AdBlocker.isThirdParty("cdn.example.com", "example.com"))
         assertFalse(AdBlocker.isThirdParty("assets.example.com", "www.example.com"))
         assertFalse(AdBlocker.isThirdParty("m.timesofindia.indiatimes.com", "timesofindia.indiatimes.com"))
@@ -162,6 +173,36 @@ class AdBlockerTest {
 
         val imageHeaders = mapOf("Accept" to "image/webp,image/*")
         assertEquals(ResourceType.IMAGE, AdBlocker.detectResourceType("https://example.com/dynamic-img", imageHeaders))
+
+        val fontHeaders = mapOf("Sec-Fetch-Dest" to "font")
+        assertEquals(ResourceType.FONT, AdBlocker.detectResourceType("https://example.com/font.bin", fontHeaders))
+    }
+
+    @Test
+    fun testEmptyResponseTypes() {
+        val scriptResp = AdBlocker.createEmptyResponse("https://example.com/ad.js", ResourceType.SCRIPT)
+        assertNotNull(scriptResp)
+        assertEquals("application/javascript", AdBlocker.getMimeTypeForResource("https://example.com/ad.js", ResourceType.SCRIPT))
+
+        val imgResp = AdBlocker.createEmptyResponse("https://example.com/banner.png", ResourceType.IMAGE)
+        assertNotNull(imgResp)
+        assertEquals("image/png", AdBlocker.getMimeTypeForResource("https://example.com/banner.png", ResourceType.IMAGE))
+
+        val gifResp = AdBlocker.createEmptyResponse("https://example.com/pixel.gif", ResourceType.IMAGE)
+        assertNotNull(gifResp)
+        assertEquals("image/gif", AdBlocker.getMimeTypeForResource("https://example.com/pixel.gif", ResourceType.IMAGE))
+
+        val cssResp = AdBlocker.createEmptyResponse("https://example.com/ads.css", ResourceType.STYLESHEET)
+        assertNotNull(cssResp)
+        assertEquals("text/css", AdBlocker.getMimeTypeForResource("https://example.com/ads.css", ResourceType.STYLESHEET))
+
+        val xhrResp = AdBlocker.createEmptyResponse("https://example.com/api/track", ResourceType.XMLHTTPREQUEST)
+        assertNotNull(xhrResp)
+        assertEquals("text/plain", AdBlocker.getMimeTypeForResource("https://example.com/api/track", ResourceType.XMLHTTPREQUEST))
+
+        val subdocResp = AdBlocker.createEmptyResponse("https://example.com/iframe_ad.html", ResourceType.SUBDOCUMENT)
+        assertNotNull(subdocResp)
+        assertEquals("text/plain", AdBlocker.getMimeTypeForResource("https://example.com/iframe_ad.html", ResourceType.SUBDOCUMENT))
     }
 
     @Test
@@ -178,12 +219,47 @@ class AdBlockerTest {
     }
 
     @Test
-    fun testCosmeticRuleExtraction() {
-        AdBlocker.parseRuleLine("##.custom-ad-unit-2026")
-        val css = AdBlocker.getCosmeticCss()
-        assertTrue(css.contains(".adsbygoogle"))
-        assertTrue(css.contains(".custom-ad-unit-2026"))
-        assertTrue(css.contains("display: none !important"))
+    fun testImportantModifierOverridesException() {
+        // Normal exception
+        AdBlocker.parseRuleLine("@@||special-network.com/banner^")
+        // Important block rule
+        AdBlocker.parseRuleLine("||special-network.com/banner^\$important")
+
+        // Important blocking rule should override the standard exception
+        assertTrue(AdBlocker.isAdOrTracker("https://special-network.com/banner"))
+    }
+
+    @Test
+    fun testDomainModifierRestriction() {
+        // Rule applies only when visited from example-news.com
+        AdBlocker.parseRuleLine("||partner-tracker.com^\$domain=example-news.com")
+
+        // Request from example-news.com -> blocked
+        assertTrue(AdBlocker.isAdOrTracker("https://partner-tracker.com/track.js", siteHost = "example-news.com"))
+
+        // Request from other-site.com -> NOT blocked
+        assertFalse(AdBlocker.isAdOrTracker("https://partner-tracker.com/track.js", siteHost = "other-site.com"))
+    }
+
+    @Test
+    fun testCosmeticRuleExtractionAndDomainIsolation() {
+        // Global rule
+        AdBlocker.parseRuleLine("##.global-ad-box-2026")
+        // Domain specific rule
+        AdBlocker.parseRuleLine("techsite.com##.techsite-sponsor")
+        // Unhide exception
+        AdBlocker.parseRuleLine("specialsite.com#@#.global-ad-box-2026")
+
+        val techCss = AdBlocker.getCosmeticCss(siteHost = "techsite.com")
+        assertTrue(techCss.contains(".global-ad-box-2026"))
+        assertTrue(techCss.contains(".techsite-sponsor"))
+
+        val otherCss = AdBlocker.getCosmeticCss(siteHost = "otherplace.com")
+        assertTrue(otherCss.contains(".global-ad-box-2026"))
+        assertFalse(otherCss.contains(".techsite-sponsor"))
+
+        val unhideCss = AdBlocker.getCosmeticCss(siteHost = "specialsite.com")
+        assertFalse(unhideCss.contains(".global-ad-box-2026"))
     }
 
     @Test

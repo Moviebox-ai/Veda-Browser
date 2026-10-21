@@ -14,8 +14,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
@@ -25,7 +25,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,7 +37,6 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -59,6 +57,10 @@ fun ShieldDialog(
     modifier: Modifier = Modifier
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val adsOnPage = tab?.blockedAdsCount ?: 0
+    val trackersOnPage = tab?.blockedTrackersCount ?: 0
+    val totalOnPage = adsOnPage + trackersOnPage
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -100,7 +102,7 @@ fun ShieldDialog(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = if (tab?.adBlockEnabled == true) "Protection is active" else "Protection is disabled",
+                        text = if (tab?.adBlockEnabled == true) "Protection is active" else "Protection disabled for this site",
                         fontSize = 12.sp,
                         color = if (tab?.adBlockEnabled == true) VelocityCyan else MaterialTheme.colorScheme.error
                     )
@@ -132,7 +134,7 @@ fun ShieldDialog(
                             fontSize = 15.sp
                         )
                         Text(
-                            text = "${tab?.blockedTrackersCount ?: 0} ads & trackers blocked on this page",
+                            text = "$adsOnPage Ads • $trackersOnPage Trackers blocked",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -163,6 +165,12 @@ fun ShieldDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                StatMetricCard(
+                    icon = Icons.Default.Block,
+                    label = "Ads Blocked",
+                    value = "${shieldStats.totalAdsBlocked}",
+                    modifier = Modifier.weight(1f)
+                )
                 StatMetricCard(
                     icon = Icons.Default.Security,
                     label = "Trackers",
@@ -209,7 +217,7 @@ private fun StatMetricCard(
         modifier = modifier
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
@@ -222,11 +230,11 @@ private fun StatMetricCard(
             Text(
                 text = value,
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
+                fontSize = 13.sp
             )
             Text(
                 text = label,
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }

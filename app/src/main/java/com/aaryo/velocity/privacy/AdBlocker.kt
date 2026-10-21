@@ -58,13 +58,16 @@ data class FilterRule(
             return false
         }
         if (siteHost != null) {
-            val baseSite = AdBlocker.getBaseDomain(siteHost)
-            if (excludedDomains != null && (excludedDomains.contains(siteHost) || excludedDomains.contains(baseSite))) {
+            val cleanSite = AdBlocker.normalizeDomain(siteHost)
+            val baseSite = AdBlocker.getBaseDomain(cleanSite)
+            if (excludedDomains != null && (excludedDomains.contains(cleanSite) || excludedDomains.contains(baseSite))) {
                 return false
             }
-            if (permittedDomains != null && !permittedDomains.contains(siteHost) && !permittedDomains.contains(baseSite)) {
+            if (permittedDomains != null && !permittedDomains.contains(cleanSite) && !permittedDomains.contains(baseSite)) {
                 return false
             }
+        } else if (permittedDomains != null) {
+            return false
         }
         if (anchorDomain != null && !AdBlocker.matchesDomain(requestHost, anchorDomain)) {
             return false
@@ -78,20 +81,27 @@ data class FilterRule(
 
 object AdBlocker {
 
+    // Fast O(1) domain lookup sets
     private val blockedDomains = ConcurrentHashMap.newKeySet<String>()
     private val exceptionDomains = ConcurrentHashMap.newKeySet<String>()
     private val allowlist = ConcurrentHashMap.newKeySet<String>()
 
-    // Complex indexed network rules
+    // Indexed network rules
     private val anchoredRules = ConcurrentHashMap<String, CopyOnWriteArrayList<FilterRule>>()
+    private val anchoredExceptions = ConcurrentHashMap<String, CopyOnWriteArrayList<FilterRule>>()
     private val globalRules = CopyOnWriteArrayList<FilterRule>()
+    private val globalExceptions = CopyOnWriteArrayList<FilterRule>()
+    private val importantRules = CopyOnWriteArrayList<FilterRule>()
+    private val importantExceptions = CopyOnWriteArrayList<FilterRule>()
 
     // Cosmetic rules
     private val globalCosmeticSelectors = ConcurrentHashMap.newKeySet<String>()
+    private val globalCosmeticExceptions = ConcurrentHashMap.newKeySet<String>()
     private val domainCosmeticSelectors = ConcurrentHashMap<String, MutableSet<String>>()
+    private val domainExcludedCosmetics = ConcurrentHashMap<String, MutableSet<String>>()
     private val cosmeticExceptions = ConcurrentHashMap<String, MutableSet<String>>()
 
-    // Default global selectors (clean and specific, avoiding overbroad wildcards like [class*="-ad-"])
+    // Default global selectors (curated and specific; over-broad wildcards like [class*="-ad-"] avoided)
     private val DEFAULT_GLOBAL_COSMETIC_SELECTORS = setOf(
         ".adsbygoogle",
         "ins.adsbygoogle",
@@ -261,16 +271,21 @@ object AdBlocker {
         blockedDomains.clear()
         exceptionDomains.clear()
         anchoredRules.clear()
+        anchoredExceptions.clear()
         globalRules.clear()
+        globalExceptions.clear()
+        importantRules.clear()
+        importantExceptions.clear()
         domainCosmeticSelectors.clear()
+        domainExcludedCosmetics.clear()
         cosmeticExceptions.clear()
+        globalCosmeticExceptions.clear()
         globalCosmeticSelectors.clear()
 
-        // Always re-add defaults
+        // Re-seed defaults
         populateDefaultDomains()
         globalCosmeticSelectors.addAll(DEFAULT_GLOBAL_COSMETIC_SELECTORS)
 
-        // Helper to load file or asset
         fun loadList(localFile: File, assetName: String) {
             val stream: InputStream? = try {
                 if (localFile.exists() && localFile.length() > 0L) {
@@ -343,16 +358,17 @@ object AdBlocker {
                 when {
                     m == "important" -> isImportant = true
                     m == "third-party" || m == "3p" -> thirdPartyOnly = true
-                    m == "~third-party" || m == "~3p" -> firstPartyOnly = true
+                    m == "~third-party" || m == "~3p" || m == "first-party" || m == "1p" -> firstPartyOnly = true
                     m == "script" -> resourceTypes.add(ResourceType.SCRIPT)
                     m == "image" -> resourceTypes.add(ResourceType.IMAGE)
                     m == "stylesheet" || m == "css" -> resourceTypes.add(ResourceType.STYLESHEET)
-                    m == "subdocument" || m == "document" -> resourceTypes.add(ResourceType.SUBDOCUMENT)
+                    m == "subdocument" || m == "document" || m == "frame" -> resourceTypes.add(ResourceType.SUBDOCUMENT)
                     m == "xmlhttprequest" || m == "xhr" -> resourceTypes.add(ResourceType.XMLHTTPREQUEST)
                     m == "media" -> resourceTypes.add(ResourceType.MEDIA)
                     m == "font" -> resourceTypes.add(ResourceType.FONT)
                     m == "websocket" -> resourceTypes.add(ResourceType.WEBSOCKET)
                     m == "ping" -> resourceTypes.add(ResourceType.PING)
+                    m == "other" -> resourceTypes.add(ResourceType.OTHER)
                     m.startsWith("domain=") -> {
                         val domList = m.substringAfter("domain=").split('|')
                         for (domEntry in domList) {
@@ -372,14 +388,16 @@ object AdBlocker {
 
         val resTypes = if (resourceTypes.isNotEmpty()) resourceTypes.toSet() else null
 
-        // 4. Simple domain rule without path/wildcard -> store directly for O(1) lookup
+        // 4. Simple domain rule without path/wildcard -> store directly for O(1) fast lookup
         if (patternPart.startsWith("||") && !patternPart.contains("/") && !patternPart.contains("*")) {
             val rawDomain = patternPart.removePrefix("||").removeSuffix("^").trim().lowercase()
             if (rawDomain.isNotEmpty()) {
-                if (isException) {
+                if (isException && resTypes == null && !thirdPartyOnly && !firstPartyOnly && permittedDomains == null && excludedDomains == null && !isImportant) {
                     exceptionDomains.add(rawDomain)
-                } else if (resTypes == null && !thirdPartyOnly && !firstPartyOnly && permittedDomains == null && excludedDomains == null && !isImportant) {
+                    return
+                } else if (!isException && resTypes == null && !thirdPartyOnly && !firstPartyOnly && permittedDomains == null && excludedDomains == null && !isImportant) {
                     blockedDomains.add(rawDomain)
+                    return
                 } else {
                     val filterRule = FilterRule(
                         raw = line,
@@ -393,9 +411,9 @@ object AdBlocker {
                         excludedDomains = excludedDomains,
                         resourceTypes = resTypes
                     )
-                    anchoredRules.computeIfAbsent(rawDomain) { CopyOnWriteArrayList() }.add(filterRule)
+                    registerRule(filterRule, rawDomain)
+                    return
                 }
-                return
             }
         }
 
@@ -428,10 +446,31 @@ object AdBlocker {
             resourceTypes = resTypes
         )
 
-        if (anchorDomain != null) {
-            anchoredRules.computeIfAbsent(anchorDomain) { CopyOnWriteArrayList() }.add(rule)
+        registerRule(rule, anchorDomain)
+    }
+
+    private fun registerRule(rule: FilterRule, anchorDomain: String?) {
+        if (rule.isImportant) {
+            if (rule.isException) {
+                importantExceptions.add(rule)
+            } else {
+                importantRules.add(rule)
+            }
+            return
+        }
+
+        if (rule.isException) {
+            if (anchorDomain != null) {
+                anchoredExceptions.computeIfAbsent(anchorDomain) { CopyOnWriteArrayList() }.add(rule)
+            } else {
+                globalExceptions.add(rule)
+            }
         } else {
-            globalRules.add(rule)
+            if (anchorDomain != null) {
+                anchoredRules.computeIfAbsent(anchorDomain) { CopyOnWriteArrayList() }.add(rule)
+            } else {
+                globalRules.add(rule)
+            }
         }
     }
 
@@ -448,26 +487,35 @@ object AdBlocker {
             selector.contains(":-abp-") ||
             selector.contains(":matches-path(") ||
             selector.contains(":xpath(") ||
-            selector.contains("[-abp-")
+            selector.contains("[-abp-") ||
+            selector.contains(":matches-css(") ||
+            selector.startsWith("^")
         ) {
             return
         }
 
         if (domainPart.isEmpty()) {
-            if (!isUnhide) {
+            if (isUnhide) {
+                globalCosmeticExceptions.add(selector)
+            } else {
                 globalCosmeticSelectors.add(selector)
             }
         } else {
             val domains = domainPart.split(',')
             for (d in domains) {
                 val cleanD = d.trim().lowercase()
-                if (cleanD.isEmpty() || cleanD.startsWith("~")) continue
-                if (isUnhide) {
-                    val set = cosmeticExceptions.computeIfAbsent(cleanD) { ConcurrentHashMap.newKeySet() }
-                    set.add(selector)
+                if (cleanD.isEmpty()) continue
+                if (cleanD.startsWith("~")) {
+                    val excluded = cleanD.removePrefix("~")
+                    if (!isUnhide) {
+                        domainExcludedCosmetics.computeIfAbsent(excluded) { ConcurrentHashMap.newKeySet() }.add(selector)
+                    }
                 } else {
-                    val set = domainCosmeticSelectors.computeIfAbsent(cleanD) { ConcurrentHashMap.newKeySet() }
-                    set.add(selector)
+                    if (isUnhide) {
+                        cosmeticExceptions.computeIfAbsent(cleanD) { ConcurrentHashMap.newKeySet() }.add(selector)
+                    } else {
+                        domainCosmeticSelectors.computeIfAbsent(cleanD) { ConcurrentHashMap.newKeySet() }.add(selector)
+                    }
                 }
             }
         }
@@ -527,6 +575,7 @@ object AdBlocker {
             "adsterra.com", "richads.com", "trafficstars.com", "monetag.com", "hilltopads.com",
             "clickadu.com", "adcash.com", "yllix.com", "bidvertiser.com", "adkernel.com",
             "adtrue.com", "bet365affiliates.com", "revenuehits.com", "ad-maven.com", "admaven.com",
+            "connect.facebook.net",
             "colombiaonline.com", "clmbtech.com", "clmbe.com", "adelement.com", "adpushup.com",
             "vserv.com", "vserv.mobi", "jioads.com", "paytmads.com", "tyroo.com", "affinity.com",
             "admagnet.com", "komli.com", "adnetworkindia.com", "adsolut.in", "zapr.in", "silverpush.co"
@@ -610,6 +659,7 @@ object AdBlocker {
                 "empty" -> return ResourceType.XMLHTTPREQUEST
                 "video", "audio" -> return ResourceType.MEDIA
                 "font" -> return ResourceType.FONT
+                "websocket" -> return ResourceType.WEBSOCKET
             }
         }
 
@@ -625,7 +675,7 @@ object AdBlocker {
             }
         }
 
-        // 3. Fallback to clean URL extension
+        // 3. Fallback to clean URL path extension
         val cleanPath = url.substringBefore('?').substringBefore('#').lowercase()
         return when {
             cleanPath.endsWith(".js") || cleanPath.endsWith(".mjs") -> ResourceType.SCRIPT
@@ -634,7 +684,7 @@ object AdBlocker {
                     cleanPath.endsWith(".ico") -> ResourceType.IMAGE
             cleanPath.endsWith(".css") -> ResourceType.STYLESHEET
             cleanPath.endsWith(".mp4") || cleanPath.endsWith(".webm") || cleanPath.endsWith(".mp3") -> ResourceType.MEDIA
-            cleanPath.endsWith(".woff") || cleanPath.endsWith(".woff2") || cleanPath.endsWith(".ttf") -> ResourceType.FONT
+            cleanPath.endsWith(".woff") || cleanPath.endsWith(".woff2") || cleanPath.endsWith(".ttf") || cleanPath.endsWith(".otf") -> ResourceType.FONT
             cleanPath.endsWith(".html") || cleanPath.endsWith(".htm") -> ResourceType.SUBDOCUMENT
             else -> ResourceType.OTHER
         }
@@ -655,7 +705,7 @@ object AdBlocker {
     }
 
     /**
-     * Narrows login exemptions to real authentication/oauth endpoints.
+     * Narrows login exemptions strictly to authentic OAuth/login endpoints.
      * Prevents tracking scripts (like connect.facebook.net/en_US/fbevents.js) from escaping ad blocking.
      */
     fun isLoginEndpoint(url: String): Boolean {
@@ -668,7 +718,7 @@ object AdBlocker {
                 lower.contains("github.com/session") ||
                 lower.contains("x.com/i/oauth") ||
                 lower.contains("twitter.com/i/oauth") ||
-                lower.contains("facebook.com/v") && lower.contains("/dialog/oauth")
+                (lower.contains("facebook.com") && lower.contains("/dialog/oauth"))
     }
 
     fun isAdOrTracker(
@@ -704,26 +754,39 @@ object AdBlocker {
 
         val normalizedHost = requestHost.removePrefix("www.")
 
-        // 3. Narrowed login check (only authentic OAuth endpoints exempted in non-strict mode)
+        // 3. Narrowed login check (authentic OAuth endpoints exempted in non-strict mode)
         if (!isStrictMode && isLoginEndpoint(url)) {
-            return false
-        }
-
-        // 4. Domain exceptions (@@ rules)
-        if (isHostException(normalizedHost)) {
             return false
         }
 
         val resType = resourceType ?: detectResourceType(url, requestHeaders)
         val is3p = isThirdParty(normalizedHost, siteHost)
 
-        // 5. Check anchored exception rules
+        // 4. IMPORTANT rules check
+        for (rule in importantExceptions) {
+            if (rule.matches(url, normalizedHost, siteHost, resType)) {
+                return false
+            }
+        }
+
+        for (rule in importantRules) {
+            if (rule.matches(url, normalizedHost, siteHost, resType)) {
+                return true
+            }
+        }
+
+        // 5. Host-level exceptions (@@ rules)
+        if (isHostException(normalizedHost)) {
+            return false
+        }
+
+        // 6. Check anchored standard exception rules
         var checkDomain = normalizedHost
         while (checkDomain.isNotEmpty()) {
-            val rules = anchoredRules[checkDomain]
+            val rules = anchoredExceptions[checkDomain]
             if (rules != null) {
                 for (rule in rules) {
-                    if (rule.isException && rule.matches(url, normalizedHost, siteHost, resType)) {
+                    if (rule.matches(url, normalizedHost, siteHost, resType)) {
                         return false
                     }
                 }
@@ -733,25 +796,25 @@ object AdBlocker {
             checkDomain = checkDomain.substring(dot + 1)
         }
 
-        // 6. Check global exception rules
-        for (rule in globalRules) {
-            if (rule.isException && rule.matches(url, normalizedHost, siteHost, resType)) {
+        // 7. Check global standard exception rules
+        for (rule in globalExceptions) {
+            if (rule.matches(url, normalizedHost, siteHost, resType)) {
                 return false
             }
         }
 
-        // 7. Fast O(1) Suffix & Exact Domain Lookup
+        // 8. Fast O(1) Suffix & Exact Domain Lookup
         if (isHostBlocked(normalizedHost)) {
             return true
         }
 
-        // 8. Check anchored blocking rules
+        // 9. Check anchored standard blocking rules
         checkDomain = normalizedHost
         while (checkDomain.isNotEmpty()) {
             val rules = anchoredRules[checkDomain]
             if (rules != null) {
                 for (rule in rules) {
-                    if (!rule.isException && rule.matches(url, normalizedHost, siteHost, resType)) {
+                    if (rule.matches(url, normalizedHost, siteHost, resType)) {
                         return true
                     }
                 }
@@ -761,14 +824,14 @@ object AdBlocker {
             checkDomain = checkDomain.substring(dot + 1)
         }
 
-        // 9. Check global blocking rules
+        // 10. Check global standard blocking rules
         for (rule in globalRules) {
-            if (!rule.isException && rule.matches(url, normalizedHost, siteHost, resType)) {
+            if (rule.matches(url, normalizedHost, siteHost, resType)) {
                 return true
             }
         }
 
-        // 10. Tightly tuned ad path rules
+        // 11. Tightly tuned ad path rules
         val path = try {
             Uri.parse(url).path?.lowercase() ?: ""
         } catch (_: Exception) {
@@ -792,7 +855,8 @@ object AdBlocker {
             path.endsWith("/fbevents.js") || path.contains("/fbevents.js?") ||
             path.endsWith("/prebid.js") || path.contains("/prebid.js?") ||
             path.endsWith("/adsbygoogle.js") || path.contains("/adsbygoogle.js?") ||
-            path.endsWith("/show_ads.js") || path.contains("/show_ads.js?")
+            path.endsWith("/show_ads.js") || path.contains("/show_ads.js?") ||
+            path.startsWith("/tr/") || path == "/tr" || path.contains("/tr?") || path.contains("/tr/?")
         ) {
             return true
         }
@@ -814,6 +878,16 @@ object AdBlocker {
         }
 
         return false
+    }
+
+    fun getMimeTypeForResource(url: String? = null, resourceType: ResourceType? = null): String {
+        val resType = resourceType ?: detectResourceType(url)
+        return when (resType) {
+            ResourceType.SCRIPT -> "application/javascript"
+            ResourceType.IMAGE -> if (url?.lowercase()?.contains(".gif") == true) "image/gif" else "image/png"
+            ResourceType.STYLESHEET -> "text/css"
+            else -> "text/plain"
+        }
     }
 
     fun isPopupAllowed(url: String?, isUserGesture: Boolean, sourceHost: String?): Boolean {
@@ -862,67 +936,85 @@ object AdBlocker {
     fun getAllowlist(): Set<String> = allowlist.toSet()
 
     /**
-     * Generates proper HTTP 204 or empty responses based on Sec-Fetch-Dest, Accept, or ResourceType.
-     * Eliminates crude URL-guessing heuristics.
+     * Generates proper HTTP responses:
+     * - SCRIPT -> empty JS
+     * - IMAGE -> 1x1 transparent PNG / GIF
+     * - STYLESHEET -> empty CSS
+     * - Subdocuments, XHR, Fonts, Media, and others -> HTTP 204 No Content with empty body
      */
     fun createEmptyResponse(url: String? = null, resourceType: ResourceType? = null): WebResourceResponse {
         val resType = resourceType ?: detectResourceType(url)
 
-        return when (resType) {
+        val response = when (resType) {
             ResourceType.SCRIPT -> {
-                WebResourceResponse("application/javascript", "UTF-8", ByteArrayInputStream("/* blocked by velocity */".toByteArray(Charsets.UTF_8))).apply {
-                    responseHeaders = mapOf(
-                        "Access-Control-Allow-Origin" to "*",
-                        "Cache-Control" to "no-cache, no-store, must-revalidate"
-                    )
-                }
+                WebResourceResponse(
+                    "application/javascript",
+                    "UTF-8",
+                    ByteArrayInputStream("/* blocked by velocity */".toByteArray(Charsets.UTF_8))
+                )
             }
             ResourceType.IMAGE -> {
                 val isGif = url?.lowercase()?.contains(".gif") == true
                 val bytes = if (isGif) TRANSPARENT_1X1_GIF else TRANSPARENT_1X1_PNG
                 val mime = if (isGif) "image/gif" else "image/png"
-                WebResourceResponse(mime, "UTF-8", ByteArrayInputStream(bytes)).apply {
-                    responseHeaders = mapOf(
-                        "Access-Control-Allow-Origin" to "*",
-                        "Cache-Control" to "no-cache, no-store, must-revalidate"
-                    )
-                }
+                WebResourceResponse(mime, "UTF-8", ByteArrayInputStream(bytes))
             }
             ResourceType.STYLESHEET -> {
-                WebResourceResponse("text/css", "UTF-8", ByteArrayInputStream("/* blocked */".toByteArray(Charsets.UTF_8))).apply {
-                    responseHeaders = mapOf(
-                        "Access-Control-Allow-Origin" to "*",
-                        "Cache-Control" to "no-cache, no-store, must-revalidate"
-                    )
-                }
+                WebResourceResponse(
+                    "text/css",
+                    "UTF-8",
+                    ByteArrayInputStream("/* blocked by velocity */".toByteArray(Charsets.UTF_8))
+                )
             }
             else -> {
-                // Return clean HTTP 204 No Content for XHR, Subdocuments, Fonts, Media, and other subresources
-                WebResourceResponse("text/plain", "UTF-8", 204, "No Content", mapOf(
-                    "Access-Control-Allow-Origin" to "*",
-                    "Cache-Control" to "no-cache, no-store, must-revalidate"
-                ), ByteArrayInputStream(ByteArray(0)))
+                try {
+                    WebResourceResponse(
+                        "text/plain",
+                        "UTF-8",
+                        204,
+                        "No Content",
+                        mapOf(
+                            "Access-Control-Allow-Origin" to "*",
+                            "Cache-Control" to "no-cache, no-store, must-revalidate"
+                        ),
+                        ByteArrayInputStream(ByteArray(0))
+                    )
+                } catch (_: Throwable) {
+                    WebResourceResponse("text/plain", "UTF-8", ByteArrayInputStream(ByteArray(0)))
+                }
             }
         }
+
+        try {
+            response.responseHeaders = mapOf(
+                "Access-Control-Allow-Origin" to "*",
+                "Cache-Control" to "no-cache, no-store, must-revalidate"
+            )
+        } catch (_: Throwable) {
+        }
+
+        return response
     }
 
     /**
-     * Builds dynamic cosmetic stylesheet specifically tailored for the target siteHost.
-     * Combines global rules, filters out #@# exceptions, and adds domain-specific rules.
+     * Resolves all applicable cosmetic selectors for siteHost.
+     * Evaluates global selectors, domain specific rules, domain exclusions (~), and #@# unhide exceptions.
      */
-    fun getCosmeticCss(siteHost: String? = null): String {
+    fun getCosmeticSelectors(siteHost: String? = null): Set<String> {
         val activeSelectors = mutableSetOf<String>()
         val exceptions = mutableSetOf<String>()
+        exceptions.addAll(globalCosmeticExceptions)
 
-        if (!siteHost.isNullOrBlank()) {
-            val cleanHost = normalizeDomain(siteHost)
-            val baseHost = getBaseDomain(cleanHost)
+        val cleanHost = siteHost?.let { normalizeDomain(it) }
+        val baseHost = cleanHost?.let { getBaseDomain(it) }
 
+        if (cleanHost != null) {
             cosmeticExceptions[cleanHost]?.let { exceptions.addAll(it) }
+            domainExcludedCosmetics[cleanHost]?.let { exceptions.addAll(it) }
+        }
+        if (baseHost != null && baseHost != cleanHost) {
             cosmeticExceptions[baseHost]?.let { exceptions.addAll(it) }
-
-            domainCosmeticSelectors[cleanHost]?.let { activeSelectors.addAll(it) }
-            domainCosmeticSelectors[baseHost]?.let { activeSelectors.addAll(it) }
+            domainExcludedCosmetics[baseHost]?.let { exceptions.addAll(it) }
         }
 
         for (selector in globalCosmeticSelectors) {
@@ -931,17 +1023,54 @@ object AdBlocker {
             }
         }
 
-        if (activeSelectors.isEmpty()) return ""
+        if (cleanHost != null) {
+            domainCosmeticSelectors[cleanHost]?.let { set ->
+                for (sel in set) {
+                    if (!exceptions.contains(sel)) activeSelectors.add(sel)
+                }
+            }
+        }
+        if (baseHost != null && baseHost != cleanHost) {
+            domainCosmeticSelectors[baseHost]?.let { set ->
+                for (sel in set) {
+                    if (!exceptions.contains(sel)) activeSelectors.add(sel)
+                }
+            }
+        }
 
-        val selectorsJoined = activeSelectors.joinToString(", ")
-        return "$selectorsJoined { display: none !important; visibility: hidden !important; height: 0px !important; min-height: 0px !important; max-height: 0px !important; padding: 0px !important; margin: 0px !important; opacity: 0 !important; pointer-events: none !important; }"
+        return activeSelectors
+    }
+
+    /**
+     * Builds dynamic cosmetic stylesheet in small chunks (10 selectors per rule) so that
+     * if an invalid selector appears, it does not invalidate the entire stylesheet.
+     */
+    fun getCosmeticCss(siteHost: String? = null): String {
+        val selectors = getCosmeticSelectors(siteHost)
+        if (selectors.isEmpty()) return ""
+
+        val sb = StringBuilder()
+        val chunk = mutableListOf<String>()
+        for (sel in selectors) {
+            chunk.add(sel)
+            if (chunk.size >= 10) {
+                sb.append(chunk.joinToString(", "))
+                    .append(" { display: none !important; visibility: hidden !important; height: 0px !important; min-height: 0px !important; max-height: 0px !important; padding: 0px !important; margin: 0px !important; opacity: 0 !important; pointer-events: none !important; }\n")
+                chunk.clear()
+            }
+        }
+        if (chunk.isNotEmpty()) {
+            sb.append(chunk.joinToString(", "))
+                .append(" { display: none !important; visibility: hidden !important; height: 0px !important; min-height: 0px !important; max-height: 0px !important; padding: 0px !important; margin: 0px !important; opacity: 0 !important; pointer-events: none !important; }\n")
+        }
+        return sb.toString()
     }
 
     /**
      * Document start script with:
-     * 1. YouTube player ad payload defuser (strips adPlacements, playerAds, adSlots from JSON.parse and player fetch)
+     * 1. YouTube player JSON.parse and player fetch/XHR defuser (strips adPlacements, playerAds, adSlots)
      * 2. Anti-adblock defusers
-     * 3. Early CSS stylesheet
+     * 3. Chunked early CSS injection
      * 4. Video ad skip and fast-forward
      * 5. MutationObserver
      */
@@ -964,9 +1093,61 @@ object AdBlocker {
                             if (parsed.playerAds) delete parsed.playerAds;
                             if (parsed.adSlots) delete parsed.adSlots;
                             if (parsed.adBreakHeartbeatParams) delete parsed.adBreakHeartbeatParams;
+                            if (parsed.playerResponse) {
+                                if (parsed.playerResponse.adPlacements) delete parsed.playerResponse.adPlacements;
+                                if (parsed.playerResponse.playerAds) delete parsed.playerResponse.playerAds;
+                                if (parsed.playerResponse.adSlots) delete parsed.playerResponse.adSlots;
+                            }
                         }
                         return parsed;
                     };
+
+                    if (window.fetch) {
+                        var origFetch = window.fetch;
+                        window.fetch = function(input, init) {
+                            var url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+                            if (url && (url.indexOf('/api/stats/ads') !== -1 || url.indexOf('/youtubei/v1/player/ad_break') !== -1 || url.indexOf('/pagead/') !== -1 || url.indexOf('ptracking') !== -1)) {
+                                return Promise.resolve(new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+                            }
+                            return origFetch.apply(this, arguments).then(function(resp) {
+                                if (url && (url.indexOf('/youtubei/v1/player') !== -1)) {
+                                    return resp.clone().json().then(function(data) {
+                                        if (data) {
+                                            if (data.adPlacements) delete data.adPlacements;
+                                            if (data.playerAds) delete data.playerAds;
+                                            if (data.adSlots) delete data.adSlots;
+                                            if (data.adBreakHeartbeatParams) delete data.adBreakHeartbeatParams;
+                                        }
+                                        return new Response(JSON.stringify(data), {
+                                            status: resp.status,
+                                            statusText: resp.statusText,
+                                            headers: resp.headers
+                                        });
+                                    }).catch(function() { return resp; });
+                                }
+                                return resp;
+                            });
+                        };
+                    }
+
+                    if (window.XMLHttpRequest) {
+                        var origOpen = XMLHttpRequest.prototype.open;
+                        XMLHttpRequest.prototype.open = function(method, url) {
+                            this._velocityUrl = url;
+                            return origOpen.apply(this, arguments);
+                        };
+                        var origSend = XMLHttpRequest.prototype.send;
+                        XMLHttpRequest.prototype.send = function() {
+                            var self = this;
+                            if (this._velocityUrl && (this._velocityUrl.indexOf('/api/stats/ads') !== -1 || this._velocityUrl.indexOf('/youtubei/v1/player/ad_break') !== -1 || this._velocityUrl.indexOf('/pagead/') !== -1)) {
+                                setTimeout(function() {
+                                    if (self.onload) self.onload();
+                                }, 0);
+                                return;
+                            }
+                            return origSend.apply(this, arguments);
+                        };
+                    }
                 } catch(e) {}
                 """ else ""}
 
@@ -977,7 +1158,7 @@ object AdBlocker {
                     window.adblock = false;
                 } catch(e) {}
 
-                // 3. Early CSS Injection
+                // 3. Early CSS Injection (Chunked and resilient)
                 var styleId = 'velocity-shield-ad-hide';
                 function injectEarlyStyle() {
                     if (window.__velocityAdBlockDisabled) return;
@@ -996,7 +1177,7 @@ object AdBlocker {
                 // 4. Video Ad Skipper & Fast-Forward Fallback
                 function handleVideoAds() {
                     try {
-                        var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .videoAdUiSkipButton, [id^="skip-button"]');
+                        var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .videoAdUiSkipButton, [id^="skip-button"], .ytp-ad-preview-container');
                         if (skipBtn) skipBtn.click();
 
                         var video = document.querySelector('video');

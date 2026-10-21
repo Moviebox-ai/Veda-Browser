@@ -137,25 +137,23 @@ fun WebViewContainer(
         }
     }
 
-    // Reflect ad block enabled/disabled cosmetic state dynamically
-    LaunchedEffect(currentAdBlockEnabled) {
-        AdBlocker.setCosmeticAdBlockState(webView, currentAdBlockEnabled)
+    // Reflect ad block enabled/disabled cosmetic state dynamically with site host
+    LaunchedEffect(currentAdBlockEnabled, tab.url) {
+        val host = try { Uri.parse(tab.url).host } catch (_: Exception) { null }
+        AdBlocker.setCosmeticAdBlockState(webView, currentAdBlockEnabled, host)
     }
 
     // Attach/Detach lifecycle management
     DisposableEffect(tab.id) {
         onWebViewReady(webView)
         onDispose {
-            // Save state when switching away from this tab
             tabWebViewManager.saveTabState(tab.id)
-            // Detach from parent view to allow clean re-attachment
             (webView.parent as? ViewGroup)?.removeView(webView)
         }
     }
 
     AndroidView(
         factory = {
-            // Guarantee removal from any previous layout parent first
             (webView.parent as? ViewGroup)?.removeView(webView)
 
             webView.apply {
@@ -183,7 +181,6 @@ fun WebViewContainer(
                         }
 
                         // 3. Special handling for intent:, chrome custom schemes, and search redirects
-                        // Extract embedded web URLs so searches and queries stay inside Velocity WebView!
                         val extractedWebUrl = IntentValidator.extractWebUrlFromIntent(urlString)
                         if (!extractedWebUrl.isNullOrBlank()) {
                             view?.loadUrl(extractedWebUrl)
@@ -195,7 +192,7 @@ fun WebViewContainer(
                             return true
                         }
 
-                        // 5. Regular HTTP/HTTPS web schemes -> always stay inside Velocity WebView!
+                        // 5. Regular HTTP/HTTPS web schemes -> stay inside Velocity WebView
                         if (SchemePolicy.isWebScheme(urlString)) {
                             return false
                         }
@@ -212,7 +209,6 @@ fun WebViewContainer(
                                 try {
                                     context.startActivity(safeIntent)
                                 } catch (_: Exception) {
-                                    // Activity not found on device
                                 }
                             }
                             return true
@@ -250,23 +246,24 @@ fun WebViewContainer(
                         val reqUrl = request?.url?.toString() ?: return super.shouldInterceptRequest(view, request)
                         val headers = request.requestHeaders
 
-                        // Safely determine parent site host without calling WebView methods on the background thread
-                        val refererHost = headers?.let { h ->
+                        // Authoritative site host: prefer tab main-frame URL or view URL
+                        val siteHost = try {
+                            Uri.parse(currentTab.url).host
+                        } catch (_: Exception) {
+                            null
+                        } ?: headers?.let { h ->
                             (h["Referer"] ?: h["referer"])?.let { ref ->
                                 try { Uri.parse(ref).host } catch (_: Exception) { null }
                             }
-                        }
-                        val currentSiteHost = refererHost
-                            ?: (if (request.isForMainFrame) request.url?.host else null)
-                            ?: try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
+                        } ?: (if (request.isForMainFrame) request.url?.host else null)
 
                         val resType = AdBlocker.detectResourceType(reqUrl, headers, request.isForMainFrame)
 
-                        if (currentAdBlockEnabled && AdBlocker.isAdOrTracker(reqUrl, currentSiteHost, resType, headers)) {
+                        if (currentAdBlockEnabled && AdBlocker.isAdOrTracker(reqUrl, siteHost, resType, headers)) {
                             android.os.Handler(android.os.Looper.getMainLooper()).post {
                                 currentOnTrackerBlocked()
                             }
-                            return AdBlocker.createEmptyResponse(reqUrl)
+                            return AdBlocker.createEmptyResponse(reqUrl, resType)
                         }
                         return super.shouldInterceptRequest(view, request)
                     }
@@ -280,7 +277,7 @@ fun WebViewContainer(
                                 android.os.Handler(android.os.Looper.getMainLooper()).post {
                                     currentOnTrackerBlocked()
                                 }
-                                return AdBlocker.createEmptyResponse(url)
+                                return AdBlocker.createEmptyResponse(url, resType)
                             }
                         }
                         return super.shouldInterceptRequest(view, url)
@@ -292,10 +289,11 @@ fun WebViewContainer(
                         favicon?.let { currentOnFaviconReceived(it) }
                         currentOnNavChanged(view?.canGoBack() == true, view?.canGoForward() == true)
 
-                        // Manage cosmetic ad block on page start
+                        // Fresh cosmetic rules tailored specifically for the current site host
                         if (view != null) {
+                            val host = url?.let { try { Uri.parse(it).host } catch (_: Exception) { null } }
                             if (currentAdBlockEnabled) {
-                                AdBlocker.injectCosmeticAdBlock(view)
+                                AdBlocker.injectCosmeticAdBlock(view, host)
                             } else {
                                 AdBlocker.removeCosmeticAdBlock(view)
                             }
@@ -325,10 +323,10 @@ fun WebViewContainer(
 
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
-                        // Ensure ad elements and placeholders are collapsed once page has loaded
                         if (view != null) {
+                            val host = url?.let { try { Uri.parse(it).host } catch (_: Exception) { null } }
                             if (currentAdBlockEnabled) {
-                                AdBlocker.injectCosmeticAdBlock(view)
+                                AdBlocker.injectCosmeticAdBlock(view, host)
                             } else {
                                 AdBlocker.removeCosmeticAdBlock(view)
                             }
@@ -342,7 +340,6 @@ fun WebViewContainer(
                         url?.let { currentOnPageFinished(it, view?.title, certInfo) }
                         currentOnNavChanged(view?.canGoBack() == true, view?.canGoForward() == true)
 
-                        // Inject DOCUMENT_END and schedule DOCUMENT_IDLE userscripts
                         if (url != null && view != null && currentGmBridge != null) {
                             currentGmBridge?.let { bridge ->
                                 ExtensionInjector.injectForStage(
@@ -375,7 +372,6 @@ fun WebViewContainer(
                             }
                         }
 
-                        // Inject DNT property into JavaScript runtime if DNT is active
                         if (currentSettings.doNotTrackEnabled) {
                             view?.evaluateJavascript(
                                 "try { Object.defineProperty(navigator, 'doNotTrack', { get: () => '1' }); } catch(e){}",
@@ -451,9 +447,9 @@ fun WebViewContainer(
                     override fun onProgressChanged(view: WebView?, newProgress: Int) {
                         super.onProgressChanged(view, newProgress)
                         currentOnProgressChanged(newProgress)
-                        // Trigger cosmetic ad hiding early during DOM building (e.g. at 30% and 70%)
                         if (currentAdBlockEnabled && (newProgress == 30 || newProgress == 70) && view != null) {
-                            AdBlocker.injectCosmeticAdBlock(view)
+                            val host = try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
+                            AdBlocker.injectCosmeticAdBlock(view, host)
                         }
                     }
 
@@ -474,7 +470,7 @@ fun WebViewContainer(
                         resultMsg: Message?
                     ): Boolean {
                         if (resultMsg != null) {
-                            // Block unprompted popups when Shield is active
+                            // Block popup/popunder if triggered without explicit user gesture
                             if (currentAdBlockEnabled && !isUserGesture) {
                                 android.os.Handler(android.os.Looper.getMainLooper()).post {
                                     currentOnTrackerBlocked()
@@ -483,7 +479,9 @@ fun WebViewContainer(
                             }
                             val hitTest = view?.hitTestResult
                             val targetUrl = hitTest?.extra ?: ""
-                            if (currentAdBlockEnabled && targetUrl.isNotEmpty() && AdBlocker.isAdOrTracker(targetUrl)) {
+                            val siteHost = try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
+
+                            if (currentAdBlockEnabled && targetUrl.isNotEmpty() && AdBlocker.isAdOrTracker(targetUrl, siteHost)) {
                                 android.os.Handler(android.os.Looper.getMainLooper()).post {
                                     currentOnTrackerBlocked()
                                 }
@@ -499,8 +497,8 @@ fun WebViewContainer(
                                 webViewClient = object : WebViewClient() {
                                     override fun shouldOverrideUrlLoading(v: WebView?, req: WebResourceRequest?): Boolean {
                                         val url = req?.url?.toString() ?: return false
-                                        val siteHost = try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
-                                        if (currentAdBlockEnabled && AdBlocker.isAdOrTracker(url, siteHost)) {
+                                        val parentHost = try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
+                                        if (currentAdBlockEnabled && (AdBlocker.isAdOrTracker(url, parentHost) || !isUserGesture)) {
                                             android.os.Handler(android.os.Looper.getMainLooper()).post {
                                                 currentOnTrackerBlocked()
                                             }
@@ -515,8 +513,8 @@ fun WebViewContainer(
                                     @Deprecated("Deprecated in Java")
                                     override fun shouldOverrideUrlLoading(v: WebView?, url: String?): Boolean {
                                         if (url == null) return false
-                                        val siteHost = try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
-                                        if (currentAdBlockEnabled && AdBlocker.isAdOrTracker(url, siteHost)) {
+                                        val parentHost = try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
+                                        if (currentAdBlockEnabled && (AdBlocker.isAdOrTracker(url, parentHost) || !isUserGesture)) {
                                             android.os.Handler(android.os.Looper.getMainLooper()).post {
                                                 currentOnTrackerBlocked()
                                             }
@@ -595,7 +593,6 @@ fun WebViewContainer(
             }
         },
         update = { currentView ->
-            // Update webview settings dynamically when settings change
             tabWebViewManager.applyWebSettings(
                 webView = currentView,
                 settings = settings,

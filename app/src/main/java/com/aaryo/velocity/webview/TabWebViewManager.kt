@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Matrix
+import android.net.Uri
 import android.os.Bundle
 import android.view.ViewGroup
 import android.webkit.CookieManager
@@ -14,6 +15,7 @@ import androidx.webkit.ProfileStore
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import com.aaryo.velocity.model.BrowserSettings
+import com.aaryo.velocity.privacy.AdBlocker
 
 const val DESKTOP_USER_AGENT =
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
@@ -40,13 +42,11 @@ class TabWebViewManager {
                         val headers = request.requestHeaders
                         val refererHost = headers?.let { h ->
                             (h["Referer"] ?: h["referer"])?.let { ref ->
-                                try { android.net.Uri.parse(ref).host } catch (_: Exception) { null }
+                                try { Uri.parse(ref).host } catch (_: Exception) { null }
                             }
                         } ?: if (request.isForMainFrame) request.url?.host else null
 
-                        val adBlocker = com.aaryo.velocity.privacy.AdBlocker
-                        // Service Worker interception is process-wide, so it must obey the
-                        // global switch. Per-tab exclusions are also respected via allowlist.
+                        val adBlocker = AdBlocker
                         if (!adBlocker.globalEnabled) return null
                         val resType = adBlocker.detectResourceType(url, headers, request.isForMainFrame)
                         if (adBlocker.isAdOrTracker(url, refererHost, resType, headers)) {
@@ -69,7 +69,7 @@ class TabWebViewManager {
         isDesktopMode: Boolean,
         gmBridge: com.aaryo.velocity.extension.GmBridge? = null
     ): WebView {
-        com.aaryo.velocity.privacy.AdBlocker.setGlobalEnabled(settings.adBlockGlobalEnabled)
+        AdBlocker.setGlobalEnabled(settings.adBlockGlobalEnabled)
         val existing = webViewMap[tabId]
         if (existing != null) {
             applyWebSettings(existing, settings, isDesktopMode, isIncognito)
@@ -93,7 +93,6 @@ class TabWebViewManager {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
-            // Attach robust client immediately so early URL loading and ad blocking are always active
             webViewClient = object : android.webkit.WebViewClient() {
                 override fun shouldInterceptRequest(
                     view: WebView?,
@@ -101,14 +100,17 @@ class TabWebViewManager {
                 ): android.webkit.WebResourceResponse? {
                     val reqUrl = request?.url?.toString() ?: return super.shouldInterceptRequest(view, request)
                     val headers = request.requestHeaders
-                    val refererHost = headers?.let { h ->
+                    val siteHost = view?.url?.let {
+                        try { Uri.parse(it).host } catch (_: Exception) { null }
+                    } ?: headers?.let { h ->
                         (h["Referer"] ?: h["referer"])?.let { ref ->
-                            try { android.net.Uri.parse(ref).host } catch (_: Exception) { null }
+                            try { Uri.parse(ref).host } catch (_: Exception) { null }
                         }
                     } ?: if (request.isForMainFrame) request.url?.host else null
-                    val resType = com.aaryo.velocity.privacy.AdBlocker.detectResourceType(reqUrl, headers, request.isForMainFrame)
-                    if (settings.adBlockGlobalEnabled && com.aaryo.velocity.privacy.AdBlocker.isAdOrTracker(reqUrl, refererHost, resType, headers)) {
-                        return com.aaryo.velocity.privacy.AdBlocker.createEmptyResponse(reqUrl, resType)
+
+                    val resType = AdBlocker.detectResourceType(reqUrl, headers, request.isForMainFrame)
+                    if (settings.adBlockGlobalEnabled && AdBlocker.isAdOrTracker(reqUrl, siteHost, resType, headers)) {
+                        return AdBlocker.createEmptyResponse(reqUrl, resType)
                     }
                     return super.shouldInterceptRequest(view, request)
                 }
@@ -116,9 +118,10 @@ class TabWebViewManager {
                 @Deprecated("Deprecated in Java")
                 override fun shouldInterceptRequest(view: WebView?, url: String?): android.webkit.WebResourceResponse? {
                     if (url != null && settings.adBlockGlobalEnabled) {
-                        val resType = com.aaryo.velocity.privacy.AdBlocker.detectResourceType(url)
-                        if (com.aaryo.velocity.privacy.AdBlocker.isAdOrTracker(url, null, resType)) {
-                            return com.aaryo.velocity.privacy.AdBlocker.createEmptyResponse(url, resType)
+                        val siteHost = view?.url?.let { try { Uri.parse(it).host } catch (_: Exception) { null } }
+                        val resType = AdBlocker.detectResourceType(url)
+                        if (AdBlocker.isAdOrTracker(url, siteHost, resType)) {
+                            return AdBlocker.createEmptyResponse(url, resType)
                         }
                     }
                     return super.shouldInterceptRequest(view, url)
@@ -136,8 +139,9 @@ class TabWebViewManager {
                 }
 
                 private fun handleBaselineUrlLoading(view: WebView?, url: String): Boolean {
+                    val siteHost = view?.url?.let { try { Uri.parse(it).host } catch (_: Exception) { null } }
                     // Block ad or tracker redirect
-                    if (settings.adBlockGlobalEnabled && com.aaryo.velocity.privacy.AdBlocker.isAdOrTracker(url)) {
+                    if (settings.adBlockGlobalEnabled && AdBlocker.isAdOrTracker(url, siteHost)) {
                         return true
                     }
                     // Extract embedded web URLs so searches and queries stay inside Velocity
@@ -146,7 +150,7 @@ class TabWebViewManager {
                         view?.loadUrl(webUrl)
                         return true
                     }
-                    // Block escaping to Chrome
+                    // Block escaping to external browser
                     if (com.aaryo.velocity.security.IntentValidator.isBrowserIntent(url) ||
                         com.aaryo.velocity.security.SchemePolicy.isBrowserCustomScheme(url)
                     ) {
@@ -170,22 +174,20 @@ class TabWebViewManager {
         }
         gmBridge?.attachToWebView(webView)
 
-        // Configure multi-profile if supported by Android WebView engine
         if (isIncognito && WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
             try {
                 ProfileStore.getInstance().getOrCreateProfile("incognito")
                 androidx.webkit.WebViewCompat.setProfile(webView, "incognito")
             } catch (_: Throwable) {
-                // Fallback to standard cookie/cache isolation handled on cleanup
             }
         }
 
-        // Inject cosmetic ad block at document start (runs before any page scripts or DOM rendering)
+        // Inject cosmetic ad block at document start
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             try {
                 androidx.webkit.WebViewCompat.addDocumentStartJavaScript(
                     webView,
-                    com.aaryo.velocity.privacy.AdBlocker.getCosmeticDocumentStartScript(),
+                    AdBlocker.getCosmeticDocumentStartScript(),
                     setOf("*")
                 )
             } catch (_: Throwable) {
@@ -194,7 +196,6 @@ class TabWebViewManager {
 
         applyWebSettings(webView, settings, isDesktopMode, isIncognito)
 
-        // Restore state if previously saved
         tabStateBundles[tabId]?.let { bundle ->
             webView.restoreState(bundle)
         }
@@ -234,7 +235,6 @@ class TabWebViewManager {
             cacheMode = if (isIncognito) WebSettings.LOAD_NO_CACHE else WebSettings.LOAD_DEFAULT
         }
 
-        // Apply Algorithmic Darkening / Force Dark if available
         if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
             WebSettingsCompat.setAlgorithmicDarkeningAllowed(
                 webView.settings,
@@ -248,14 +248,16 @@ class TabWebViewManager {
             )
         }
 
-        // Cookie management
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(settings.cookiesEnabled)
         cookieManager.setAcceptThirdPartyCookies(webView, !isIncognito && settings.cookiesEnabled)
     }
 
     fun applySettingsToAll(settings: BrowserSettings) {
-        com.aaryo.velocity.privacy.AdBlocker.setGlobalEnabled(settings.adBlockGlobalEnabled)
+        AdBlocker.setGlobalEnabled(settings.adBlockGlobalEnabled)
+        AdBlocker.isStrictMode = settings.adBlockStrictMode
+        AdBlocker.syncAllowlist(settings.allowlistedDomains)
+
         if (webViewMap.isEmpty()) return
         for ((_, webView) in webViewMap) {
             webView.settings.javaScriptEnabled = settings.javaScriptEnabled
@@ -327,7 +329,6 @@ class TabWebViewManager {
             destroyWebView(id)
         }
 
-        // If closing incognito tabs and MULTI_PROFILE is unsupported, clear residual storage
         if (onlyIncognitoTabIds != null && !WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
             clearIncognitoFallbackData()
         }
