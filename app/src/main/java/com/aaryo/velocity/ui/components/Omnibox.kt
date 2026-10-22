@@ -88,7 +88,6 @@ fun Omnibox(
 ) {
     var isEditing by remember { mutableStateOf(false) }
     var inputText by remember { mutableStateOf("") }
-    var menuExpanded by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
 
@@ -355,140 +354,19 @@ fun Omnibox(
                 }
             }
 
-            // Overflow Menu
-            Box {
-                IconButton(
-                    onClick = { menuExpanded = true },
-                    modifier = Modifier.size(36.dp).testTag("overflow_menu_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "Menu",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                DropdownMenu(
-                    expanded = menuExpanded,
-                    onDismissRequest = { menuExpanded = false },
-                    modifier = Modifier.width(220.dp)
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("New Tab") },
-                        onClick = {
-                            menuExpanded = false
-                            onMenuAction("NEW_TAB")
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("New Private Tab") },
-                        onClick = {
-                            menuExpanded = false
-                            onMenuAction("NEW_INCOGNITO_TAB")
-                        }
-                    )
-                    if (tab?.canGoForward == true) {
-                        DropdownMenuItem(
-                            text = { Text("Forward →") },
-                            onClick = {
-                                menuExpanded = false
-                                onMenuAction("FORWARD")
-                            }
-                        )
-                    }
-                    HorizontalDivider()
-                    DropdownMenuItem(
-                        text = { Text("Bookmarks") },
-                        onClick = {
-                            menuExpanded = false
-                            onMenuAction("BOOKMARKS")
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("History") },
-                        onClick = {
-                            menuExpanded = false
-                            onMenuAction("HISTORY")
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Downloads") },
-                        onClick = {
-                            menuExpanded = false
-                            onMenuAction("DOWNLOADS")
-                        }
-                    )
-                    HorizontalDivider()
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                if (tab?.isDesktopMode == true) "✓ Desktop Site" else "Desktop Site"
-                            )
-                        },
-                        onClick = {
-                            menuExpanded = false
-                            onMenuAction("TOGGLE_DESKTOP")
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Extensions") },
-                        onClick = {
-                            menuExpanded = false
-                            onMenuAction("EXTENSIONS")
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Find in Page") },
-                        onClick = {
-                            menuExpanded = false
-                            onMenuAction("FIND_IN_PAGE")
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Share Page") },
-                        onClick = {
-                            menuExpanded = false
-                            onMenuAction("SHARE")
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Velocity Shield") },
-                        onClick = {
-                            menuExpanded = false
-                            onMenuAction("SHIELD")
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("AI Assistant") },
-                        onClick = {
-                            menuExpanded = false
-                            onMenuAction("AI_ASSISTANT")
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Passwords") },
-                        onClick = {
-                            menuExpanded = false
-                            onMenuAction("PASSWORDS")
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Appearance") },
-                        onClick = {
-                            menuExpanded = false
-                            onMenuAction("APPEARANCE")
-                        }
-                    )
-                    HorizontalDivider()
-                    DropdownMenuItem(
-                        text = { Text("Settings") },
-                        onClick = {
-                            menuExpanded = false
-                            onMenuAction("SETTINGS")
-                        }
-                    )
-                }
+            // Overflow Menu -> Opens the right-side list menu drawer
+            IconButton(
+                onClick = { onMenuAction("OPEN_MENU") },
+                modifier = Modifier
+                    .size(36.dp)
+                    .testTag("overflow_menu_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "Menu",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
 

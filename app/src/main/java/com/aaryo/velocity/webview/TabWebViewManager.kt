@@ -77,16 +77,7 @@ class TabWebViewManager {
             return existing
         }
 
-        try {
-            val webviewDir = java.io.File(context.applicationInfo.dataDir, "app_webview")
-            if (webviewDir.exists()) {
-                val seed = java.io.File(webviewDir, "variations_seed")
-                if (seed.exists() && seed.length() < 32L) {
-                    seed.delete()
-                }
-            }
-        } catch (_: Throwable) {
-        }
+        com.aaryo.velocity.VelocityApplication.cleanCorruptedVariationsSeeds(context)
 
         val webView = WebView(context).apply {
             layoutParams = ViewGroup.LayoutParams(

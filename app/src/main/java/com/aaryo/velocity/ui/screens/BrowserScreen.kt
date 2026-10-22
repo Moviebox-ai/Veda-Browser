@@ -159,6 +159,7 @@ fun BrowserScreen(
                         onGoHome = { viewModel.navigateToHome() },
                         onMenuAction = { action ->
                             when (action) {
+                                "OPEN_MENU" -> viewModel.openSheet(SheetType.MENU)
                                 "FORWARD" -> currentWebView?.goForward()
                                 "NEW_TAB" -> viewModel.createNewTab(isIncognito = false)
                                 "NEW_INCOGNITO_TAB" -> viewModel.createNewTab(isIncognito = true)
@@ -364,9 +365,14 @@ fun BrowserScreen(
                     VelocityMenuSheet(
                         tab = activeTab,
                         isDesktopMode = activeTab?.isDesktopMode == true,
+                        tabCount = tabs.size,
+                        isBookmarked = isCurrentBookmarked,
                         onToggleDesktop = { activeTab?.id?.let { viewModel.toggleDesktopMode(it) } },
                         onMenuAction = { action ->
                             when (action) {
+                                "FORWARD" -> currentWebView?.goForward()
+                                "RELOAD" -> currentWebView?.reload()
+                                "TOGGLE_BOOKMARK" -> viewModel.toggleBookmarkCurrentTab()
                                 "NEW_TAB" -> viewModel.createNewTab(isIncognito = false)
                                 "NEW_INCOGNITO_TAB" -> viewModel.createNewTab(isIncognito = true)
                                 "BOOKMARKS" -> viewModel.openSheet(SheetType.BOOKMARKS)

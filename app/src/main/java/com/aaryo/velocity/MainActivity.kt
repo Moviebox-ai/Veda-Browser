@@ -18,6 +18,7 @@ class MainActivity : ComponentActivity() {
     private val viewModel: BrowserViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        VelocityApplication.cleanCorruptedVariationsSeeds(this)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
