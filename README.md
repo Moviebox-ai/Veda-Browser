@@ -47,7 +47,7 @@
 
 ## Tech Stack
 
-- **Package Name:** `com.aaryo.velocity`
+- **Package Name:** `com.aaryo.vedabrowser`
 - **Language:** Kotlin 2.2
 - **UI Framework:** Jetpack Compose (Material 3)
 - **Web Engine:** Android `WebView` & `androidx.webkit` 1.12.1

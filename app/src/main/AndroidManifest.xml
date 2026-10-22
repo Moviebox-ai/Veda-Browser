@@ -5,7 +5,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
-        android:name=".VelocityApplication"
+        android:name=".VedaApplication"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -15,7 +15,7 @@
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.Velocity">
         <activity
-            android:name="com.aaryo.velocity.MainActivity"
+            android:name="com.aaryo.vedabrowser.MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"

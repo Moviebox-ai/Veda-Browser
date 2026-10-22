@@ -6,8 +6,8 @@
 -keepclassmembers class * {
     @com.google.gson.annotations.SerializedName <fields>;
 }
--keep class com.aaryo.velocity.model.** { *; }
--keepclassmembers class com.aaryo.velocity.model.** { *; }
+-keep class com.aaryo.vedabrowser.model.** { *; }
+-keepclassmembers class com.aaryo.vedabrowser.model.** { *; }
 
 # Keep WebView JavaScript interfaces
 -keepclassmembers class * {

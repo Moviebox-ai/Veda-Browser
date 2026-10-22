@@ -115,11 +115,11 @@ val releaseStoreFile = if (!releaseStoreFilePath.isNullOrEmpty() && file(release
 }
 
 android {
-    namespace = "com.aaryo.velocity"
+    namespace = "com.aaryo.vedabrowser"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.veda.browser"
+        applicationId = "com.aaryo.vedabrowser"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
