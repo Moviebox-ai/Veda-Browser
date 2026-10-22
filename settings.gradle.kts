@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Velocity"
+rootProject.name = "Veda Browser"
 include(":app")

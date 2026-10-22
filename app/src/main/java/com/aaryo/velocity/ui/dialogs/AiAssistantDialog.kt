@@ -99,13 +99,13 @@ fun AiAssistantDialog(
                     "💡 **Simple Explanation**:\n\nIn plain words: This webpage provides information about \"$pageTitle\". It is designed to be easily read, safe from trackers, and optimized for smooth mobile viewing."
                 }
                 "Translate to Hindi" -> {
-                    "🇮🇳 **हिंदी अनुवाद (Hindi Translation)**:\n\n\"$pageTitle\" का सारांश:\n• यह पृष्ठ आपको महत्वपूर्ण जानकारी प्रदान करता है।\n• वेलोसिटी ब्राउज़र आपकी गोपनीयता और गति को सुरक्षित रखता है।\n• सभी विज्ञापन और ट्रैकर्स ब्लॉक किए गए हैं।"
+                    "🇮🇳 **हिंदी अनुवाद (Hindi Translation)**:\n\n\"$pageTitle\" का सारांश:\n• यह पृष्ठ आपको महत्वपूर्ण जानकारी प्रदान करता है।\n• वेद ब्राउज़र (Veda Browser) आपकी गोपनीयता और गति को सुरक्षित रखता है।\n• सभी विज्ञापन और ट्रैकर्स ब्लॉक किए गए हैं।"
                 }
                 "Find related content" -> {
                     "🔍 **Related Topics & Searches**:\n\n1. Deep dive into $pageTitle\n2. Advanced privacy tools and ad blockers\n3. Next-generation web technologies in 2026"
                 }
                 else -> {
-                    "✨ **Analysis for \"$customQuery\"**:\n\nRelevant insights for $pageTitle have been generated. The page has been analyzed with Velocity AI engine."
+                    "✨ **Analysis for \"$customQuery\"**:\n\nRelevant insights for $pageTitle have been generated. The page has been analyzed with Veda AI engine."
                 }
             }
         }
@@ -231,7 +231,7 @@ fun AiAssistantDialog(
                     CircularProgressIndicator(color = VelocityCyan, modifier = Modifier.size(32.dp))
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = "Analyzing with Velocity AI...",
+                        text = "Analyzing with Veda AI...",
                         color = Color(0xFF94A3B8),
                         fontSize = 13.sp
                     )

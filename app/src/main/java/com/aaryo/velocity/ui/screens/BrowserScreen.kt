@@ -176,7 +176,7 @@ fun BrowserScreen(
                                 "APPEARANCE" -> viewModel.openSheet(SheetType.APPEARANCE)
                                 "TAB_SWITCHER" -> viewModel.openSheet(SheetType.TAB_SWITCHER)
                                 "TRANSLATE" -> viewModel.translateCurrentPage()
-                                "RATE_APP" -> viewModel.showToast("Thanks for rating Velocity Browser! ★★★★★")
+                                "RATE_APP" -> viewModel.showToast("Thanks for rating Veda Browser! ★★★★★")
                                 "ADD_HOME_SCREEN" -> {
                                     viewModel.addShortcutToHomeScreen(activeTab.title, activeTab.url)
                                 }
@@ -385,7 +385,7 @@ fun BrowserScreen(
                                 "TAB_SWITCHER" -> viewModel.openSheet(SheetType.TAB_SWITCHER)
                                 "FIND_IN_PAGE" -> viewModel.setFindInPageVisible(true)
                                 "TRANSLATE" -> viewModel.translateCurrentPage()
-                                "RATE_APP" -> viewModel.showToast("Thanks for rating Velocity Browser! ★★★★★")
+                                "RATE_APP" -> viewModel.showToast("Thanks for rating Veda Browser! ★★★★★")
                                 "SHIELD" -> viewModel.openSheet(SheetType.SHIELD_INFO)
                                 "AI_ASSISTANT" -> viewModel.openSheet(SheetType.AI_ASSISTANT)
                                 "SHARE" -> {

@@ -119,7 +119,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.aaryo.velocity"
+        applicationId = "com.veda.browser"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

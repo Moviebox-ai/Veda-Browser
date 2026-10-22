@@ -97,7 +97,7 @@ fun ShieldDialog(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Velocity Shield",
+                        text = "Veda Shield",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )

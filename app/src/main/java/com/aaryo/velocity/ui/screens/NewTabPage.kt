@@ -144,7 +144,7 @@ fun NewTabPage(
                     ) {
                         Icon(
                             imageVector = if (isIncognito) Icons.Default.VisibilityOff else Icons.Default.Shield,
-                            contentDescription = if (isIncognito) "Incognito Active" else "Velocity Shield",
+                            contentDescription = if (isIncognito) "Incognito Active" else "Veda Shield",
                             tint = if (isIncognito) IncognitoPurple else VelocityCyan,
                             modifier = Modifier.size(16.dp)
                         )
@@ -222,7 +222,7 @@ fun NewTabPage(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    text = "Velocity Browser",
+                    text = "Veda Browser",
                     color = Color.White,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,

@@ -263,7 +263,7 @@ fun Omnibox(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = Icons.Default.Shield,
-                                    contentDescription = "Velocity Shield",
+                                    contentDescription = "Veda Shield",
                                     tint = if (tab.blockedTrackersCount > 0) VelocityCyan else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(14.dp)
                                 )

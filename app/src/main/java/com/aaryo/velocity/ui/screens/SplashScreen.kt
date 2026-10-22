@@ -155,7 +155,7 @@ fun SplashScreen(
             Spacer(modifier = Modifier.height(28.dp))
 
             Text(
-                text = "Velocity Browser",
+                text = "Veda Browser",
                 color = Color.White,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,

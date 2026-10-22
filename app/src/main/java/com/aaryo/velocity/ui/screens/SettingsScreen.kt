@@ -381,7 +381,7 @@ fun SettingsScreen(
                     ) {
                         if (settings.allowlistedDomains.isEmpty()) {
                             Text(
-                                text = "No sites are currently allowlisted.\n\nWhen browsing, tap the Velocity Shield icon to disable ad blocking on any site if needed.",
+                                text = "No sites are currently allowlisted.\n\nWhen browsing, tap the Veda Shield icon to disable ad blocking on any site if needed.",
                                 color = Color(0xFF94A3B8),
                                 fontSize = 13.sp,
                                 modifier = Modifier.padding(vertical = 12.dp)
@@ -632,10 +632,10 @@ fun SettingsScreen(
         if (showAboutDialog) {
             AlertDialog(
                 onDismissRequest = { showAboutDialog = false },
-                title = { Text("About Velocity Browser", color = Color.White) },
+                title = { Text("About Veda Browser", color = Color.White) },
                 text = {
                     Column {
-                        Text("Velocity Browser v2.4.0 (2026)", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Veda Browser v2.4.0 (2026)", color = Color.White, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("Fast • Secure • Private Native Web Browser engine powered by Kotlin and Jetpack Compose.", color = Color(0xFF94A3B8), fontSize = 13.sp)
                     }

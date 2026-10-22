@@ -417,7 +417,7 @@ fun VelocityMenuSheet(
                         // Section: Privacy & Smart Features
                         MenuItemRow(
                             icon = Icons.Default.Shield,
-                            title = "Velocity Shield",
+                            title = "Veda Shield",
                             iconTint = VelocityCyan,
                             badge = "Protected",
                             onClick = {
