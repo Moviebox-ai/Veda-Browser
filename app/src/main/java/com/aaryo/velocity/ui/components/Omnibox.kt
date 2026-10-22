@@ -388,6 +388,15 @@ fun Omnibox(
                             onMenuAction("NEW_INCOGNITO_TAB")
                         }
                     )
+                    if (tab?.canGoForward == true) {
+                        DropdownMenuItem(
+                            text = { Text("Forward →") },
+                            onClick = {
+                                menuExpanded = false
+                                onMenuAction("FORWARD")
+                            }
+                        )
+                    }
                     HorizontalDivider()
                     DropdownMenuItem(
                         text = { Text("Bookmarks") },

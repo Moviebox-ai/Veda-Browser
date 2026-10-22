@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
@@ -30,7 +32,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import com.aaryo.velocity.security.CertificateInfo
-import com.aaryo.velocity.ui.components.BottomNavigationBar
 import com.aaryo.velocity.ui.components.FindInPageBar
 import com.aaryo.velocity.ui.components.Omnibox
 import com.aaryo.velocity.ui.components.VelocityMenuSheet
@@ -132,6 +133,7 @@ fun BrowserScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        contentWindowInsets = WindowInsets.navigationBars,
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         Box(
@@ -157,6 +159,7 @@ fun BrowserScreen(
                         onGoHome = { viewModel.navigateToHome() },
                         onMenuAction = { action ->
                             when (action) {
+                                "FORWARD" -> currentWebView?.goForward()
                                 "NEW_TAB" -> viewModel.createNewTab(isIncognito = false)
                                 "NEW_INCOGNITO_TAB" -> viewModel.createNewTab(isIncognito = true)
                                 "BOOKMARKS" -> viewModel.openSheet(SheetType.BOOKMARKS)
@@ -218,9 +221,12 @@ fun BrowserScreen(
                                 shieldStats = shieldStats,
                                 settings = settings,
                                 quickDials = quickDials,
+                                tabCount = tabs.size,
                                 onAddQuickDial = { viewModel.addQuickDial(it) },
                                 onDeleteQuickDial = { viewModel.removeQuickDial(it) },
                                 onNavigate = { viewModel.navigateTo(it) },
+                                onOpenTabs = { viewModel.openSheet(SheetType.TAB_SWITCHER) },
+                                onOpenMenu = { viewModel.openSheet(SheetType.MENU) },
                                 onOpenBookmarks = { viewModel.openSheet(SheetType.BOOKMARKS) },
                                 onOpenHistory = { viewModel.openSheet(SheetType.HISTORY) },
                                 onOpenDownloads = { viewModel.openSheet(SheetType.DOWNLOADS) },
@@ -280,18 +286,6 @@ fun BrowserScreen(
                         }
                     }
                 }
-
-                // Bottom Navigation Bar matching mockup (Screen 2 & Screen 7)
-                BottomNavigationBar(
-                    tab = activeTab,
-                    tabCount = tabs.size,
-                    onGoBack = { currentWebView?.goBack() },
-                    onGoForward = { currentWebView?.goForward() },
-                    onGoHome = { viewModel.navigateToHome() },
-                    onOpenTabs = { viewModel.openSheet(SheetType.TAB_SWITCHER) },
-                    onOpenDownloads = { viewModel.openSheet(SheetType.DOWNLOADS) },
-                    onOpenMenu = { viewModel.openSheet(SheetType.MENU) }
-                )
             }
 
             // Fullscreen Custom View (HTML5 Video overlay)

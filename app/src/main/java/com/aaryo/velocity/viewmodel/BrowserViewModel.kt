@@ -224,19 +224,35 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
             val initialSettings = repository.settingsFlow.first()
             val persistedTabs = repository.getInitialTabs()
             if (persistedTabs.isNotEmpty()) {
-                val restored = persistedTabs.map {
-                    val domain = AdBlocker.normalizeDomain(it.url)
-                    Tab(
-                        id = it.id,
-                        title = it.title,
-                        url = it.url,
-                        adBlockEnabled = !AdBlocker.isAllowlisted(domain) && initialSettings.adBlockGlobalEnabled,
-                        isDesktopMode = initialSettings.desktopSiteDefault
+                val filtered = persistedTabs.filterNot {
+                    it.id in listOf("tab_google", "tab_youtube", "tab_news", "tab_openai")
+                }
+                val restored = if (filtered.isEmpty()) {
+                    listOf(
+                        Tab(
+                            id = "tab_home",
+                            title = "New Tab",
+                            url = "velocity://newtab",
+                            adBlockEnabled = initialSettings.adBlockGlobalEnabled,
+                            isDesktopMode = initialSettings.desktopSiteDefault
+                        )
                     )
+                } else {
+                    filtered.map {
+                        val domain = AdBlocker.normalizeDomain(it.url)
+                        Tab(
+                            id = it.id,
+                            title = it.title,
+                            url = it.url,
+                            adBlockEnabled = !AdBlocker.isAllowlisted(domain) && initialSettings.adBlockGlobalEnabled,
+                            isDesktopMode = initialSettings.desktopSiteDefault
+                        )
+                    }
                 }
                 _tabs.value = restored
                 val homeTab = restored.find { it.isNewTab }
                 _activeTabId.value = homeTab?.id ?: restored.first().id
+                repository.requestSaveTabs(restored)
             } else {
                 val initialTab = Tab(
                     id = "tab_home",
@@ -245,35 +261,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
                     adBlockEnabled = initialSettings.adBlockGlobalEnabled,
                     isDesktopMode = initialSettings.desktopSiteDefault
                 )
-                val googleTab = Tab(
-                    id = "tab_google",
-                    title = "Google",
-                    url = "https://www.google.com",
-                    adBlockEnabled = !AdBlocker.isAllowlisted("google.com") && initialSettings.adBlockGlobalEnabled,
-                    isDesktopMode = initialSettings.desktopSiteDefault
-                )
-                val youtubeTab = Tab(
-                    id = "tab_youtube",
-                    title = "YouTube",
-                    url = "https://m.youtube.com",
-                    adBlockEnabled = !AdBlocker.isAllowlisted("youtube.com") && initialSettings.adBlockGlobalEnabled,
-                    isDesktopMode = initialSettings.desktopSiteDefault
-                )
-                val newsTab = Tab(
-                    id = "tab_news",
-                    title = "News - Latest Updates",
-                    url = "https://news.google.com",
-                    adBlockEnabled = !AdBlocker.isAllowlisted("google.com") && initialSettings.adBlockGlobalEnabled,
-                    isDesktopMode = initialSettings.desktopSiteDefault
-                )
-                val openAiTab = Tab(
-                    id = "tab_openai",
-                    title = "OpenAI",
-                    url = "https://chat.openai.com",
-                    adBlockEnabled = !AdBlocker.isAllowlisted("openai.com") && initialSettings.adBlockGlobalEnabled,
-                    isDesktopMode = initialSettings.desktopSiteDefault
-                )
-                _tabs.value = listOf(initialTab, googleTab, youtubeTab, newsTab, openAiTab)
+                _tabs.value = listOf(initialTab)
                 _activeTabId.value = initialTab.id
             }
         }

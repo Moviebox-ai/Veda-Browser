@@ -62,12 +62,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aaryo.velocity.model.BrowserSettings
 import com.aaryo.velocity.model.QuickDialShortcut
 import com.aaryo.velocity.model.ShieldStats
 import com.aaryo.velocity.ui.components.VelocityLogoIcon
+import com.aaryo.velocity.ui.theme.IncognitoPurple
 import com.aaryo.velocity.ui.theme.VelocityBlue
 import com.aaryo.velocity.ui.theme.VelocityCyan
 
@@ -86,9 +90,12 @@ fun NewTabPage(
     shieldStats: ShieldStats,
     settings: BrowserSettings = BrowserSettings(),
     quickDials: List<QuickDialShortcut> = emptyList(),
+    tabCount: Int = 1,
     onAddQuickDial: (QuickDialShortcut) -> Unit = {},
     onDeleteQuickDial: (String) -> Unit = {},
     onNavigate: (String) -> Unit,
+    onOpenTabs: () -> Unit = {},
+    onOpenMenu: () -> Unit = {},
     onOpenBookmarks: () -> Unit = {},
     onOpenHistory: () -> Unit = {},
     onOpenDownloads: () -> Unit = {},
@@ -108,12 +115,105 @@ fun NewTabPage(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState)
                 .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(20.dp))
+            // Top Bar on New Tab Page: Shield indicator on left, Tabs + Menu on right
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Shield / Incognito badge
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (isIncognito) Color(0xFF1E153A) else Color(0xFF121B2E),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isIncognito) Color(0xFF4C2A85) else Color(0xFF1E2D4A)
+                    ),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { onOpenShield() }
+                        .testTag("home_shield_badge")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isIncognito) Icons.Default.VisibilityOff else Icons.Default.Shield,
+                            contentDescription = if (isIncognito) "Incognito Active" else "Velocity Shield",
+                            tint = if (isIncognito) IncognitoPurple else VelocityCyan,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isIncognito) "Private" else "Protected",
+                            color = if (isIncognito) Color(0xFFD8B4FE) else Color(0xFF93C5FD),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                // Tabs count and Menu actions
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Tab count button
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onOpenTabs() }
+                            .testTag("home_tabs_button"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isIncognito) IncognitoPurple else VelocityBlue,
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = "$tabCount",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+
+                    // Menu button
+                    IconButton(
+                        onClick = onOpenMenu,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .testTag("home_menu_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Menu",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+            }
+
+            // Scrollable Home content
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
 
             if (!isIncognito) {
                 // Screen 2: Central Velocity Branding
@@ -367,6 +467,7 @@ fun NewTabPage(
 
             Spacer(modifier = Modifier.height(36.dp))
         }
+    }
 
         // Add Shortcut Dialog
         if (showAddDialog) {
