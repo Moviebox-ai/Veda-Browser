@@ -20,6 +20,7 @@ import android.webkit.WebViewClient
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -152,9 +153,42 @@ fun WebViewContainer(
         }
     }
 
-    AndroidView(
-        factory = {
+    AndroidView<SwipeRefreshLayout>(
+        factory = { context ->
             (webView.parent as? ViewGroup)?.removeView(webView)
+
+            val swipeRefreshLayout = SwipeRefreshLayout(context).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                setColorSchemeColors(
+                    android.graphics.Color.parseColor("#00E5FF"),
+                    android.graphics.Color.parseColor("#7C4DFF"),
+                    android.graphics.Color.parseColor("#0284C7")
+                )
+                setProgressBackgroundColorSchemeColor(
+                    if (currentTab.isIncognito) android.graphics.Color.parseColor("#0F172A")
+                    else android.graphics.Color.parseColor("#1E293B")
+                )
+
+                // Swipe-down refresh: only intercept touch if WebView is at the very top of content
+                setOnChildScrollUpCallback { _, _ ->
+                    webView.canScrollVertically(-1) || webView.scrollY > 0
+                }
+
+                setOnRefreshListener {
+                    webView.reload()
+                }
+
+                addView(
+                    webView,
+                    ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                )
+            }
 
             webView.apply {
                 webViewClient = object : WebViewClient() {
@@ -246,17 +280,18 @@ fun WebViewContainer(
                         val reqUrl = request?.url?.toString() ?: return super.shouldInterceptRequest(view, request)
                         val headers = request.requestHeaders
 
-                        // Authoritative site host: prefer active view URL, then tab main-frame URL
-                        val currentUrl = view?.url?.takeIf { it.isNotEmpty() } ?: currentTab.url
-                        val siteHost = try {
-                            Uri.parse(currentUrl).host
-                        } catch (_: Exception) {
-                            null
-                        } ?: headers?.let { h ->
-                            (h["Referer"] ?: h["referer"])?.let { ref ->
-                                try { Uri.parse(ref).host } catch (_: Exception) { null }
+                        // Authoritative site host: derived safely without calling any WebView methods on background threads
+                        val siteHost = (if (request.isForMainFrame) request.url?.host else null)
+                            ?: headers?.let { h ->
+                                (h["Referer"] ?: h["referer"])?.let { ref ->
+                                    try { Uri.parse(ref).host } catch (_: Exception) { null }
+                                }
                             }
-                        } ?: (if (request.isForMainFrame) request.url?.host else null)
+                            ?: try {
+                                Uri.parse(currentTab.url).host
+                            } catch (_: Exception) {
+                                null
+                            }
 
                         val resType = AdBlocker.detectResourceType(reqUrl, headers, request.isForMainFrame)
 
@@ -345,6 +380,7 @@ fun WebViewContainer(
 
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
+                        (view?.parent as? SwipeRefreshLayout)?.isRefreshing = false
                         if (view != null) {
                             val isDesktop = currentTab.isDesktopMode || currentSettings.desktopSiteDefault
                             if (isDesktop) {
@@ -474,6 +510,9 @@ fun WebViewContainer(
                     override fun onProgressChanged(view: WebView?, newProgress: Int) {
                         super.onProgressChanged(view, newProgress)
                         currentOnProgressChanged(newProgress)
+                        if (newProgress >= 100) {
+                            (view?.parent as? SwipeRefreshLayout)?.isRefreshing = false
+                        }
                         if (currentAdBlockEnabled && (newProgress == 30 || newProgress == 70) && view != null) {
                             val host = try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
                             AdBlocker.injectCosmeticAdBlock(view, host)
@@ -605,11 +644,13 @@ fun WebViewContainer(
 
                     override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
                         if (view != null && callback != null) {
+                            (webView.parent as? SwipeRefreshLayout)?.isEnabled = false
                             currentOnShowCustomView(view, callback)
                         }
                     }
 
                     override fun onHideCustomView() {
+                        (webView.parent as? SwipeRefreshLayout)?.isEnabled = true
                         currentOnHideCustomView()
                     }
                 }
@@ -618,10 +659,15 @@ fun WebViewContainer(
                     currentOnDownloadStart(url, contentDisposition, mimetype ?: "application/octet-stream", userAgent ?: "")
                 }
             }
+
+            swipeRefreshLayout
         },
-        update = { currentView ->
+        update = { swipeRefreshLayout ->
+            if (!tab.isLoading && swipeRefreshLayout.isRefreshing) {
+                swipeRefreshLayout.isRefreshing = false
+            }
             tabWebViewManager.applyWebSettings(
-                webView = currentView,
+                webView = webView,
                 settings = settings,
                 isDesktopMode = tab.isDesktopMode,
                 isIncognito = tab.isIncognito
