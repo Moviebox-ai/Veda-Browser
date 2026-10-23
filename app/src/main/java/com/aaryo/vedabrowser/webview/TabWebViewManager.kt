@@ -257,21 +257,15 @@ class TabWebViewManager {
         isIncognito: Boolean
     ) {
         val effectiveDesktop = isDesktopMode || settings.desktopSiteDefault
+        ChromiumEngineManager.optimizeChromiumSettings(
+            webView = webView,
+            enableHardwareAcceleration = true,
+            enableSafeBrowsing = settings.safeBrowsingEnabled
+        )
         webView.settings.apply {
             javaScriptEnabled = settings.javaScriptEnabled
             textZoom = settings.textZoomPercent
-            domStorageEnabled = true
-            useWideViewPort = true
-            loadWithOverviewMode = true
-            setSupportZoom(true)
-            builtInZoomControls = true
-            displayZoomControls = false
-            allowFileAccess = false
-            allowContentAccess = true
-            mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-
             javaScriptCanOpenWindowsAutomatically = false
-            setSupportMultipleWindows(true)
 
             userAgentString = if (effectiveDesktop) {
                 DESKTOP_USER_AGENT

@@ -36,7 +36,10 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.ui.platform.LocalContext
+import com.aaryo.vedabrowser.webview.ChromiumEngineManager
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -97,6 +100,9 @@ fun SettingsScreen(
 
     val scrollState = rememberScrollState()
 
+    val context = LocalContext.current
+    val engineDetails = remember { ChromiumEngineManager.getEngineDetails(context) }
+
     // Dialogs
     var showSearchEnginesDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
@@ -105,6 +111,7 @@ fun SettingsScreen(
     var showHomePageDialog by remember { mutableStateOf(false) }
     var showLanguagesDialog by remember { mutableStateOf(false) }
     var showAdvancedDialog by remember { mutableStateOf(false) }
+    var showChromiumDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -260,7 +267,16 @@ fun SettingsScreen(
                 onClick = { showAdvancedDialog = true }
             )
 
-            // 14. About
+            // 14. Chromium Engine
+            SettingsMockRow(
+                icon = Icons.Default.Speed,
+                iconBg = Color(0xFF10B981),
+                title = "Chromium Engine",
+                subtitle = "Blink & V8 Core • GPU Accelerated",
+                onClick = { showChromiumDialog = true }
+            )
+
+            // 15. About
             SettingsMockRow(
                 icon = Icons.Default.Info,
                 iconBg = Color(0xFF3B82F6),
@@ -622,6 +638,157 @@ fun SettingsScreen(
                 confirmButton = {
                     TextButton(onClick = { showAdvancedDialog = false }) {
                         Text("OK", color = VelocityCyan)
+                    }
+                },
+                containerColor = Color(0xFF131927)
+            )
+        }
+
+        // Chromium Engine Dialog
+        if (showChromiumDialog) {
+            AlertDialog(
+                onDismissRequest = { showChromiumDialog = false },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(Color(0xFF10B981), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Speed,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Chromium Engine",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp
+                        )
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "Veda Browser runs on Android's native Google Chromium engine, delivering state-of-the-art web standards, V8 execution speed, and hardware acceleration.",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp
+                        )
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF1B2335),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Rendering Engine", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                                    Text("Chromium Blink", color = VelocityCyan, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("JavaScript Engine", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                                    Text("Google V8 JIT", color = Color(0xFF38BDF8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Engine Version", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                                    Text(engineDetails.versionName, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Provider Package", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                                    Text(engineDetails.packageName, color = Color.White, fontSize = 11.sp)
+                                }
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF1B2335),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    text = "Active Chromium Features",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("GPU Acceleration", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                                    Text("Hardware Pipeline", color = Color(0xFF10B981), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Process Isolation", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                                    Text(
+                                        if (engineDetails.isMultiProcessSupported) "Multi-Process" else "Multi-Threaded",
+                                        color = Color(0xFF10B981),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Google Safe Browsing", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                                    Text("Active", color = Color(0xFF10B981), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Remote DevTools", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                                    Text("chrome://inspect", color = Color(0xFFF59E0B), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("HTML5 Storage", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                                    Text("IndexedDB & DOM", color = Color.White, fontSize = 12.sp)
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Service Workers", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                                    Text(if (engineDetails.isServiceWorkerSupported) "Enabled" else "Standard", color = Color.White, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showChromiumDialog = false }) {
+                        Text("Done", color = VelocityCyan)
                     }
                 },
                 containerColor = Color(0xFF131927)
