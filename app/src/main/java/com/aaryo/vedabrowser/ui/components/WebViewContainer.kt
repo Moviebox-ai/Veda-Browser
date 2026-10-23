@@ -246,9 +246,10 @@ fun WebViewContainer(
                         val reqUrl = request?.url?.toString() ?: return super.shouldInterceptRequest(view, request)
                         val headers = request.requestHeaders
 
-                        // Authoritative site host: prefer tab main-frame URL or view URL
+                        // Authoritative site host: prefer active view URL, then tab main-frame URL
+                        val currentUrl = view?.url?.takeIf { it.isNotEmpty() } ?: currentTab.url
                         val siteHost = try {
-                            Uri.parse(currentTab.url).host
+                            Uri.parse(currentUrl).host
                         } catch (_: Exception) {
                             null
                         } ?: headers?.let { h ->
@@ -266,6 +267,20 @@ fun WebViewContainer(
                             return AdBlocker.createEmptyResponse(reqUrl, resType)
                         }
                         return super.shouldInterceptRequest(view, request)
+                    }
+
+                    override fun onPageCommitVisible(view: WebView?, url: String?) {
+                        super.onPageCommitVisible(view, url)
+                        if (view != null) {
+                            val isDesktop = currentTab.isDesktopMode || currentSettings.desktopSiteDefault
+                            if (isDesktop) {
+                                tabWebViewManager.injectDesktopViewport(view)
+                            }
+                            val host = (url ?: view.url)?.let { try { Uri.parse(it).host } catch (_: Exception) { null } }
+                            if (currentAdBlockEnabled) {
+                                AdBlocker.injectCosmeticAdBlock(view, host)
+                            }
+                        }
                     }
 
                     @Deprecated("Deprecated in Java")
@@ -288,6 +303,13 @@ fun WebViewContainer(
                         url?.let { currentOnPageStarted(it) }
                         favicon?.let { currentOnFaviconReceived(it) }
                         currentOnNavChanged(view?.canGoBack() == true, view?.canGoForward() == true)
+
+                        if (view != null) {
+                            val isDesktop = currentTab.isDesktopMode || currentSettings.desktopSiteDefault
+                            if (isDesktop) {
+                                tabWebViewManager.injectDesktopViewport(view)
+                            }
+                        }
 
                         // Fresh cosmetic rules tailored specifically for the current site host
                         if (view != null) {
@@ -324,6 +346,11 @@ fun WebViewContainer(
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
                         if (view != null) {
+                            val isDesktop = currentTab.isDesktopMode || currentSettings.desktopSiteDefault
+                            if (isDesktop) {
+                                tabWebViewManager.injectDesktopViewport(view)
+                            }
+
                             val host = url?.let { try { Uri.parse(it).host } catch (_: Exception) { null } }
                             if (currentAdBlockEnabled) {
                                 AdBlocker.injectCosmeticAdBlock(view, host)

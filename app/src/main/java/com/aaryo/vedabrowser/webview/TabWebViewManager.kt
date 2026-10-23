@@ -18,15 +18,69 @@ import com.aaryo.vedabrowser.model.BrowserSettings
 import com.aaryo.vedabrowser.privacy.AdBlocker
 
 const val DESKTOP_USER_AGENT =
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
 const val MOBILE_USER_AGENT =
-    "Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36"
+    "Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+
+const val DESKTOP_VIEWPORT_JS = """
+(function() {
+    function enforceDesktopViewport() {
+        try {
+            var meta = document.querySelector('meta[name="viewport"]');
+            if (meta) {
+                if (!meta.getAttribute('data-veda-orig')) {
+                    meta.setAttribute('data-veda-orig', meta.getAttribute('content') || '');
+                }
+                meta.setAttribute('content', 'width=1280, initial-scale=0.25, minimum-scale=0.25, maximum-scale=5.0, user-scalable=yes');
+            } else if (document.head) {
+                var m = document.createElement('meta');
+                m.name = 'viewport';
+                m.content = 'width=1280, initial-scale=0.25, minimum-scale=0.25, maximum-scale=5.0, user-scalable=yes';
+                document.head.appendChild(m);
+            }
+            if (navigator.userAgentData) {
+                try {
+                    Object.defineProperty(navigator, 'userAgentData', {
+                        get: () => ({
+                            brands: [
+                                { brand: 'Chromium', version: '131' },
+                                { brand: 'Google Chrome', version: '131' },
+                                { brand: 'Not_A Brand', version: '24' }
+                            ],
+                            mobile: false,
+                            platform: 'Windows'
+                        })
+                    });
+                } catch(e) {}
+            }
+        } catch(e) {}
+    }
+    enforceDesktopViewport();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', enforceDesktopViewport);
+    }
+})();
+"""
+
+const val RESTORE_MOBILE_VIEWPORT_JS = """
+(function() {
+    try {
+        var meta = document.querySelector('meta[name="viewport"]');
+        if (meta && meta.getAttribute('data-veda-orig')) {
+            meta.setAttribute('content', meta.getAttribute('data-veda-orig'));
+            meta.removeAttribute('data-veda-orig');
+        }
+    } catch(e) {}
+})();
+"""
 
 class TabWebViewManager {
 
     private val webViewMap = mutableMapOf<String, WebView>()
     private val tabStateBundles = mutableMapOf<String, Bundle>()
+
+    fun getWebView(tabId: String): WebView? = webViewMap[tabId]
 
     init {
         setupServiceWorkerAdBlocker()
@@ -202,12 +256,14 @@ class TabWebViewManager {
         isDesktopMode: Boolean,
         isIncognito: Boolean
     ) {
+        val effectiveDesktop = isDesktopMode || settings.desktopSiteDefault
         webView.settings.apply {
             javaScriptEnabled = settings.javaScriptEnabled
             textZoom = settings.textZoomPercent
             domStorageEnabled = true
             useWideViewPort = true
             loadWithOverviewMode = true
+            setSupportZoom(true)
             builtInZoomControls = true
             displayZoomControls = false
             allowFileAccess = false
@@ -217,13 +273,19 @@ class TabWebViewManager {
             javaScriptCanOpenWindowsAutomatically = false
             setSupportMultipleWindows(true)
 
-            userAgentString = if (isDesktopMode || settings.desktopSiteDefault) {
+            userAgentString = if (effectiveDesktop) {
                 DESKTOP_USER_AGENT
             } else {
                 MOBILE_USER_AGENT
             }
 
             cacheMode = if (isIncognito) WebSettings.LOAD_NO_CACHE else WebSettings.LOAD_DEFAULT
+        }
+
+        if (effectiveDesktop) {
+            injectDesktopViewport(webView)
+        } else {
+            restoreMobileViewport(webView)
         }
 
         if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
@@ -244,6 +306,20 @@ class TabWebViewManager {
         cookieManager.setAcceptThirdPartyCookies(webView, !isIncognito && settings.cookiesEnabled)
     }
 
+    fun injectDesktopViewport(webView: WebView) {
+        try {
+            webView.evaluateJavascript(DESKTOP_VIEWPORT_JS, null)
+        } catch (_: Throwable) {
+        }
+    }
+
+    fun restoreMobileViewport(webView: WebView) {
+        try {
+            webView.evaluateJavascript(RESTORE_MOBILE_VIEWPORT_JS, null)
+        } catch (_: Throwable) {
+        }
+    }
+
     fun applySettingsToAll(settings: BrowserSettings) {
         AdBlocker.setGlobalEnabled(settings.adBlockGlobalEnabled)
         AdBlocker.isStrictMode = settings.adBlockStrictMode
@@ -253,6 +329,10 @@ class TabWebViewManager {
         for ((_, webView) in webViewMap) {
             webView.settings.javaScriptEnabled = settings.javaScriptEnabled
             webView.settings.textZoom = settings.textZoomPercent
+            if (settings.desktopSiteDefault) {
+                webView.settings.userAgentString = DESKTOP_USER_AGENT
+                injectDesktopViewport(webView)
+            }
             if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
                 WebSettingsCompat.setAlgorithmicDarkeningAllowed(
                     webView.settings,

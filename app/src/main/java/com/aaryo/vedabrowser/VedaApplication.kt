@@ -9,6 +9,7 @@ class VedaApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         cleanCorruptedVariationsSeeds(this)
+        com.aaryo.vedabrowser.privacy.AdBlocker.initialize(this)
     }
 
     companion object {

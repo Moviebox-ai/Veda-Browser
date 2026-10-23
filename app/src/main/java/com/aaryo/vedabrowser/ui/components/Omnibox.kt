@@ -248,11 +248,12 @@ fun Omnibox(
 
                     // Velocity Shield Badge
                     if (tab != null && tab.adBlockEnabled) {
+                        val totalBlocked = tab.blockedAdsCount + tab.blockedTrackersCount
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(
-                                    if (tab.blockedTrackersCount > 0) VelocityBlue.copy(alpha = 0.2f)
+                                    if (totalBlocked > 0) VelocityBlue.copy(alpha = 0.2f)
                                     else Color.Transparent
                                 )
                                 .clickable { onOpenShield() }
@@ -264,13 +265,13 @@ fun Omnibox(
                                 Icon(
                                     imageVector = Icons.Default.Shield,
                                     contentDescription = "Veda Shield",
-                                    tint = if (tab.blockedTrackersCount > 0) VelocityCyan else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    tint = if (totalBlocked > 0) VelocityCyan else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(14.dp)
                                 )
-                                if (tab.blockedTrackersCount > 0) {
+                                if (totalBlocked > 0) {
                                     Spacer(modifier = Modifier.width(2.dp))
                                     Text(
-                                        text = "${tab.blockedTrackersCount}",
+                                        text = "$totalBlocked",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = VelocityCyan

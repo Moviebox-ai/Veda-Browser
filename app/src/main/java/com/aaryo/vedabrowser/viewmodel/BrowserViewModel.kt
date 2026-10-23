@@ -15,6 +15,7 @@ import com.aaryo.vedabrowser.extension.ExtensionInjector
 import com.aaryo.vedabrowser.extension.GmBridge
 import com.aaryo.vedabrowser.extension.UserscriptParser
 import android.content.Intent
+import android.net.Uri
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
@@ -509,8 +510,83 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun toggleDesktopMode(tabId: String) {
-        updateTab(tabId) { tab ->
-            tab.copy(isDesktopMode = !tab.isDesktopMode)
+        val tab = _tabs.value.find { it.id == tabId } ?: return
+        val newDesktopMode = !tab.isDesktopMode
+        updateTab(tabId) { it.copy(isDesktopMode = newDesktopMode) }
+
+        val webView = tabWebViewManager.getWebView(tabId)
+        if (webView != null) {
+            tabWebViewManager.applyWebSettings(
+                webView = webView,
+                settings = _settings.value,
+                isDesktopMode = newDesktopMode,
+                isIncognito = tab.isIncognito
+            )
+
+            val currentUrl = webView.url ?: tab.url
+            if (!tab.isNewTab && currentUrl.isNotEmpty()) {
+                val targetUrl = if (newDesktopMode) {
+                    convertMobileUrlToDesktop(currentUrl)
+                } else {
+                    convertDesktopUrlToMobile(currentUrl)
+                }
+
+                if (targetUrl != currentUrl) {
+                    webView.loadUrl(targetUrl)
+                } else {
+                    webView.reload()
+                }
+            }
+        }
+        val statusMsg = if (newDesktopMode) "Desktop site enabled" else "Mobile site enabled"
+        showToast(statusMsg)
+    }
+
+    fun convertMobileUrlToDesktop(url: String): String {
+        return try {
+            val uri = java.net.URI(url)
+            val host = uri.host ?: return url
+            val newHost = when {
+                host.equals("m.youtube.com", ignoreCase = true) -> "www.youtube.com"
+                host.equals("m.facebook.com", ignoreCase = true) -> "www.facebook.com"
+                host.equals("mobile.twitter.com", ignoreCase = true) -> "twitter.com"
+                host.equals("m.imdb.com", ignoreCase = true) -> "www.imdb.com"
+                host.endsWith(".m.wikipedia.org", ignoreCase = true) -> host.replace(".m.wikipedia.org", ".wikipedia.org")
+                host.equals("m.wikipedia.org", ignoreCase = true) -> "wikipedia.org"
+                host.startsWith("m.", ignoreCase = true) -> host.removePrefix("m.")
+                host.startsWith("mobile.", ignoreCase = true) -> host.removePrefix("mobile.")
+                else -> host
+            }
+            if (newHost != host) {
+                java.net.URI(uri.scheme, uri.userInfo, newHost, uri.port, uri.rawPath, uri.rawQuery, uri.rawFragment).toString()
+            } else {
+                url
+            }
+        } catch (_: Exception) {
+            url
+        }
+    }
+
+    fun convertDesktopUrlToMobile(url: String): String {
+        return try {
+            val uri = java.net.URI(url)
+            val host = uri.host ?: return url
+            val newHost = when {
+                host.equals("www.youtube.com", ignoreCase = true) -> "m.youtube.com"
+                host.equals("www.facebook.com", ignoreCase = true) -> "m.facebook.com"
+                host.equals("www.imdb.com", ignoreCase = true) -> "m.imdb.com"
+                host.endsWith(".wikipedia.org", ignoreCase = true) && !host.contains(".m.") -> {
+                    host.replace(".wikipedia.org", ".m.wikipedia.org")
+                }
+                else -> host
+            }
+            if (newHost != host) {
+                java.net.URI(uri.scheme, uri.userInfo, newHost, uri.port, uri.rawPath, uri.rawQuery, uri.rawFragment).toString()
+            } else {
+                url
+            }
+        } catch (_: Exception) {
+            url
         }
     }
 
@@ -674,6 +750,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
                 _settings.value.easyPrivacyEnabled != newSettings.easyPrivacyEnabled ||
                 _settings.value.uBlockFiltersEnabled != newSettings.uBlockFiltersEnabled ||
                 _settings.value.indianFiltersEnabled != newSettings.indianFiltersEnabled
+        val desktopDefaultChanged = _settings.value.desktopSiteDefault != newSettings.desktopSiteDefault
 
         _settings.value = newSettings
         AdBlocker.isStrictMode = newSettings.adBlockStrictMode
@@ -692,6 +769,16 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
             tabWebViewManager.applySettingsToAll(newSettings)
             if (filterTogglesChanged) {
                 AdBlocker.loadRules(getApplication(), newSettings, forceReload = true)
+            }
+            if (desktopDefaultChanged) {
+                _tabs.value = _tabs.value.map { tab ->
+                    tab.copy(isDesktopMode = newSettings.desktopSiteDefault)
+                }
+                val activeTab = getActiveTab()
+                if (activeTab != null && !activeTab.isNewTab) {
+                    val webView = tabWebViewManager.getWebView(activeTab.id)
+                    webView?.reload()
+                }
             }
             showToast("Settings saved")
         }

@@ -83,6 +83,7 @@ object AdBlocker {
 
     // Fast O(1) domain lookup sets
     private val blockedDomains = ConcurrentHashMap.newKeySet<String>()
+    private val thirdPartyBlockedDomains = ConcurrentHashMap.newKeySet<String>()
     private val exceptionDomains = ConcurrentHashMap.newKeySet<String>()
     private val allowlist = ConcurrentHashMap.newKeySet<String>()
 
@@ -269,6 +270,7 @@ object AdBlocker {
 
         // Reset rule collections
         blockedDomains.clear()
+        thirdPartyBlockedDomains.clear()
         exceptionDomains.clear()
         anchoredRules.clear()
         anchoredExceptions.clear()
@@ -395,9 +397,14 @@ object AdBlocker {
                 if (isException && resTypes == null && !thirdPartyOnly && !firstPartyOnly && permittedDomains == null && excludedDomains == null && !isImportant) {
                     exceptionDomains.add(rawDomain)
                     return
-                } else if (!isException && resTypes == null && !thirdPartyOnly && !firstPartyOnly && permittedDomains == null && excludedDomains == null && !isImportant) {
-                    blockedDomains.add(rawDomain)
-                    return
+                } else if (!isException && resTypes == null && permittedDomains == null && excludedDomains == null && !isImportant) {
+                    if (thirdPartyOnly) {
+                        thirdPartyBlockedDomains.add(rawDomain)
+                        return
+                    } else if (!firstPartyOnly) {
+                        blockedDomains.add(rawDomain)
+                        return
+                    }
                 } else {
                     val filterRule = FilterRule(
                         raw = line,
@@ -575,7 +582,8 @@ object AdBlocker {
             "adsterra.com", "richads.com", "trafficstars.com", "monetag.com", "hilltopads.com",
             "clickadu.com", "adcash.com", "yllix.com", "bidvertiser.com", "adkernel.com",
             "adtrue.com", "bet365affiliates.com", "revenuehits.com", "ad-maven.com", "admaven.com",
-            "connect.facebook.net",
+            "connect.facebook.net", "hotjar.com", "clarity.ms", "scorecardresearch.com",
+            "quantserve.com", "ads.yahoo.com", "analytics.yahoo.com", "gemini.yahoo.com",
             "colombiaonline.com", "clmbtech.com", "clmbe.com", "adelement.com", "adpushup.com",
             "vserv.com", "vserv.mobi", "jioads.com", "paytmads.com", "tyroo.com", "affinity.com",
             "admagnet.com", "komli.com", "adnetworkindia.com", "adsolut.in", "zapr.in", "silverpush.co"
@@ -587,6 +595,19 @@ object AdBlocker {
         var checkHost = normalizedHost
         while (checkHost.isNotEmpty()) {
             if (blockedDomains.contains(checkHost)) {
+                return true
+            }
+            val dotIndex = checkHost.indexOf('.')
+            if (dotIndex == -1) break
+            checkHost = checkHost.substring(dotIndex + 1)
+        }
+        return false
+    }
+
+    fun isHostThirdPartyBlocked(normalizedHost: String): Boolean {
+        var checkHost = normalizedHost
+        while (checkHost.isNotEmpty()) {
+            if (thirdPartyBlockedDomains.contains(checkHost)) {
                 return true
             }
             val dotIndex = checkHost.indexOf('.')
@@ -655,7 +676,7 @@ object AdBlocker {
                 "script" -> return ResourceType.SCRIPT
                 "image" -> return ResourceType.IMAGE
                 "style" -> return ResourceType.STYLESHEET
-                "iframe", "embed", "frame" -> return ResourceType.SUBDOCUMENT
+                "iframe", "embed", "frame", "document" -> return ResourceType.SUBDOCUMENT
                 "empty" -> return ResourceType.XMLHTTPREQUEST
                 "video", "audio" -> return ResourceType.MEDIA
                 "font" -> return ResourceType.FONT
@@ -808,6 +829,11 @@ object AdBlocker {
             return true
         }
 
+        // 8b. Fast O(1) Third-Party Domain Lookup
+        if (is3p && isHostThirdPartyBlocked(normalizedHost)) {
+            return true
+        }
+
         // 9. Check anchored standard blocking rules
         checkDomain = normalizedHost
         while (checkDomain.isNotEmpty()) {
@@ -831,7 +857,12 @@ object AdBlocker {
             }
         }
 
-        // 11. Tightly tuned ad path rules
+        // 11. Third-party ad subdomain heuristics
+        if (is3p && isAdSubdomain(normalizedHost)) {
+            return true
+        }
+
+        // 12. Tightly tuned ad path rules
         val path = try {
             Uri.parse(url).path?.lowercase() ?: ""
         } catch (_: Exception) {
@@ -845,6 +876,16 @@ object AdBlocker {
         }
 
         return false
+    }
+
+    fun isAdSubdomain(normalizedHost: String): Boolean {
+        val parts = normalizedHost.split('.')
+        if (parts.size <= 2) return false
+        val prefix = parts.first()
+        return prefix == "ad" || prefix == "ads" || prefix == "adserver" ||
+                prefix == "adservice" || prefix == "pagead" || prefix == "banner" ||
+                prefix == "banners" || prefix == "track" || prefix == "tracker" ||
+                prefix == "tracking" || prefix == "telemetry" || prefix == "pixel"
     }
 
     private fun matchesTightAdPath(path: String, isThirdParty: Boolean): Boolean {
@@ -871,7 +912,10 @@ object AdBlocker {
         if (isThirdParty) {
             if (path.contains("/adserver.") || path.contains("/adserver/") ||
                 path.contains("/ad-loader") || path.contains("/popunder") ||
-                path.contains("/popupad") || path.contains("/advertisement.js")
+                path.contains("/popupad") || path.contains("/advertisement.js") ||
+                path.contains("/adsbygoogle") || path.contains("/pagead/") ||
+                path.contains("amazon-adsystem") || path.contains("doubleclick") ||
+                path.contains("/ad-tag") || path.contains("/ad-frame")
             ) {
                 return true
             }
@@ -1074,8 +1118,36 @@ object AdBlocker {
      * 4. Video ad skip and fast-forward
      * 5. MutationObserver
      */
+    fun escapeJsonString(input: String): String {
+        val sb = StringBuilder("\"")
+        for (c in input) {
+            when (c) {
+                '\\' -> sb.append("\\\\")
+                '"' -> sb.append("\\\"")
+                '\n' -> sb.append("\\n")
+                '\r' -> sb.append("\\r")
+                '\t' -> sb.append("\\t")
+                '\b' -> sb.append("\\b")
+                '\u000C' -> sb.append("\\f")
+                '<' -> sb.append("\\u003c")
+                '>' -> sb.append("\\u003e")
+                '&' -> sb.append("\\u0026")
+                else -> {
+                    if (c.code in 0..0x1F) {
+                        sb.append(String.format("\\u%04x", c.code))
+                    } else {
+                        sb.append(c)
+                    }
+                }
+            }
+        }
+        sb.append("\"")
+        return sb.toString()
+    }
+
     fun getCosmeticDocumentStartScript(siteHost: String? = null): String {
-        val css = getCosmeticCss(siteHost).replace("'", "\\'").replace("\n", " ")
+        val rawCss = getCosmeticCss(siteHost)
+        val quotedCss = escapeJsonString(rawCss)
         val isYouTube = siteHost?.contains("youtube.com") == true
 
         return """
@@ -1167,7 +1239,7 @@ object AdBlocker {
                         if (root) {
                             var style = document.createElement('style');
                             style.id = styleId;
-                            style.textContent = '$css';
+                            style.textContent = $quotedCss;
                             root.appendChild(style);
                         }
                     }

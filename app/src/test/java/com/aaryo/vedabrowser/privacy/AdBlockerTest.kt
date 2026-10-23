@@ -269,4 +269,41 @@ class AdBlockerTest {
         assertFalse(AdBlocker.isAdOrTracker("   "))
         assertFalse(AdBlocker.isAdOrTracker("not a valid url"))
     }
+
+    @Test
+    fun testThirdPartyRuleParsingAndFastLookup() {
+        // Test ||adnetwork.xyz^$third-party
+        AdBlocker.parseRuleLine("||adnetwork.xyz^\$third-party")
+
+        // When requested from third-party site -> blocked
+        assertTrue(AdBlocker.isAdOrTracker("https://adnetwork.xyz/serve", siteHost = "mysite.com"))
+        // When requested from first-party site -> not blocked by this rule
+        assertFalse(AdBlocker.isAdOrTracker("https://adnetwork.xyz/static/css", siteHost = "adnetwork.xyz"))
+    }
+
+    @Test
+    fun testSubdomainAdHeuristics() {
+        // Third-party ad subdomains like ads.thirdparty.com
+        assertTrue(AdBlocker.isAdOrTracker("https://ads.somenewdomain.com/banner.js", siteHost = "news.org"))
+        assertTrue(AdBlocker.isAdOrTracker("https://adserver.randomnetwork.net/pixel", siteHost = "news.org"))
+        assertTrue(AdBlocker.isAdOrTracker("https://pagead.affiliateplace.com/tag", siteHost = "news.org"))
+
+        // First-party subdomains should not be falsely blocked by third-party heuristic
+        assertFalse(AdBlocker.isAdOrTracker("https://ads.news.org/info.html", siteHost = "news.org"))
+    }
+
+    @Test
+    fun testIframeSubdocumentHeaderDetection() {
+        val headers = mapOf("Sec-Fetch-Dest" to "document")
+        val resType = AdBlocker.detectResourceType("https://example.com/frame.html", headers, isForMainFrame = false)
+        assertEquals(ResourceType.SUBDOCUMENT, resType)
+    }
+
+    @Test
+    fun testCosmeticScriptSafeQuoting() {
+        val script = AdBlocker.getCosmeticDocumentStartScript("youtube.com")
+        assertNotNull(script)
+        assertTrue(script.contains("velocity-shield-ad-hide"))
+        assertTrue(script.contains("style.textContent = \""))
+    }
 }

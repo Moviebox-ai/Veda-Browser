@@ -364,7 +364,10 @@ fun VelocityMenuSheet(
                             trailing = {
                                 Switch(
                                     checked = isDesktopMode,
-                                    onCheckedChange = { onToggleDesktop() },
+                                    onCheckedChange = {
+                                        onDismiss()
+                                        onToggleDesktop()
+                                    },
                                     colors = SwitchDefaults.colors(
                                         checkedThumbColor = Color.White,
                                         checkedTrackColor = VelocityBlue,
@@ -374,7 +377,10 @@ fun VelocityMenuSheet(
                                     modifier = Modifier.scale(0.78f)
                                 )
                             },
-                            onClick = { onToggleDesktop() }
+                            onClick = {
+                                onDismiss()
+                                onToggleDesktop()
+                            }
                         )
                         MenuItemRow(
                             icon = Icons.Default.Search,
