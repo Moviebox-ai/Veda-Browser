@@ -28,7 +28,9 @@ data class BrowserSettings(
     val toolbarStyle: String = "DEFAULT", // "DEFAULT", "COMPACT", "BOTTOM"
     val cornerRadiusDp: Int = 16,
     val activeWorkspace: String = "Personal", // "Personal", "Work", "Study", "Entertainment"
-    val openLinksInNewTab: Boolean = true
+    val openLinksInNewTab: Boolean = true,
+    val backgroundAudioEnabled: Boolean = true,
+    val showPerformanceHud: Boolean = false
 )
 
 data class ShieldStats(

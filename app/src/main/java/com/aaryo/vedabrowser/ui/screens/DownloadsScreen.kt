@@ -21,12 +21,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,6 +41,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -49,38 +57,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aaryo.vedabrowser.model.DownloadItem
 import com.aaryo.vedabrowser.model.DownloadStatus
 
-data class MockDownloadItem(
-    val id: String,
-    val filename: String,
-    val sizeMeta: String,
-    val iconType: String,
-    val iconBg: Color,
-    val icon: ImageVector,
-    val isDownloading: Boolean = false,
-    val progress: Float = 1f
-)
-
-/**
- * Screen 8: Download Manager
- * Exact replica of the reference mockup:
- * - Top Bar: "← Downloads"
- * - Filter pills: All, Images, Videos, Documents
- * - Item 1: video_1080p.mp4 (Purple rounded square, progress bar, pause button)
- * - Item 2: App.apk (Green rounded square, Completed, ⋮)
- * - Item 3: Document.pdf (Red/Orange rounded square, Completed, ⋮)
- * - Item 4: Image.jpg (Cyan rounded square, Completed, ⋮)
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadsScreen(
     downloads: List<DownloadItem>,
     onOpenDownload: (DownloadItem) -> Unit,
+    onShareDownload: (DownloadItem) -> Unit = {},
+    onRemoveDownload: (DownloadItem) -> Unit = {},
     onClearAll: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
@@ -91,44 +81,41 @@ fun DownloadsScreen(
 
     var selectedFilterIndex by remember { mutableIntStateOf(0) }
     val filters = listOf("All", "Images", "Videos", "Documents")
+    var showClearConfirmDialog by remember { mutableStateOf(false) }
 
-    // Default sample list from mockup
-    val sampleDownloads = remember {
-        listOf(
-            MockDownloadItem(
-                id = "1",
-                filename = "video_1080p.mp4",
-                sizeMeta = "152 MB • 2 mins left",
-                iconType = "video",
-                iconBg = Color(0xFF8B5CF6),
-                icon = Icons.Default.Videocam,
-                isDownloading = true,
-                progress = 0.65f
-            ),
-            MockDownloadItem(
-                id = "2",
-                filename = "App.apk",
-                sizeMeta = "28 MB • Completed",
-                iconType = "app",
-                iconBg = Color(0xFF10B981),
-                icon = Icons.Default.Android
-            ),
-            MockDownloadItem(
-                id = "3",
-                filename = "Document.pdf",
-                sizeMeta = "4.2 MB • Completed",
-                iconType = "doc",
-                iconBg = Color(0xFFEF4444),
-                icon = Icons.Default.Description
-            ),
-            MockDownloadItem(
-                id = "4",
-                filename = "Image.jpg",
-                sizeMeta = "1.1 MB • Completed",
-                iconType = "image",
-                iconBg = Color(0xFF06B6D4),
-                icon = Icons.Default.Image
-            )
+    // Filter real items based on selected category
+    val filteredList = remember(downloads, selectedFilterIndex) {
+        downloads.filter { item ->
+            when (selectedFilterIndex) {
+                1 -> item.category == "image"
+                2 -> item.category == "video"
+                3 -> item.category == "doc"
+                else -> true
+            }
+        }
+    }
+
+    if (showClearConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirmDialog = false },
+            title = { Text("Clear Download History?", color = Color.White) },
+            text = { Text("This will clear your download history list. Downloaded files on disk will remain untouched.", color = Color(0xFF94A3B8)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearConfirmDialog = false
+                        onClearAll()
+                    }
+                ) {
+                    Text("Clear All", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirmDialog = false }) {
+                    Text("Cancel", color = Color(0xFF94A3B8))
+                }
+            },
+            containerColor = Color(0xFF13192B)
         )
     }
 
@@ -153,6 +140,20 @@ fun DownloadsScreen(
                             contentDescription = "Back",
                             tint = Color.White
                         )
+                    }
+                },
+                actions = {
+                    if (downloads.isNotEmpty()) {
+                        IconButton(
+                            onClick = { showClearConfirmDialog = true },
+                            modifier = Modifier.testTag("downloads_clear_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteOutline,
+                                contentDescription = "Clear all downloads",
+                                tint = Color(0xFF94A3B8)
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -195,151 +196,101 @@ fun DownloadsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Download items list
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Filter items based on selected category
-                val filteredList = sampleDownloads.filter { item ->
-                    when (selectedFilterIndex) {
-                        1 -> item.iconType == "image"
-                        2 -> item.iconType == "video"
-                        3 -> item.iconType == "doc"
-                        else -> true
+            if (filteredList.isEmpty()) {
+                // Clean and helpful empty state
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF13192B)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FileDownload,
+                                contentDescription = null,
+                                tint = Color(0xFF64748B),
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = if (downloads.isEmpty()) "No downloads yet" else "No matching downloads",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (downloads.isEmpty()) "Files you download while browsing will appear here" else "Try selecting another category above",
+                            color = Color(0xFF64748B),
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
-
-                items(filteredList, key = { it.id }) { item ->
-                    DownloadCardItem(item = item)
-                }
-
-                // Append any dynamic downloads if present
-                items(downloads, key = { it.id }) { realItem ->
-                    RealDownloadCardItem(
-                        item = realItem,
-                        onClick = { onOpenDownload(realItem) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DownloadCardItem(item: MockDownloadItem) {
-    var isPaused by remember { mutableStateOf(false) }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Colored square icon container
-        Box(
-            modifier = Modifier
-                .size(46.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(item.iconBg),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = item.icon,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.width(14.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = item.filename,
-                color = Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Spacer(modifier = Modifier.height(3.dp))
-
-            Text(
-                text = item.sizeMeta,
-                color = Color(0xFF94A3B8),
-                fontSize = 12.sp
-            )
-
-            if (item.isDownloading) {
-                Spacer(modifier = Modifier.height(6.dp))
-                LinearProgressIndicator(
-                    progress = { if (isPaused) 0.65f else item.progress },
+            } else {
+                LazyColumn(
                     modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                    color = Color(0xFF3B82F6),
-                    trackColor = Color(0xFF1E283C)
-                )
-            }
-        }
-
-        if (item.isDownloading) {
-            IconButton(
-                onClick = { isPaused = !isPaused },
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    imageVector = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
-                    contentDescription = "Pause/Resume",
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        } else {
-            IconButton(
-                onClick = { },
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = "Options",
-                    tint = Color(0xFF64748B),
-                    modifier = Modifier.size(20.dp)
-                )
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(filteredList, key = { it.id }) { item ->
+                        RealDownloadRow(
+                            item = item,
+                            onClick = { onOpenDownload(item) },
+                            onShare = { onShareDownload(item) },
+                            onRemove = { onRemoveDownload(item) }
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun RealDownloadCardItem(
+private fun RealDownloadRow(
     item: DownloadItem,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onShare: () -> Unit,
+    onRemove: () -> Unit
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    val (iconBg, iconVector) = getCategoryVisuals(item.category)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
-            .padding(vertical = 4.dp),
+            .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Colored squircle icon container
         Box(
             modifier = Modifier
                 .size(46.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF2563EB)),
+                .background(iconBg),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.Description,
-                contentDescription = null,
+                imageVector = iconVector,
+                contentDescription = item.category,
                 tint = Color.White,
                 modifier = Modifier.size(24.dp)
             )
@@ -360,32 +311,114 @@ private fun RealDownloadCardItem(
             Spacer(modifier = Modifier.height(3.dp))
 
             Text(
-                text = "${item.downloadedBytes / 1024} KB • ${item.status.name.lowercase().replaceFirstChar { it.uppercase() }}",
-                color = Color(0xFF94A3B8),
+                text = item.formattedProgressMeta,
+                color = when (item.status) {
+                    DownloadStatus.DOWNLOADING -> Color(0xFF38BDF8)
+                    DownloadStatus.FAILED -> Color(0xFFEF4444)
+                    else -> Color(0xFF94A3B8)
+                },
                 fontSize = 12.sp
             )
 
             if (item.status == DownloadStatus.DOWNLOADING) {
                 Spacer(modifier = Modifier.height(6.dp))
-                LinearProgressIndicator(
-                    progress = { item.progress },
-                    modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                    color = Color(0xFF3B82F6),
-                    trackColor = Color(0xFF1E283C)
-                )
+                if (item.totalBytes > 0) {
+                    LinearProgressIndicator(
+                        progress = { item.progress },
+                        modifier = Modifier
+                            .fillMaxWidth(0.92f)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(2.dp)),
+                        color = Color(0xFF3B82F6),
+                        trackColor = Color(0xFF1E283C)
+                    )
+                } else {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth(0.92f)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(2.dp)),
+                        color = Color(0xFF3B82F6),
+                        trackColor = Color(0xFF1E283C)
+                    )
+                }
             }
         }
 
-        IconButton(onClick = onClick) {
-            Icon(
-                imageVector = Icons.Default.MoreVert,
-                contentDescription = null,
-                tint = Color(0xFF64748B),
-                modifier = Modifier.size(20.dp)
-            )
+        Box {
+            if (item.status == DownloadStatus.DOWNLOADING) {
+                IconButton(
+                    onClick = onRemove,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Cancel download",
+                        tint = Color(0xFF94A3B8),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            } else {
+                IconButton(
+                    onClick = { menuExpanded = true },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Options",
+                        tint = Color(0xFF64748B),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                    modifier = Modifier.background(Color(0xFF13192B))
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Open", color = Color.White) },
+                        leadingIcon = {
+                            Icon(Icons.Default.OpenInNew, contentDescription = null, tint = Color(0xFF38BDF8))
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            onClick()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Share", color = Color.White) },
+                        leadingIcon = {
+                            Icon(Icons.Default.Share, contentDescription = null, tint = Color(0xFF10B981))
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            onShare()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Delete", color = Color(0xFFEF4444)) },
+                        leadingIcon = {
+                            Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = Color(0xFFEF4444))
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            onRemove()
+                        }
+                    )
+                }
+            }
         }
+    }
+}
+
+private fun getCategoryVisuals(category: String): Pair<Color, ImageVector> {
+    return when (category) {
+        "video" -> Pair(Color(0xFF8B5CF6), Icons.Default.Videocam)
+        "image" -> Pair(Color(0xFF06B6D4), Icons.Default.Image)
+        "app" -> Pair(Color(0xFF10B981), Icons.Default.Android)
+        "doc" -> Pair(Color(0xFFEF4444), Icons.Default.Description)
+        "audio" -> Pair(Color(0xFFF59E0B), Icons.Default.Audiotrack)
+        else -> Pair(Color(0xFF2563EB), Icons.Default.FileDownload)
     }
 }

@@ -152,6 +152,34 @@ class RealDownloadManager(private val context: Context) {
         }
     }
 
+    fun shareDownloadedFile(item: DownloadItem) {
+        val downloadId = item.id.toLongOrNull()
+        val uri = if (downloadId != null) {
+            downloadManager.getUriForDownloadedFile(downloadId)
+        } else {
+            val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), item.fileName)
+            if (file.exists()) Uri.fromFile(file) else null
+        }
+
+        if (uri == null) {
+            Toast.makeText(context, "File not available for sharing", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val mime = if (item.mimeType.isNotEmpty()) item.mimeType else guessMimeType(item.fileName)
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            putExtra(Intent.EXTRA_STREAM, uri)
+            type = mime
+            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+
+        try {
+            context.startActivity(Intent.createChooser(shareIntent, "Share ${item.fileName}"))
+        } catch (_: Exception) {
+            Toast.makeText(context, "Cannot share file", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun guessMimeType(fileName: String): String {
         val extension = MimeTypeMap.getFileExtensionFromUrl(fileName)
         return if (!extension.isNullOrEmpty()) {

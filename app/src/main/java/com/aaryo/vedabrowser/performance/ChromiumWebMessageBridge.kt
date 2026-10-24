@@ -23,7 +23,8 @@ import com.google.gson.JsonParser
 class ChromiumWebMessageBridge(
     private val tabId: String,
     private val onTrackerBlocked: (isTracker: Boolean) -> Unit,
-    private val onMetricsReceived: (PagePerformanceMetrics) -> Unit
+    private val onMetricsReceived: (PagePerformanceMetrics) -> Unit,
+    private val onMediaDetected: ((url: String, pageUrl: String, pageTitle: String, mimeType: String?, mediaType: String?) -> Unit)? = null
 ) {
 
     private val mainHandler: Handler? by lazy {
@@ -237,6 +238,18 @@ class ChromiumWebMessageBridge(
                     val isTracker = if (json.has("isTracker")) json.get("isTracker").asBoolean else false
                     dispatchToMain {
                         onTrackerBlocked(isTracker)
+                    }
+                }
+                "MEDIA_DETECTED" -> {
+                    val url = if (json.has("url")) json.get("url").asString else ""
+                    val pageUrl = if (json.has("pageUrl")) json.get("pageUrl").asString else ""
+                    val pageTitle = if (json.has("pageTitle")) json.get("pageTitle").asString else ""
+                    val mimeType = if (json.has("mimeType") && !json.get("mimeType").isJsonNull) json.get("mimeType").asString else null
+                    val mediaType = if (json.has("mediaType") && !json.get("mediaType").isJsonNull) json.get("mediaType").asString else null
+                    if (url.isNotBlank()) {
+                        dispatchToMain {
+                            onMediaDetected?.invoke(url, pageUrl, pageTitle, mimeType, mediaType)
+                        }
                     }
                 }
             }

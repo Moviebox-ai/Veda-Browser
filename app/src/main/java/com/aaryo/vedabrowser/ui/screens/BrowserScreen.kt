@@ -49,8 +49,10 @@ import com.aaryo.vedabrowser.ui.components.Omnibox
 import com.aaryo.vedabrowser.ui.components.VelocityMenuSheet
 import com.aaryo.vedabrowser.ui.components.WebViewContainer
 import com.aaryo.vedabrowser.ui.dialogs.AiAssistantDialog
+import com.aaryo.vedabrowser.ui.dialogs.ChromiumPerformanceHudDialog
 import com.aaryo.vedabrowser.ui.dialogs.ClearDataDialog
 import com.aaryo.vedabrowser.ui.dialogs.InstallUserscriptDialog
+import com.aaryo.vedabrowser.ui.dialogs.MediaSnifferBottomSheet
 import com.aaryo.vedabrowser.ui.dialogs.ShieldDialog
 import com.aaryo.vedabrowser.ui.dialogs.SslDialog
 import com.aaryo.vedabrowser.ui.dialogs.SslWarningDialog
@@ -100,6 +102,10 @@ fun BrowserScreen(
     var currentWebView by remember { mutableStateOf<WebView?>(null) }
 
     val activeTab = tabs.find { it.id == activeTabId }
+    val sniffedMediaByTab by viewModel.sniffedMediaByTab.collectAsState()
+    val currentTabMedia = remember(activeTabId, sniffedMediaByTab) {
+        sniffedMediaByTab[activeTabId] ?: emptyList()
+    }
     val isCurrentBookmarked = activeTab?.let { tab ->
         bookmarks.any { it.url == tab.url }
     } ?: false
@@ -173,12 +179,16 @@ fun BrowserScreen(
                         onOpenShield = { viewModel.openSheet(SheetType.SHIELD_INFO) },
                         onOpenSsl = { viewModel.openSheet(SheetType.SSL_CERTIFICATE) },
                         onOpenExtensions = { viewModel.openSheet(SheetType.EXTENSIONS) },
+                        onOpenPerformanceHud = { viewModel.openSheet(SheetType.PERFORMANCE_HUD) },
+                        onOpenMediaSniffer = { viewModel.openSheet(SheetType.MEDIA_SNIFFER) },
                         onGoHome = { viewModel.navigateToHome() },
                         onSpeculativeWarm = { viewModel.speculativelyWarmUrl(it) },
                         onMenuAction = { action ->
                             when (action) {
                                 "OPEN_MENU" -> viewModel.openSheet(SheetType.MENU)
                                 "FORWARD" -> currentWebView?.goForward()
+                                "PERFORMANCE_HUD" -> viewModel.openSheet(SheetType.PERFORMANCE_HUD)
+                                "MEDIA_SNIFFER" -> viewModel.openSheet(SheetType.MEDIA_SNIFFER)
                                 "NEW_TAB" -> viewModel.createNewTab(isIncognito = false)
                                 "NEW_INCOGNITO_TAB" -> viewModel.createNewTab(isIncognito = true)
                                 "BOOKMARKS" -> viewModel.openSheet(SheetType.BOOKMARKS)
@@ -277,6 +287,12 @@ fun BrowserScreen(
                                     onTrackerBlocked = { viewModel.onTrackerBlocked(activeTab.id) },
                                     onMetricsReceived = { metrics ->
                                         viewModel.onMetricsReceived(activeTab.id, metrics)
+                                    },
+                                    onMediaDetected = { url, pageUrl, pageTitle, mime, type ->
+                                        viewModel.onMediaDetected(activeTab.id, url, pageUrl, pageTitle, mime, type)
+                                    },
+                                    onClearMedia = {
+                                        viewModel.clearSniffedMedia(activeTab.id)
                                     },
                                     onExtensionsCountChanged = { count ->
                                         viewModel.onExtensionsCountUpdated(activeTab.id, count)
@@ -407,6 +423,8 @@ fun BrowserScreen(
                     DownloadsScreen(
                         downloads = downloads,
                         onOpenDownload = { viewModel.openDownloadedFile(it) },
+                        onShareDownload = { viewModel.shareDownloadedFile(it) },
+                        onRemoveDownload = { viewModel.removeDownload(it) },
                         onClearAll = { viewModel.clearDownloads() },
                         onDismiss = { viewModel.closeSheet() }
                     )
@@ -431,11 +449,14 @@ fun BrowserScreen(
                         isDesktopMode = activeTab?.isDesktopMode == true,
                         tabCount = tabs.size,
                         isBookmarked = isCurrentBookmarked,
+                        mediaDetectedCount = currentTabMedia.size,
                         onToggleDesktop = { activeTab?.id?.let { viewModel.toggleDesktopMode(it) } },
                         onMenuAction = { action ->
                             when (action) {
                                 "FORWARD" -> currentWebView?.goForward()
                                 "RELOAD" -> currentWebView?.reload()
+                                "PERFORMANCE_HUD" -> viewModel.openSheet(SheetType.PERFORMANCE_HUD)
+                                "MEDIA_SNIFFER" -> viewModel.openSheet(SheetType.MEDIA_SNIFFER)
                                 "TOGGLE_BOOKMARK" -> viewModel.toggleBookmarkCurrentTab()
                                 "NEW_TAB" -> viewModel.createNewTab(isIncognito = false)
                                 "NEW_INCOGNITO_TAB" -> viewModel.createNewTab(isIncognito = true)
@@ -554,6 +575,23 @@ fun BrowserScreen(
                             }
                         )
                     }
+                }
+                SheetType.PERFORMANCE_HUD -> {
+                    ChromiumPerformanceHudDialog(
+                        tab = activeTab,
+                        settings = settings,
+                        onUpdateSettings = { viewModel.updateSettings(it) },
+                        onDismiss = { viewModel.closeSheet() }
+                    )
+                }
+                SheetType.MEDIA_SNIFFER -> {
+                    MediaSnifferBottomSheet(
+                        mediaItems = currentTabMedia,
+                        onDownload = { item -> viewModel.downloadSniffedMedia(item) },
+                        onCopyUrl = { url -> viewModel.copyMediaUrl(url) },
+                        onRescan = { viewModel.rescanMediaForActiveTab() },
+                        onDismiss = { viewModel.closeSheet() }
+                    )
                 }
                 else -> { /* No active sheet */ }
             }

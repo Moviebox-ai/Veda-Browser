@@ -97,4 +97,15 @@ class ChromiumPerformanceTest {
         assertTrue(prefetchScript.contains("dns-prefetch"))
         assertTrue(prefetchScript.contains("preconnect"))
     }
+
+    @Test
+    fun testBackgroundMediaEngineScriptIntegrity() {
+        val script = BackgroundMediaEngine.BACKGROUND_MEDIA_SCRIPT
+        // Verify key overrides for Blink background media playback
+        assertTrue(script.contains("visibilityState"))
+        assertTrue(script.contains("'hidden'"))
+        assertTrue(script.contains("visibilitychange"))
+        assertTrue(script.contains("__vedaBackgroundMediaInstalled"))
+        assertTrue(script.contains("onvisibilitychange"))
+    }
 }

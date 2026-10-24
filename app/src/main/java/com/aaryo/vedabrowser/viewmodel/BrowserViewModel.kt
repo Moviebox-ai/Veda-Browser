@@ -20,6 +20,7 @@ import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.aaryo.vedabrowser.R
+import com.aaryo.vedabrowser.download.MediaSnifferEngine
 import com.aaryo.vedabrowser.model.Bookmark
 import com.aaryo.vedabrowser.model.BrowserSettings
 import com.aaryo.vedabrowser.model.DownloadItem
@@ -28,6 +29,8 @@ import com.aaryo.vedabrowser.model.HistoryItem
 import com.aaryo.vedabrowser.model.QuickDialShortcut
 import com.aaryo.vedabrowser.model.SavedCredential
 import com.aaryo.vedabrowser.model.ShieldStats
+import com.aaryo.vedabrowser.model.SniffedMediaItem
+import com.aaryo.vedabrowser.model.SniffedMediaType
 import com.aaryo.vedabrowser.model.Tab
 import com.aaryo.vedabrowser.privacy.AdBlocker
 import com.aaryo.vedabrowser.privacy.FilterListUpdateWorker
@@ -62,7 +65,9 @@ enum class SheetType {
     MENU,
     AI_ASSISTANT,
     APPEARANCE,
-    PASSWORDS
+    PASSWORDS,
+    PERFORMANCE_HUD,
+    MEDIA_SNIFFER
 }
 
 data class CustomViewState(
@@ -526,6 +531,75 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         updateTab(tabId) { it.copy(performanceMetrics = metrics) }
     }
 
+    val sniffedMediaByTab: StateFlow<Map<String, List<SniffedMediaItem>>> = MediaSnifferEngine.mediaByTab
+
+    fun onMediaDetected(
+        tabId: String,
+        url: String,
+        pageUrl: String,
+        pageTitle: String,
+        mimeType: String? = null,
+        mediaType: String? = null
+    ) {
+        val parsedType = when (mediaType?.uppercase(java.util.Locale.ROOT)) {
+            "AUDIO" -> SniffedMediaType.AUDIO
+            "STREAM" -> SniffedMediaType.STREAM
+            else -> SniffedMediaType.VIDEO
+        }
+        MediaSnifferEngine.onMediaDetected(
+            tabId = tabId,
+            url = url,
+            pageUrl = pageUrl,
+            pageTitle = pageTitle,
+            mimeType = mimeType,
+            mediaTypeHint = parsedType
+        )
+        val count = MediaSnifferEngine.getMediaCount(tabId)
+        updateTab(tabId) { it.copy(sniffedMediaCount = count) }
+    }
+
+    fun clearSniffedMedia(tabId: String) {
+        MediaSnifferEngine.clearTabMedia(tabId)
+        updateTab(tabId) { it.copy(sniffedMediaCount = 0) }
+    }
+
+    fun rescanMediaForActiveTab() {
+        val active = getActiveTab() ?: return
+        val webView = tabWebViewManager.getWebView(active.id)
+        webView?.evaluateJavascript(
+            "if (typeof window.vedaScanMediaNow === 'function') window.vedaScanMediaNow();",
+            null
+        )
+        showToast("Scanning page for media...")
+    }
+
+    fun downloadSniffedMedia(item: SniffedMediaItem) {
+        val activeTab = getActiveTab()
+        val webView = activeTab?.id?.let { tabWebViewManager.getWebView(it) }
+        val userAgent = webView?.settings?.userAgentString ?: com.aaryo.vedabrowser.webview.MOBILE_USER_AGENT
+
+        realDownloadManager.enqueueDownload(
+            url = item.url,
+            rawFileName = item.filename,
+            mimeType = item.mimeType,
+            userAgent = userAgent,
+            onDownloadStarted = { downloadItem ->
+                viewModelScope.launch { repository.addOrUpdateDownload(downloadItem) }
+                showToast("Downloading: ${downloadItem.fileName}")
+            },
+            onProgressUpdate = { downloadItem ->
+                viewModelScope.launch { repository.addOrUpdateDownload(downloadItem) }
+            }
+        )
+    }
+
+    fun copyMediaUrl(url: String) {
+        val clipboard = getApplication<Application>().getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+        val clip = android.content.ClipData.newPlainText("Media URL", url)
+        clipboard?.setPrimaryClip(clip)
+        showToast("Link copied to clipboard")
+    }
+
     fun speculativelyWarmUrl(url: String) {
         com.aaryo.vedabrowser.performance.ChromiumPrewarmer.speculativeWarmUrl(url)
     }
@@ -755,6 +829,18 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     fun openDownloadedFile(item: DownloadItem) {
         realDownloadManager.openDownloadedFile(item)
+    }
+
+    fun shareDownloadedFile(item: DownloadItem) {
+        realDownloadManager.shareDownloadedFile(item)
+    }
+
+    fun removeDownload(item: DownloadItem) {
+        viewModelScope.launch {
+            item.id.toLongOrNull()?.let { realDownloadManager.cancelDownload(it) }
+            repository.removeDownload(item.id)
+            showToast("Download removed")
+        }
     }
 
     fun clearDownloads() {

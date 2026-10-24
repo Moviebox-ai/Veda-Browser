@@ -32,6 +32,7 @@ data class Tab(
     val screenshot: Bitmap? = null,
     val activeExtensionsCount: Int = 0,
     val performanceMetrics: PagePerformanceMetrics? = null,
+    val sniffedMediaCount: Int = 0,
     val lastVisitedTimestamp: Long = System.currentTimeMillis()
 ) {
     val totalBlockedCount: Int

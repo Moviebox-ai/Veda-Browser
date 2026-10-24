@@ -50,9 +50,11 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -90,6 +92,7 @@ fun VelocityMenuSheet(
     isDesktopMode: Boolean,
     tabCount: Int = 1,
     isBookmarked: Boolean = false,
+    mediaDetectedCount: Int = 0,
     onToggleDesktop: () -> Unit,
     onMenuAction: (String) -> Unit,
     onDismiss: () -> Unit
@@ -439,6 +442,26 @@ fun VelocityMenuSheet(
                             onClick = {
                                 onDismiss()
                                 onMenuAction("SHIELD")
+                            }
+                        )
+                        MenuItemRow(
+                            icon = Icons.Default.Speed,
+                            title = "Chromium Engine HUD",
+                            iconTint = VelocityCyan,
+                            badge = "Live ⚡",
+                            onClick = {
+                                onDismiss()
+                                onMenuAction("PERFORMANCE_HUD")
+                            }
+                        )
+                        MenuItemRow(
+                            icon = Icons.Default.VideoLibrary,
+                            title = "Media Detector",
+                            iconTint = if (mediaDetectedCount > 0) VelocityCyan else Color(0xFF94A3B8),
+                            badge = if (mediaDetectedCount > 0) "$mediaDetectedCount found" else null,
+                            onClick = {
+                                onDismiss()
+                                onMenuAction("MEDIA_SNIFFER")
                             }
                         )
                         MenuItemRow(

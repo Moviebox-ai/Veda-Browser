@@ -218,6 +218,13 @@ class BrowserRepository(private val context: Context) {
         }
     }
 
+    suspend fun removeDownload(id: String) = withContext(Dispatchers.IO) {
+        val updated = downloadsFlow.first().filterNot { it.id == id }
+        context.dataStore.edit { preferences ->
+            preferences[KEY_DOWNLOADS] = gson.toJson(updated)
+        }
+    }
+
     suspend fun clearDownloads() = withContext(Dispatchers.IO) {
         context.dataStore.edit { preferences ->
             preferences.remove(KEY_DOWNLOADS)

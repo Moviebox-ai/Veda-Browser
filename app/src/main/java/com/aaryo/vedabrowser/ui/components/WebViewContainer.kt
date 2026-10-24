@@ -64,6 +64,8 @@ fun WebViewContainer(
     onExtensionsCountChanged: (Int) -> Unit = {},
     onInterceptUserscript: (String) -> Unit = {},
     onMetricsReceived: (com.aaryo.vedabrowser.model.PagePerformanceMetrics) -> Unit = {},
+    onMediaDetected: (String, String, String, String?, String?) -> Unit = { _, _, _, _, _ -> },
+    onClearMedia: () -> Unit = {},
     onDownloadStart: (String, String, String, String) -> Unit,
     onOpenNewTabRequested: (String) -> Unit,
     onShowCustomView: (View, WebChromeClient.CustomViewCallback) -> Unit,
@@ -89,6 +91,8 @@ fun WebViewContainer(
     val currentOnTrackerBlocked by rememberUpdatedState(onTrackerBlocked)
     val currentOnItemBlocked by rememberUpdatedState(onItemBlocked)
     val currentOnMetricsReceived by rememberUpdatedState(onMetricsReceived)
+    val currentOnMediaDetected by rememberUpdatedState(onMediaDetected)
+    val currentOnClearMedia by rememberUpdatedState(onClearMedia)
     val currentOnDownloadStart by rememberUpdatedState(onDownloadStart)
     val currentOnOpenNewTab by rememberUpdatedState(onOpenNewTabRequested)
     val currentOnShowCustomView by rememberUpdatedState(onShowCustomView)
@@ -129,6 +133,9 @@ fun WebViewContainer(
             },
             onMetricsReceived = { metrics ->
                 currentOnMetricsReceived(metrics)
+            },
+            onMediaDetected = { url, pageUrl, pageTitle, mime, type ->
+                currentOnMediaDetected(url, pageUrl, pageTitle, mime, type)
             }
         )
     }
@@ -352,6 +359,14 @@ fun WebViewContainer(
                             }
                             return AdBlocker.createEmptyResponse(reqUrl, resType)
                         }
+
+                        if (com.aaryo.vedabrowser.download.MediaSnifferEngine.isMediaUrl(reqUrl, headers)) {
+                            val currentPageUrl = currentTab.url
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                currentOnMediaDetected(reqUrl, currentPageUrl, view?.title ?: "", null, null)
+                            }
+                        }
+
                         return super.shouldInterceptRequest(view, request)
                     }
 
@@ -366,6 +381,10 @@ fun WebViewContainer(
                             if (currentAdBlockEnabled) {
                                 AdBlocker.injectCosmeticAdBlock(view, host)
                             }
+                            view.evaluateJavascript(
+                                com.aaryo.vedabrowser.download.MediaSnifferEngine.MEDIA_SNIFFER_SCRIPT,
+                                null
+                            )
                         }
                     }
 
@@ -386,6 +405,7 @@ fun WebViewContainer(
 
                     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                         super.onPageStarted(view, url, favicon)
+                        currentOnClearMedia()
                         url?.let { currentOnPageStarted(it) }
                         favicon?.let { currentOnFaviconReceived(it) }
                         currentOnNavChanged(view?.canGoBack() == true, view?.canGoForward() == true)
@@ -408,6 +428,12 @@ fun WebViewContainer(
                             if (currentSettings.antiFingerprintingEnabled) {
                                 view.evaluateJavascript(
                                     com.aaryo.vedabrowser.privacy.AntiFingerprintingEngine.getAntiFingerprintScript(),
+                                    null
+                                )
+                            }
+                            if (currentSettings.backgroundAudioEnabled) {
+                                view.evaluateJavascript(
+                                    com.aaryo.vedabrowser.performance.BackgroundMediaEngine.BACKGROUND_MEDIA_SCRIPT,
                                     null
                                 )
                             }
@@ -504,6 +530,11 @@ fun WebViewContainer(
                                 null
                             )
                         }
+
+                        view?.evaluateJavascript(
+                            com.aaryo.vedabrowser.download.MediaSnifferEngine.MEDIA_SNIFFER_SCRIPT,
+                            null
+                        )
                     }
 
                     override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {

@@ -187,6 +187,18 @@ class TabWebViewManager {
                     if (settings.adBlockGlobalEnabled && AdBlocker.isAdOrTracker(reqUrl, siteHost, resType, headers)) {
                         return AdBlocker.createEmptyResponse(reqUrl, resType)
                     }
+
+                    if (com.aaryo.vedabrowser.download.MediaSnifferEngine.isMediaUrl(reqUrl, headers)) {
+                        val pageUrl = view?.url ?: ""
+                        val pageTitle = view?.title ?: ""
+                        com.aaryo.vedabrowser.download.MediaSnifferEngine.onMediaDetected(
+                            tabId = tabId,
+                            url = reqUrl,
+                            pageUrl = pageUrl,
+                            pageTitle = pageTitle
+                        )
+                    }
+
                     return super.shouldInterceptRequest(view, request)
                 }
 
@@ -284,6 +296,18 @@ class TabWebViewManager {
                         setOf("*")
                     )
                 }
+                if (settings.backgroundAudioEnabled) {
+                    androidx.webkit.WebViewCompat.addDocumentStartJavaScript(
+                        webView,
+                        com.aaryo.vedabrowser.performance.BackgroundMediaEngine.BACKGROUND_MEDIA_SCRIPT,
+                        setOf("*")
+                    )
+                }
+                androidx.webkit.WebViewCompat.addDocumentStartJavaScript(
+                    webView,
+                    com.aaryo.vedabrowser.download.MediaSnifferEngine.MEDIA_SNIFFER_SCRIPT,
+                    setOf("*")
+                )
             } catch (_: Throwable) {
             }
         }

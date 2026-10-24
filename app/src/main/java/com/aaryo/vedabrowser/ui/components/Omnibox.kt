@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -85,6 +86,8 @@ fun Omnibox(
     onOpenExtensions: () -> Unit = {},
     onGoHome: () -> Unit = {},
     onSpeculativeWarm: (String) -> Unit = {},
+    onOpenPerformanceHud: () -> Unit = onOpenShield,
+    onOpenMediaSniffer: () -> Unit = {},
     onMenuAction: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -340,7 +343,7 @@ fun Omnibox(
                                     if (isHttp3) Color(0xFF10B981).copy(alpha = 0.2f)
                                     else Color(0xFF38BDF8).copy(alpha = 0.18f)
                                 )
-                                .clickable { onOpenShield() }
+                                .clickable { onOpenPerformanceHud() }
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                                 .testTag("speed_indicator_badge"),
                             contentAlignment = Alignment.Center
@@ -353,10 +356,71 @@ fun Omnibox(
                             )
                         }
                     }
+
+                    // Media Sniffer In-Capsule Indicator
+                    if (tab != null && !tab.isNewTab && !isEditing && tab.sniffedMediaCount > 0) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(VelocityCyan.copy(alpha = 0.22f))
+                                .clickable { onOpenMediaSniffer() }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .testTag("media_sniffer_capsule_badge"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.VideoLibrary,
+                                    contentDescription = "Media Streams Detected",
+                                    tint = VelocityCyan,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "${tab.sniffedMediaCount}",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = VelocityCyan
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.width(6.dp))
+
+            // Sniffed Media Quick Download Action Button
+            if (tab != null && !tab.isNewTab && tab.sniffedMediaCount > 0) {
+                IconButton(
+                    onClick = onOpenMediaSniffer,
+                    modifier = Modifier.size(36.dp).testTag("media_sniffer_action_btn")
+                ) {
+                    Box(contentAlignment = Alignment.TopEnd) {
+                        Icon(
+                            imageVector = Icons.Default.VideoLibrary,
+                            contentDescription = "Media Sniffer (${tab.sniffedMediaCount} streams)",
+                            tint = VelocityCyan,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(13.dp)
+                                .clip(CircleShape)
+                                .background(VelocityCyan),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (tab.sniffedMediaCount > 9) "+" else "${tab.sniffedMediaCount}",
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFF070B19)
+                            )
+                        }
+                    }
+                }
+            }
 
             // Bookmark Quick Star
             if (tab != null && !tab.isNewTab) {

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
@@ -234,6 +235,15 @@ fun SettingsScreen(
                 title = "Open Links in New Tab",
                 checked = settings.openLinksInNewTab,
                 onCheckedChange = { onUpdateSettings(settings.copy(openLinksInNewTab = it)) }
+            )
+
+            // Background Media Playback Switch
+            SettingsSwitchRow(
+                icon = Icons.Default.GraphicEq,
+                iconBg = Color(0xFF8B5CF6),
+                title = "Background Media Playback",
+                checked = settings.backgroundAudioEnabled,
+                onCheckedChange = { onUpdateSettings(settings.copy(backgroundAudioEnabled = it)) }
             )
 
             // 8. Theme
