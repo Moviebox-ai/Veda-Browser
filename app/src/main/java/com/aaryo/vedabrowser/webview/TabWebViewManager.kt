@@ -201,8 +201,15 @@ class TabWebViewManager {
                     ) {
                         return true
                     }
-                    // Keep web navigation in-app
+                    // Keep web navigation in-app with tracking parameters cleaned
                     if (com.aaryo.vedabrowser.security.SchemePolicy.isWebScheme(url)) {
+                        if (settings.adBlockGlobalEnabled) {
+                            val clean = AdBlocker.stripTrackingParameters(url)
+                            if (clean != url) {
+                                view?.loadUrl(clean)
+                                return true
+                            }
+                        }
                         return false
                     }
                     // Non-browser external schemes

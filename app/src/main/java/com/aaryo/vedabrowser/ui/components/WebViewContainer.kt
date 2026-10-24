@@ -226,8 +226,15 @@ fun WebViewContainer(
                             return true
                         }
 
-                        // 5. Regular HTTP/HTTPS web schemes -> stay inside Velocity WebView
+                        // 5. Regular HTTP/HTTPS web schemes -> strip tracking params & stay inside WebView
                         if (SchemePolicy.isWebScheme(urlString)) {
+                            if (currentAdBlockEnabled) {
+                                val cleanUrl = AdBlocker.stripTrackingParameters(urlString)
+                                if (cleanUrl != urlString) {
+                                    view?.loadUrl(cleanUrl)
+                                    return true
+                                }
+                            }
                             return false
                         }
 

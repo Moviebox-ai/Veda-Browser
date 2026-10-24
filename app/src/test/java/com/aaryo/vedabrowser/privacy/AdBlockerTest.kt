@@ -306,4 +306,31 @@ class AdBlockerTest {
         assertTrue(script.contains("velocity-shield-ad-hide"))
         assertTrue(script.contains("style.textContent = \""))
     }
+
+    @Test
+    fun testStripTrackingParameters() {
+        val dirtyUrl = "https://example.com/product?id=123&utm_source=facebook&utm_medium=cpc&fbclid=IwAR123&gclid=Cj0K&keep=true"
+        val cleanUrl = AdBlocker.stripTrackingParameters(dirtyUrl)
+        assertTrue(cleanUrl.contains("id=123"))
+        assertTrue(cleanUrl.contains("keep=true"))
+        assertFalse(cleanUrl.contains("utm_source"))
+        assertFalse(cleanUrl.contains("utm_medium"))
+        assertFalse(cleanUrl.contains("fbclid"))
+        assertFalse(cleanUrl.contains("gclid"))
+
+        // Standard URL without tracking params remains untouched
+        val cleanOriginal = "https://example.com/article?page=2&sort=recent"
+        assertEquals(cleanOriginal, AdBlocker.stripTrackingParameters(cleanOriginal))
+    }
+
+    @Test
+    fun testChromiumDefusersInDocumentStartScript() {
+        val script = AdBlocker.getCosmeticDocumentStartScript("news-portal.com")
+        assertTrue(script.contains("window.adsbygoogle"))
+        assertTrue(script.contains("window.googletag"))
+        assertTrue(script.contains("window.pbjs"))
+        assertTrue(script.contains("navigator.sendBeacon"))
+        assertTrue(script.contains("window.open"))
+        assertTrue(script.contains("window.canRunAds = true"))
+    }
 }

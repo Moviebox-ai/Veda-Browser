@@ -980,6 +980,45 @@ object AdBlocker {
     fun getAllowlist(): Set<String> = allowlist.toSet()
 
     /**
+     * Strips intrusive tracking parameters (e.g. utm_*, fbclid, gclid, mc_eid)
+     * from URLs to protect privacy and defeat cross-site tracking through navigation.
+     */
+    fun stripTrackingParameters(url: String): String {
+        if (!globalEnabled || !url.contains("?")) return url
+        return try {
+            val queryStart = url.indexOf('?')
+            if (queryStart == -1) return url
+            val base = url.substring(0, queryStart)
+            val queryString = url.substring(queryStart + 1)
+            val fragmentStart = queryString.indexOf('#')
+            val rawQuery = if (fragmentStart != -1) queryString.substring(0, fragmentStart) else queryString
+            val fragment = if (fragmentStart != -1) queryString.substring(fragmentStart) else ""
+
+            val trackingKeys = setOf(
+                "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+                "utm_id", "utm_reader", "fbclid", "gclid", "gbraid", "wbraid",
+                "msclkid", "mc_eid", "yclid", "_openstat", "hsctstracking", "igshid"
+            )
+
+            val params = rawQuery.split('&').filter { it.isNotEmpty() }
+            val cleanParams = params.filterNot { pair ->
+                val key = pair.substringBefore('=').trim().lowercase()
+                key in trackingKeys
+            }
+
+            if (cleanParams.size == params.size) return url
+
+            if (cleanParams.isEmpty()) {
+                base + fragment
+            } else {
+                base + "?" + cleanParams.joinToString("&") + fragment
+            }
+        } catch (_: Exception) {
+            url
+        }
+    }
+
+    /**
      * Generates proper HTTP responses:
      * - SCRIPT -> empty JS
      * - IMAGE -> 1x1 transparent PNG / GIF
@@ -1154,7 +1193,114 @@ object AdBlocker {
             (function() {
                 if (window.__velocityAdBlockDisabled) return;
 
-                // 1. YouTube Player Ad Defuser
+                // 1. Google AdSense & Google Publisher Tag (GPT) Defusers
+                try {
+                    window.adsbygoogle = window.adsbygoogle || [];
+                    window.adsbygoogle.push = function(arg) { return 0; };
+                    window.adsbygoogle.loaded = true;
+
+                    window.googletag = window.googletag || {};
+                    window.googletag.cmd = window.googletag.cmd || [];
+                    window.googletag.cmd.push = function(fn) {
+                        try { if (typeof fn === 'function') fn(); } catch(e){}
+                        return 0;
+                    };
+                    window.googletag.display = function() {};
+                    window.googletag.enableServices = function() {};
+                    var dummySlot = {
+                        addService: function() { return this; },
+                        setTargeting: function() { return this; },
+                        setCollapseEmptyDiv: function() { return this; },
+                        clearTargeting: function() { return this; }
+                    };
+                    window.googletag.defineSlot = function() { return dummySlot; };
+                    window.googletag.defineOutOfPageSlot = function() { return dummySlot; };
+                    window.googletag.pubads = function() {
+                        return {
+                            addEventListener: function() {},
+                            clear: function() {},
+                            collapseEmptyDivs: function() {},
+                            disableInitialLoad: function() {},
+                            enableSingleRequest: function() {},
+                            refresh: function() {},
+                            setTargeting: function() {},
+                            setLocation: function() {}
+                        };
+                    };
+                    window.googletag.sizeMapping = function() {
+                        return {
+                            addSize: function() { return this; },
+                            build: function() { return []; }
+                        };
+                    };
+                } catch(e) {}
+
+                // 2. Prebid.js & Header Bidding Auction Stubs
+                try {
+                    window.pbjs = window.pbjs || {};
+                    window.pbjs.que = window.pbjs.que || [];
+                    window.pbjs.requestBids = function(c) {
+                        if (c && typeof c.bidsBackHandler === 'function') {
+                            try { c.bidsBackHandler(); } catch(e){}
+                        }
+                    };
+                    window.pbjs.addAdUnits = function() {};
+                    window.pbjs.setTargetingForGPTAsync = function() {};
+                } catch(e) {}
+
+                // 3. Taboola, Outbrain & Content Recommendation Stubs
+                try {
+                    window._taboola = window._taboola || [];
+                    window._taboola.push = function() { return 0; };
+                    window.OBR = window.OBR || {};
+                    window.OBR.extern = { researchWidget: function() {} };
+                } catch(e) {}
+
+                // 4. Anti-Adblock Bypass Defusers
+                try {
+                    window.canRunAds = true;
+                    window.isAdBlockActive = false;
+                    window.adblock = false;
+                    window.__adblocker = false;
+                    window.google_ad_status = 1;
+                    window.hasAdBlock = false;
+                } catch(e) {}
+
+                // 5. Chromium Navigator Telemetry & Tracker Beacon Blocker
+                try {
+                    if (navigator.sendBeacon) {
+                        var origBeacon = navigator.sendBeacon;
+                        navigator.sendBeacon = function(url, data) {
+                            var strUrl = (typeof url === 'string') ? url.toLowerCase() : '';
+                            if (strUrl.indexOf('analytics') !== -1 || strUrl.indexOf('telemetry') !== -1 ||
+                                strUrl.indexOf('hotjar') !== -1 || strUrl.indexOf('doubleclick') !== -1 ||
+                                strUrl.indexOf('/tr/') !== -1 || strUrl.indexOf('fbevents') !== -1) {
+                                return true; // Pretend it succeeded without network transit
+                            }
+                            return origBeacon.apply(this, arguments);
+                        };
+                    }
+                } catch(e) {}
+
+                // 6. Popunder & Aggressive Tab Spawner Defuser
+                try {
+                    var origOpen = window.open;
+                    window.open = function(url, target, features) {
+                        var strUrl = (typeof url === 'string') ? url.toLowerCase() : '';
+                        if (strUrl && (
+                            strUrl.indexOf('popads') !== -1 || strUrl.indexOf('popcash') !== -1 ||
+                            strUrl.indexOf('adsterra') !== -1 || strUrl.indexOf('propellerads') !== -1 ||
+                            strUrl.indexOf('exoclick') !== -1 || strUrl.indexOf('trafficstars') !== -1 ||
+                            strUrl.indexOf('clickadu') !== -1 || strUrl.indexOf('monetag') !== -1 ||
+                            strUrl.indexOf('doubleclick') !== -1
+                        )) {
+                            return null;
+                        }
+                        return origOpen.apply(this, arguments);
+                    };
+                } catch(e) {}
+
+                // 7. YouTube Player Ad Defuser
                 ${if (isYouTube) """
                 try {
                     var originalJsonParse = JSON.parse;
@@ -1203,12 +1349,12 @@ object AdBlocker {
                     }
 
                     if (window.XMLHttpRequest) {
-                        var origOpen = XMLHttpRequest.prototype.open;
+                        var origOpenXhr = XMLHttpRequest.prototype.open;
                         XMLHttpRequest.prototype.open = function(method, url) {
                             this._velocityUrl = url;
-                            return origOpen.apply(this, arguments);
+                            return origOpenXhr.apply(this, arguments);
                         };
-                        var origSend = XMLHttpRequest.prototype.send;
+                        var origSendXhr = XMLHttpRequest.prototype.send;
                         XMLHttpRequest.prototype.send = function() {
                             var self = this;
                             if (this._velocityUrl && (this._velocityUrl.indexOf('/api/stats/ads') !== -1 || this._velocityUrl.indexOf('/youtubei/v1/player/ad_break') !== -1 || this._velocityUrl.indexOf('/pagead/') !== -1)) {
@@ -1217,20 +1363,13 @@ object AdBlocker {
                                 }, 0);
                                 return;
                             }
-                            return origSend.apply(this, arguments);
+                            return origSendXhr.apply(this, arguments);
                         };
                     }
                 } catch(e) {}
                 """ else ""}
 
-                // 2. Anti-adblock Defusers
-                try {
-                    window.canRunAds = true;
-                    window.isAdBlockActive = false;
-                    window.adblock = false;
-                } catch(e) {}
-
-                // 3. Early CSS Injection (Chunked and resilient)
+                // 8. Early CSS Injection (Chunked and resilient directly on documentElement)
                 var styleId = 'velocity-shield-ad-hide';
                 function injectEarlyStyle() {
                     if (window.__velocityAdBlockDisabled) return;
@@ -1246,7 +1385,7 @@ object AdBlocker {
                 }
                 injectEarlyStyle();
 
-                // 4. Video Ad Skipper & Fast-Forward Fallback
+                // 9. Video Ad Skipper & Fast-Forward Fallback
                 function handleVideoAds() {
                     try {
                         var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .videoAdUiSkipButton, [id^="skip-button"], .ytp-ad-preview-container');
@@ -1272,7 +1411,7 @@ object AdBlocker {
 
                 collapseAds();
 
-                // 5. Dynamic MutationObserver
+                // 10. Dynamic MutationObserver for Chromium Compositor
                 if (window.MutationObserver && !window._velocityObserverAttached) {
                     window._velocityObserverAttached = true;
                     var observer = new MutationObserver(function() {
