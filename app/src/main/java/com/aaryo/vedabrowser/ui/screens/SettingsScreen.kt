@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.ui.platform.LocalContext
 import com.aaryo.vedabrowser.webview.ChromiumEngineManager
@@ -224,6 +225,15 @@ fun SettingsScreen(
                 title = "Data Saver",
                 checked = settings.blockThirdPartyCookies,
                 onCheckedChange = { onUpdateSettings(settings.copy(blockThirdPartyCookies = it)) }
+            )
+
+            // Open Links in New Tab Switch
+            SettingsSwitchRow(
+                icon = Icons.Default.Tab,
+                iconBg = Color(0xFF0284C7),
+                title = "Open Links in New Tab",
+                checked = settings.openLinksInNewTab,
+                onCheckedChange = { onUpdateSettings(settings.copy(openLinksInNewTab = it)) }
             )
 
             // 8. Theme

@@ -314,7 +314,8 @@ class TabWebViewManager {
         webView.settings.apply {
             javaScriptEnabled = settings.javaScriptEnabled
             textZoom = settings.textZoomPercent
-            javaScriptCanOpenWindowsAutomatically = false
+            javaScriptCanOpenWindowsAutomatically = true
+            setSupportMultipleWindows(true)
 
             userAgentString = if (effectiveDesktop) {
                 DESKTOP_USER_AGENT
@@ -372,6 +373,8 @@ class TabWebViewManager {
         for ((_, webView) in webViewMap) {
             webView.settings.javaScriptEnabled = settings.javaScriptEnabled
             webView.settings.textZoom = settings.textZoomPercent
+            webView.settings.javaScriptCanOpenWindowsAutomatically = true
+            webView.settings.setSupportMultipleWindows(true)
             if (settings.desktopSiteDefault) {
                 webView.settings.userAgentString = DESKTOP_USER_AGENT
                 injectDesktopViewport(webView)

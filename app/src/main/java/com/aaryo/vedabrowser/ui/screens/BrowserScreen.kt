@@ -136,7 +136,11 @@ fun BrowserScreen(
                 currentWebView?.goBack()
             }
             activeTab?.isNewTab == false -> {
-                viewModel.navigateTo("velocity://newtab")
+                if (tabs.size > 1) {
+                    viewModel.closeTab(activeTabId)
+                } else {
+                    viewModel.navigateTo("velocity://newtab")
+                }
             }
             tabs.size > 1 -> {
                 viewModel.closeTab(activeTabId)
@@ -284,7 +288,10 @@ fun BrowserScreen(
                                         viewModel.startDownload(url, disposition, mime, ua)
                                     },
                                     onOpenNewTabRequested = { targetUrl ->
-                                        viewModel.createNewTab(url = if (targetUrl.isNotEmpty()) targetUrl else "velocity://newtab")
+                                        viewModel.createNewTab(
+                                            url = if (targetUrl.isNotEmpty()) targetUrl else "velocity://newtab",
+                                            isIncognito = activeTab.isIncognito
+                                        )
                                     },
                                     onShowCustomView = { view, callback ->
                                         viewModel.setCustomView(view, callback)

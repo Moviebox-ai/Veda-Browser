@@ -215,7 +215,8 @@ fun WebViewContainer(
                     private fun handleUrlLoading(
                         view: WebView?,
                         urlString: String,
-                        refererHost: String?
+                        refererHost: String?,
+                        isForMainFrame: Boolean = true
                     ): Boolean {
                         // 1. Intercept ad or tracker redirects when Shield is enabled
                         if (currentAdBlockEnabled && AdBlocker.isAdOrTracker(urlString, refererHost)) {
@@ -236,7 +237,11 @@ fun WebViewContainer(
                         // 3. Special handling for intent:, chrome custom schemes, and search redirects
                         val extractedWebUrl = IntentValidator.extractWebUrlFromIntent(urlString)
                         if (!extractedWebUrl.isNullOrBlank()) {
-                            view?.loadUrl(extractedWebUrl)
+                            if (currentSettings.openLinksInNewTab && isForMainFrame) {
+                                currentOnOpenNewTab(extractedWebUrl)
+                            } else {
+                                view?.loadUrl(extractedWebUrl)
+                            }
                             return true
                         }
 
@@ -245,14 +250,34 @@ fun WebViewContainer(
                             return true
                         }
 
-                        // 5. Regular HTTP/HTTPS web schemes -> strip tracking params & stay inside WebView
+                        // 5. Regular HTTP/HTTPS web schemes
                         if (SchemePolicy.isWebScheme(urlString)) {
-                            if (currentAdBlockEnabled) {
-                                val cleanUrl = AdBlocker.stripTrackingParameters(urlString)
-                                if (cleanUrl != urlString) {
-                                    view?.loadUrl(cleanUrl)
+                            val cleanUrl = if (currentAdBlockEnabled) {
+                                AdBlocker.stripTrackingParameters(urlString)
+                            } else {
+                                urlString
+                            }
+
+                            // If Open Links in New Tab is enabled and this is a main-frame navigation to a new/next page:
+                            if (currentSettings.openLinksInNewTab && isForMainFrame) {
+                                val currentUri = try { Uri.parse(currentTab.url) } catch (_: Exception) { null }
+                                val targetUri = try { Uri.parse(cleanUrl) } catch (_: Exception) { null }
+                                val isSamePageAnchor = currentUri != null && targetUri != null &&
+                                    currentUri.scheme.equals(targetUri.scheme, ignoreCase = true) &&
+                                    currentUri.host.equals(targetUri.host, ignoreCase = true) &&
+                                    currentUri.path == targetUri.path &&
+                                    currentUri.query == targetUri.query &&
+                                    targetUri.fragment != null
+
+                                if (!isSamePageAnchor && cleanUrl != currentTab.url) {
+                                    currentOnOpenNewTab(cleanUrl)
                                     return true
                                 }
+                            }
+
+                            if (cleanUrl != urlString) {
+                                view?.loadUrl(cleanUrl)
+                                return true
                             }
                             return false
                         }
@@ -289,14 +314,14 @@ fun WebViewContainer(
                             }
                         } ?: try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
 
-                        return handleUrlLoading(view, urlString, refererHost)
+                        return handleUrlLoading(view, urlString, refererHost, request.isForMainFrame)
                     }
 
                     @Deprecated("Deprecated in Java")
                     override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                         if (url == null) return false
                         val currentSiteHost = try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
-                        return handleUrlLoading(view, url, currentSiteHost)
+                        return handleUrlLoading(view, url, currentSiteHost, isForMainFrame = true)
                     }
 
                     override fun shouldInterceptRequest(
@@ -598,36 +623,54 @@ fun WebViewContainer(
 
                             // Intercept window.open popups via transport WebView
                             val tempWebView = WebView(view?.context ?: return false).apply {
+                                this.settings.javaScriptEnabled = true
+                                this.settings.domStorageEnabled = true
                                 webViewClient = object : WebViewClient() {
-                                    override fun shouldOverrideUrlLoading(v: WebView?, req: WebResourceRequest?): Boolean {
-                                        val url = req?.url?.toString() ?: return false
+                                    private var isDispatched = false
+
+                                    private fun dispatchUrl(url: String?) {
+                                        if (isDispatched || url.isNullOrBlank() || url == "about:blank") return
+                                        isDispatched = true
                                         val parentHost = try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
-                                        if (currentAdBlockEnabled && (AdBlocker.isAdOrTracker(url, parentHost) || !isUserGesture)) {
+                                        if (currentAdBlockEnabled && (AdBlocker.isAdOrTracker(url, parentHost) || (!isUserGesture && AdBlocker.isAdOrTracker(url, parentHost)))) {
                                             android.os.Handler(android.os.Looper.getMainLooper()).post {
                                                 currentOnTrackerBlocked()
                                             }
-                                            v?.destroy()
-                                            return true
+                                        } else {
+                                            currentOnOpenNewTab(url)
                                         }
-                                        currentOnOpenNewTab(url)
-                                        v?.destroy()
+                                        post { destroy() }
+                                    }
+
+                                    override fun shouldOverrideUrlLoading(v: WebView?, req: WebResourceRequest?): Boolean {
+                                        val url = req?.url?.toString()
+                                        dispatchUrl(url)
                                         return true
                                     }
 
                                     @Deprecated("Deprecated in Java")
                                     override fun shouldOverrideUrlLoading(v: WebView?, url: String?): Boolean {
-                                        if (url == null) return false
-                                        val parentHost = try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
-                                        if (currentAdBlockEnabled && (AdBlocker.isAdOrTracker(url, parentHost) || !isUserGesture)) {
-                                            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                                currentOnTrackerBlocked()
-                                            }
-                                            v?.destroy()
-                                            return true
-                                        }
-                                        currentOnOpenNewTab(url)
-                                        v?.destroy()
+                                        dispatchUrl(url)
                                         return true
+                                    }
+
+                                    override fun onPageStarted(v: WebView?, url: String?, favicon: Bitmap?) {
+                                        super.onPageStarted(v, url, favicon)
+                                        dispatchUrl(url)
+                                    }
+
+                                    override fun onLoadResource(v: WebView?, url: String?) {
+                                        super.onLoadResource(v, url)
+                                        if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
+                                            if (v?.url != null && v.url != "about:blank") {
+                                                dispatchUrl(v.url)
+                                            }
+                                        }
+                                    }
+
+                                    override fun doUpdateVisitedHistory(v: WebView?, url: String?, isReload: Boolean) {
+                                        super.doUpdateVisitedHistory(v, url, isReload)
+                                        dispatchUrl(url)
                                     }
                                 }
                             }

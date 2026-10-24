@@ -27,7 +27,8 @@ data class BrowserSettings(
     val wallpaperTheme: String = "MOUNTAINS", // "MOUNTAINS", "FOREST", "CYBER", "MINIMAL"
     val toolbarStyle: String = "DEFAULT", // "DEFAULT", "COMPACT", "BOTTOM"
     val cornerRadiusDp: Int = 16,
-    val activeWorkspace: String = "Personal" // "Personal", "Work", "Study", "Entertainment"
+    val activeWorkspace: String = "Personal", // "Personal", "Work", "Study", "Entertainment"
+    val openLinksInNewTab: Boolean = true
 )
 
 data class ShieldStats(
