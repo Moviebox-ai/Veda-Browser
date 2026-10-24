@@ -170,6 +170,12 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         // Schedule weekly automatic background filter list updates
         FilterListUpdateWorker.scheduleWeeklyUpdate(application)
 
+        // Pre-warm Chromium spare WebView and speculative network pipeline on startup
+        tabWebViewManager.warmupSpareWebView(application, _settings.value)
+        speculativelyWarmUrl("https://www.google.com")
+        speculativelyWarmUrl("https://m.youtube.com")
+        speculativelyWarmUrl("https://en.m.wikipedia.org")
+
         // Observe flows from repository
         viewModelScope.launch {
             repository.bookmarksFlow.collect { _bookmarks.value = it }

@@ -248,6 +248,7 @@ fun BrowserScreen(
                                 onOpenDownloads = { viewModel.openSheet(SheetType.DOWNLOADS) },
                                 onOpenSettings = { viewModel.openSheet(SheetType.SETTINGS) },
                                 onOpenShield = { viewModel.openSheet(SheetType.SHIELD_INFO) },
+                                onSpeculativeWarm = { viewModel.speculativelyWarmUrl(it) },
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {

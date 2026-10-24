@@ -53,9 +53,25 @@ class ChromiumWebMessageBridge(
          * Client-side JavaScript snippet that continuously streams telemetry
          * and Navigation Timing (DOM interactive, TTFB, DNS, HTTP/3 QUIC nextHopProtocol)
          * to native Android through window.vedaBridge.postMessage().
+         * Also provides window.vedaBridgeNotifyBlocked for real-time zero-lag ad/tracker counters.
          */
         val TELEMETRY_SCRIPT = """
             (function() {
+                // Global real-time zero-lag bridge dispatcher for blocked ads & trackers
+                window.vedaBridgeNotifyBlocked = function(isTracker) {
+                    try {
+                        var payload = JSON.stringify({
+                            type: 'AD_BLOCKED',
+                            isTracker: !!isTracker
+                        });
+                        if (window.vedaBridge && typeof window.vedaBridge.postMessage === 'function') {
+                            window.vedaBridge.postMessage(payload);
+                        } else if (window.vedaBridgeLegacy && typeof window.vedaBridgeLegacy.postMessageLegacy === 'function') {
+                            window.vedaBridgeLegacy.postMessageLegacy(payload);
+                        }
+                    } catch(e) {}
+                };
+
                 if (window.__vedaTelemetryInstalled) return;
                 window.__vedaTelemetryInstalled = true;
 
@@ -83,13 +99,25 @@ class ChromiumWebMessageBridge(
                             domInteractive = Math.max(0, Math.round(nav.domInteractive - nav.startTime));
                             totalLoadTime = Math.max(0, Math.round((nav.loadEventEnd || nav.domContentLoadedEventEnd || nav.responseEnd) - nav.startTime));
                             
-                            var proto = nav.nextHopProtocol || '';
-                            if (proto === 'h3' || proto.indexOf('h3') === 0 || proto.indexOf('quic') !== -1) {
+                            var proto = (nav.nextHopProtocol || '').toLowerCase();
+                            if (proto === 'h3' || proto.indexOf('h3-') === 0 || proto.indexOf('quic') !== -1 || proto.indexOf('spdy') !== -1) {
                                 protocol = 'HTTP/3 (QUIC)';
                             } else if (proto === 'h2') {
                                 protocol = 'HTTP/2';
                             } else if (proto === 'http/1.1') {
                                 protocol = 'HTTP/1.1';
+                            } else {
+                                // Inspect sub-resource protocols if navigation hasn't finalized
+                                var resEntries = (typeof perf.getEntriesByType === 'function') ? perf.getEntriesByType('resource') : null;
+                                if (resEntries && resEntries.length > 0) {
+                                    for (var i = 0; i < Math.min(resEntries.length, 10); i++) {
+                                        var rProto = (resEntries[i].nextHopProtocol || '').toLowerCase();
+                                        if (rProto.indexOf('h3') !== -1 || rProto.indexOf('quic') !== -1) {
+                                            protocol = 'HTTP/3 (QUIC)';
+                                            break;
+                                        }
+                                    }
+                                }
                             }
                         } else if (timing) {
                             var navStart = timing.navigationStart || 0;
@@ -130,13 +158,19 @@ class ChromiumWebMessageBridge(
                     } catch(e) {}
                 }
 
-                if (document.readyState === 'complete') {
-                    setTimeout(sendTelemetry, 100);
+                // Send early telemetry as soon as DOM is interactive
+                if (document.readyState === 'interactive' || document.readyState === 'complete') {
+                    sendTelemetry();
                 } else {
-                    window.addEventListener('load', function() {
-                        setTimeout(sendTelemetry, 150);
+                    document.addEventListener('DOMContentLoaded', function() {
+                        setTimeout(sendTelemetry, 50);
                     });
                 }
+
+                // Send final telemetry once all images and subresources have completed
+                window.addEventListener('load', function() {
+                    setTimeout(sendTelemetry, 150);
+                });
             })();
         """.trimIndent()
     }

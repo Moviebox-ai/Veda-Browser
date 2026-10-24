@@ -101,11 +101,18 @@ fun NewTabPage(
     onOpenDownloads: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenShield: () -> Unit = {},
+    onSpeculativeWarm: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
     var searchInput by remember { mutableStateOf("") }
     var showAddDialog by remember { mutableStateOf(false) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        onSpeculativeWarm("https://www.google.com")
+        onSpeculativeWarm("https://m.youtube.com")
+        onSpeculativeWarm("https://en.m.wikipedia.org")
+    }
 
     Box(
         modifier = modifier
@@ -302,7 +309,12 @@ fun NewTabPage(
                         }
                         BasicTextField(
                             value = searchInput,
-                            onValueChange = { searchInput = it },
+                            onValueChange = {
+                                searchInput = it
+                                if (it.length > 2) {
+                                    onSpeculativeWarm(it)
+                                }
+                            },
                             singleLine = true,
                             textStyle = TextStyle(
                                 color = Color.White,

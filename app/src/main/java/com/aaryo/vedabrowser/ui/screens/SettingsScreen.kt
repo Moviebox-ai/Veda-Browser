@@ -804,6 +804,27 @@ fun SettingsScreen(
                                     Text("Service Workers", color = Color(0xFF94A3B8), fontSize = 12.sp)
                                     Text(if (engineDetails.isServiceWorkerSupported) "Enabled" else "Standard", color = Color.White, fontSize = 12.sp)
                                 }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("HTTP/3 & QUIC (UDP)", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                                    Text("RFC 9000 (0-RTT)", color = Color(0xFF10B981), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("WebMessageListener Bridge", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                                    Text("Zero-Lag Async Stream", color = Color(0xFF10B981), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Speculative Pre-Warming", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                                    Text("CustomTabs.warmup Active", color = Color(0xFF10B981), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }

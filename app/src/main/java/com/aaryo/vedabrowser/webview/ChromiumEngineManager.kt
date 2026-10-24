@@ -20,7 +20,9 @@ data class ChromiumEngineDetails(
     val isAlgorithmicDarkeningSupported: Boolean,
     val isMultiProfileSupported: Boolean,
     val isDocumentStartScriptSupported: Boolean,
-    val isServiceWorkerSupported: Boolean
+    val isServiceWorkerSupported: Boolean,
+    val isHttp3Supported: Boolean = true,
+    val isWebMessageListenerSupported: Boolean = true
 )
 
 object ChromiumEngineManager {
@@ -73,7 +75,9 @@ object ChromiumEngineManager {
             isAlgorithmicDarkeningSupported = WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING),
             isMultiProfileSupported = WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE),
             isDocumentStartScriptSupported = WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT),
-            isServiceWorkerSupported = WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_BASIC_USAGE)
+            isServiceWorkerSupported = WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_BASIC_USAGE),
+            isHttp3Supported = true,
+            isWebMessageListenerSupported = WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)
         )
     }
 

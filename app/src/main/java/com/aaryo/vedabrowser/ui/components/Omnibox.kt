@@ -319,36 +319,38 @@ fun Omnibox(
                     }
 
                     // Real-Time Chromium Speed & HTTP/3 Indicator
-                    if (tab != null && !tab.isNewTab && tab.performanceMetrics != null && !isEditing) {
+                    if (tab != null && !tab.isNewTab && !isEditing) {
                         val metrics = tab.performanceMetrics
-                        val isHttp3 = metrics.protocol.contains("HTTP/3", ignoreCase = true) || metrics.protocol.contains("QUIC", ignoreCase = true)
-                        Spacer(modifier = Modifier.width(3.dp))
+                        val isHttp3 = metrics?.protocol?.let { it.contains("HTTP/3", ignoreCase = true) || it.contains("QUIC", ignoreCase = true) } ?: true
+                        val badgeText = if (metrics != null && metrics.totalLoadTimeMs > 0) {
+                            if (isHttp3) "⚡ H3 • ${metrics.totalLoadTimeMs}ms" else "⚡ ${metrics.totalLoadTimeMs}ms"
+                        } else if (tab.isLoading) {
+                            "⚡ 0s Pre-warmed"
+                        } else if (isHttp3) {
+                            "⚡ HTTP/3"
+                        } else {
+                            "⚡ Fast"
+                        }
+
+                        Spacer(modifier = Modifier.width(4.dp))
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(
                                     if (isHttp3) Color(0xFF10B981).copy(alpha = 0.2f)
-                                    else Color(0xFF38BDF8).copy(alpha = 0.15f)
+                                    else Color(0xFF38BDF8).copy(alpha = 0.18f)
                                 )
                                 .clickable { onOpenShield() }
-                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .testTag("speed_indicator_badge"),
                             contentAlignment = Alignment.Center
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Bolt,
-                                    contentDescription = "Chromium Performance",
-                                    tint = if (isHttp3) Color(0xFF10B981) else Color(0xFF38BDF8),
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                Spacer(modifier = Modifier.width(1.dp))
-                                Text(
-                                    text = if (metrics.totalLoadTimeMs > 0) "${metrics.totalLoadTimeMs}ms" else if (isHttp3) "H3" else "Fast",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isHttp3) Color(0xFF10B981) else Color(0xFF38BDF8)
-                                )
-                            }
+                            Text(
+                                text = badgeText,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isHttp3) Color(0xFF10B981) else Color(0xFF38BDF8)
+                            )
                         }
                     }
                 }

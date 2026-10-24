@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.browser.customtabs.CustomTabsCallback
 import androidx.browser.customtabs.CustomTabsClient
+import androidx.browser.customtabs.CustomTabsService
 import androidx.browser.customtabs.CustomTabsServiceConnection
 import androidx.browser.customtabs.CustomTabsSession
 import androidx.webkit.WebViewCompat
@@ -24,6 +25,8 @@ object ChromiumPrewarmer {
     private var isWarmingUp = false
     private var isWarmedUp = false
     private var lastWarmedUrl: String? = null
+
+    private val warmedUrls = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
     val isWarm: Boolean
         get() = isWarmedUp
@@ -98,11 +101,12 @@ object ChromiumPrewarmer {
 
     /**
      * Speculatively pre-connects and pre-renders an anticipated target URL (e.g. when typing
-     * in Omnibox or when Quick Dial shortcuts are displayed).
+     * in Omnibox, hovering over Quick Dial shortcuts, or viewing search suggestions).
+     * Initiates CustomTabs mayLaunchUrl and pre-resolves DNS in parallel.
      */
     fun speculativeWarmUrl(url: String) {
         val cleanUrl = url.trim()
-        if (cleanUrl.isEmpty() || cleanUrl.startsWith("velocity://") || cleanUrl == lastWarmedUrl) {
+        if (cleanUrl.isEmpty() || cleanUrl.startsWith("velocity://") || warmedUrls.contains(cleanUrl)) {
             return
         }
 
@@ -119,11 +123,58 @@ object ChromiumPrewarmer {
         } ?: return
 
         lastWarmedUrl = cleanUrl
+        warmedUrls.add(cleanUrl)
 
+        // 1. Tell Chromium speculative pre-renderer about anticipated navigation
         try {
             customTabsSession?.mayLaunchUrl(targetUri, Bundle.EMPTY, null)
         } catch (_: Throwable) {
         }
+
+        // 2. Pre-resolve DNS records asynchronously in background thread to guarantee 0-second DNS lookup
+        val host = targetUri.host
+        if (!host.isNullOrBlank()) {
+            Thread {
+                try {
+                    java.net.InetAddress.getAllByName(host)
+                } catch (_: Throwable) {
+                }
+            }.start()
+        }
+    }
+
+    /**
+     * Batch pre-warms a list of likely destinations (e.g. top Quick Dial links).
+     */
+    fun speculativeWarmUrls(urls: List<String>) {
+        if (urls.isEmpty()) return
+        val validUris = urls.mapNotNull { raw ->
+            val clean = raw.trim()
+            if (clean.startsWith("http://") || clean.startsWith("https://")) {
+                try { Uri.parse(clean) } catch (_: Exception) { null }
+            } else null
+        }
+        if (validUris.isEmpty()) return
+
+        val primary = validUris.first()
+        val others = if (validUris.size > 1) {
+            validUris.drop(1).map { Bundle().apply { putParcelable(CustomTabsService.KEY_URL, it) } }
+        } else null
+
+        try {
+            @Suppress("DEPRECATION")
+            customTabsSession?.mayLaunchUrl(primary, Bundle.EMPTY, others)
+        } catch (_: Throwable) {
+        }
+
+        // DNS pre-resolve
+        Thread {
+            for (uri in validUris) {
+                uri.host?.let { host ->
+                    try { java.net.InetAddress.getAllByName(host) } catch (_: Throwable) {}
+                }
+            }
+        }.start()
     }
 
     /**

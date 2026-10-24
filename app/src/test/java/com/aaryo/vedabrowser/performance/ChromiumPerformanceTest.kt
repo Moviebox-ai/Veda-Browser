@@ -1,7 +1,6 @@
 package com.aaryo.vedabrowser.performance
 
 import com.aaryo.vedabrowser.model.PagePerformanceMetrics
-import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -38,15 +37,17 @@ class ChromiumPerformanceTest {
             onMetricsReceived = { metrics -> receivedMetrics = metrics }
         )
 
-        val jsonPayload = JSONObject().apply {
-            put("type", "PERFORMANCE_METRICS")
-            put("dnsTime", 18)
-            put("connectTime", 35)
-            put("ttfb", 72)
-            put("domInteractive", 110)
-            put("totalLoadTime", 195)
-            put("protocol", "HTTP/3 (QUIC)")
-        }.toString()
+        val jsonPayload = """
+            {
+                "type": "PERFORMANCE_METRICS",
+                "dnsTime": 18,
+                "connectTime": 35,
+                "ttfb": 72,
+                "domInteractive": 110,
+                "totalLoadTime": 195,
+                "protocol": "HTTP/3 (QUIC)"
+            }
+        """.trimIndent()
 
         bridge.handleIncomingMessage(jsonPayload)
 
@@ -66,10 +67,12 @@ class ChromiumPerformanceTest {
             onMetricsReceived = {}
         )
 
-        val adJson = JSONObject().apply {
-            put("type", "AD_BLOCKED")
-            put("isTracker", true)
-        }.toString()
+        val adJson = """
+            {
+                "type": "AD_BLOCKED",
+                "isTracker": true
+            }
+        """.trimIndent()
 
         bridge.handleIncomingMessage(adJson)
         // Verified without exceptions
@@ -83,5 +86,15 @@ class ChromiumPerformanceTest {
         assertTrue(script.contains("nextHopProtocol"))
         assertTrue(script.contains("HTTP/3 (QUIC)"))
         assertTrue(script.contains("window.vedaBridge.postMessage"))
+        assertTrue(script.contains("window.vedaBridgeNotifyBlocked"))
+    }
+
+    @Test
+    fun testSpeculativeWarmUrls() {
+        val urls = listOf("https://www.google.com", "https://m.youtube.com")
+        ChromiumPrewarmer.speculativeWarmUrls(urls)
+        val prefetchScript = ChromiumPrewarmer.buildDnsPrefetchScript(urls)
+        assertTrue(prefetchScript.contains("dns-prefetch"))
+        assertTrue(prefetchScript.contains("preconnect"))
     }
 }

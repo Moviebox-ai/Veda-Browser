@@ -1275,6 +1275,9 @@ object AdBlocker {
                             if (strUrl.indexOf('analytics') !== -1 || strUrl.indexOf('telemetry') !== -1 ||
                                 strUrl.indexOf('hotjar') !== -1 || strUrl.indexOf('doubleclick') !== -1 ||
                                 strUrl.indexOf('/tr/') !== -1 || strUrl.indexOf('fbevents') !== -1) {
+                                if (typeof window.vedaBridgeNotifyBlocked === 'function') {
+                                    window.vedaBridgeNotifyBlocked(true);
+                                }
                                 return true; // Pretend it succeeded without network transit
                             }
                             return origBeacon.apply(this, arguments);
@@ -1294,6 +1297,9 @@ object AdBlocker {
                             strUrl.indexOf('clickadu') !== -1 || strUrl.indexOf('monetag') !== -1 ||
                             strUrl.indexOf('doubleclick') !== -1
                         )) {
+                            if (typeof window.vedaBridgeNotifyBlocked === 'function') {
+                                window.vedaBridgeNotifyBlocked(false);
+                            }
                             return null;
                         }
                         return origOpen.apply(this, arguments);
