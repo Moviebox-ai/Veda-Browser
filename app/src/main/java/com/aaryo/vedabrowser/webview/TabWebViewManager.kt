@@ -371,7 +371,8 @@ class TabWebViewManager {
 
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(settings.cookiesEnabled)
-        cookieManager.setAcceptThirdPartyCookies(webView, !isIncognito && settings.cookiesEnabled)
+        val allowThirdParty = !settings.blockThirdPartyCookies && !isIncognito && settings.cookiesEnabled
+        cookieManager.setAcceptThirdPartyCookies(webView, allowThirdParty)
     }
 
     fun injectDesktopViewport(webView: WebView) {
@@ -393,6 +394,12 @@ class TabWebViewManager {
         AdBlocker.isStrictMode = settings.adBlockStrictMode
         AdBlocker.syncAllowlist(settings.allowlistedDomains)
 
+        val cookieManager = CookieManager.getInstance()
+        try {
+            cookieManager.setAcceptCookie(settings.cookiesEnabled)
+        } catch (_: Throwable) {
+        }
+
         if (webViewMap.isEmpty()) return
         for ((_, webView) in webViewMap) {
             webView.settings.javaScriptEnabled = settings.javaScriptEnabled
@@ -409,10 +416,11 @@ class TabWebViewManager {
                     settings.forceDarkWebContent
                 )
             }
-        }
-        try {
-            CookieManager.getInstance().setAcceptCookie(settings.cookiesEnabled)
-        } catch (_: Throwable) {
+            try {
+                val allow3p = !settings.blockThirdPartyCookies && settings.cookiesEnabled
+                cookieManager.setAcceptThirdPartyCookies(webView, allow3p)
+            } catch (_: Throwable) {
+            }
         }
     }
 

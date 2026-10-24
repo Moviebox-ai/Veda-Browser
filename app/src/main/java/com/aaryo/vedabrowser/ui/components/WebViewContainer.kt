@@ -219,14 +219,22 @@ fun WebViewContainer(
             webView.apply {
                 webViewClient = object : WebViewClient() {
 
+                    @Volatile
+                    private var activePageHost: String? = try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
+
                     private fun handleUrlLoading(
                         view: WebView?,
                         urlString: String,
                         refererHost: String?,
                         isForMainFrame: Boolean = true
                     ): Boolean {
+                        val parsedHost = try { Uri.parse(urlString).host } catch (_: Exception) { null }
+                        if (isForMainFrame && !parsedHost.isNullOrBlank()) {
+                            activePageHost = parsedHost
+                        }
+
                         // 1. Intercept ad or tracker redirects when Shield is enabled
-                        if (currentAdBlockEnabled && AdBlocker.isAdOrTracker(urlString, refererHost)) {
+                        if (currentAdBlockEnabled && AdBlocker.isAdOrTracker(urlString, refererHost ?: activePageHost)) {
                             android.os.Handler(android.os.Looper.getMainLooper()).post {
                                 currentOnTrackerBlocked()
                             }
@@ -315,11 +323,14 @@ fun WebViewContainer(
                     ): Boolean {
                         val uri = request?.url ?: return false
                         val urlString = uri.toString()
+                        if (request.isForMainFrame) {
+                            uri.host?.let { activePageHost = it }
+                        }
                         val refererHost = request.requestHeaders?.let { headers ->
                             (headers["Referer"] ?: headers["referer"])?.let { ref ->
                                 try { Uri.parse(ref).host } catch (_: Exception) { null }
                             }
-                        } ?: try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
+                        } ?: activePageHost ?: try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
 
                         return handleUrlLoading(view, urlString, refererHost, request.isForMainFrame)
                     }
@@ -327,7 +338,7 @@ fun WebViewContainer(
                     @Deprecated("Deprecated in Java")
                     override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                         if (url == null) return false
-                        val currentSiteHost = try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
+                        val currentSiteHost = try { Uri.parse(url).host } catch (_: Exception) { null } ?: activePageHost
                         return handleUrlLoading(view, url, currentSiteHost, isForMainFrame = true)
                     }
 
@@ -340,6 +351,7 @@ fun WebViewContainer(
 
                         // Authoritative site host: derived safely without calling any WebView methods on background threads
                         val siteHost = (if (request.isForMainFrame) request.url?.host else null)
+                            ?: activePageHost
                             ?: headers?.let { h ->
                                 (h["Referer"] ?: h["referer"])?.let { ref ->
                                     try { Uri.parse(ref).host } catch (_: Exception) { null }
@@ -607,7 +619,7 @@ fun WebViewContainer(
                         if (newProgress >= 100) {
                             (view?.parent as? SwipeRefreshLayout)?.isRefreshing = false
                         }
-                        if (currentAdBlockEnabled && (newProgress == 30 || newProgress == 70) && view != null) {
+                        if (currentAdBlockEnabled && (newProgress == 20 || newProgress == 50 || newProgress == 80 || newProgress >= 100) && view != null) {
                             val host = try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
                             AdBlocker.injectCosmeticAdBlock(view, host)
                         }

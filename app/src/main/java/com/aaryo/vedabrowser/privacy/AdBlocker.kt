@@ -108,20 +108,75 @@ object AdBlocker {
         "ins.adsbygoogle",
         "[id^=\"google_ads_\"]",
         "[id^=\"div-gpt-ad\"]",
+        "[id^=\"dfp-ad-\"]",
+        "[id^=\"gpt-ad-\"]",
         "[id^=\"ad-slot-\"]",
         "[id^=\"ad_unit_\"]",
+        "[id*=\"gpt_unit_\"]",
+        "[id*=\"ad_unit_\"]",
+        "[id*=\"ad-slot\"]",
+        "[id^=\"aswift_\"]",
+        "[name^=\"aswift_\"]",
+        "iframe[id^=\"aswift_\"]",
+        "iframe[name^=\"aswift_\"]",
         "[class^=\"ad-container\"]",
+        "[class*=\"ad-container\"]",
         "[class^=\"ad-wrapper\"]",
+        "[class*=\"ad-wrapper\"]",
         "[class^=\"ad-slot\"]",
+        "[class*=\"ad-slot\"]",
         "[class^=\"ad-banner\"]",
+        "[class*=\"ad-banner\"]",
         "[class^=\"ad_banner\"]",
+        "[class*=\"ad_banner\"]",
+        "[class*=\"ad_container\"]",
+        "[class*=\"ad_wrapper\"]",
+        "[class*=\"ad_slot\"]",
+        "[class*=\"ads-holder\"]",
+        "[class*=\"ad-holder\"]",
+        "[class*=\"ad-box\"]",
+        "[class*=\"ad_box\"]",
+        "[class*=\"ad-space\"]",
+        "[class*=\"ad-placeholder\"]",
+        "[class*=\"ad-content\"]",
+        "[class*=\"ad-sticky\"]",
+        "[class*=\"sticky-ad\"]",
+        "[class*=\"floating-ad\"]",
+        "[class*=\"bottom-ad\"]",
+        "[class*=\"top-ad\"]",
+        "[class*=\"header-ad\"]",
+        "[class*=\"sidebar-ad\"]",
+        "[class*=\"footer-ad\"]",
+        "[class*=\"interstitial-ad\"]",
+        "[class*=\"ad-modal\"]",
+        "[class*=\"ad-overlay\"]",
+        "[class*=\"ad-popup\"]",
+        "[class*=\"ad-unit\"]",
         "[class^=\"sponsored-post\"]",
-        "[class*=\"taboola-\"]",
-        "[class*=\"outbrain-\"]",
+        "[class*=\"sponsored-post\"]",
+        "[class*=\"sponsored-content\"]",
+        "[class*=\"mediavine-ad\"]",
+        "[class*=\"adthrive\"]",
+        "[class*=\"ezoic-ad\"]",
+        "[class*=\"freestar\"]",
+        "[id*=\"mediavine\"]",
+        "[id*=\"adthrive\"]",
+        "[id*=\"ezoic\"]",
+        "[id*=\"freestar\"]",
+        "[id*=\"taboola\"]",
+        "[class*=\"taboola\"]",
+        "[id*=\"outbrain\"]",
+        "[class*=\"outbrain\"]",
+        "[id*=\"mgid\"]",
+        "[class*=\"mgid\"]",
+        "[id*=\"revcontent\"]",
+        "[class*=\"revcontent\"]",
         "[data-ad-slot]",
         "[data-ad-client]",
         "[data-ad-unit]",
         "[data-ad]",
+        "[data-google-query-id]",
+        "[data-dfp-id]",
         ".ad-placement",
         ".advertisement",
         ".advert",
@@ -159,13 +214,28 @@ object AdBlocker {
         "#ad-wrapper",
         "iframe[src*=\"doubleclick\"]",
         "iframe[src*=\"googlesyndication\"]",
+        "iframe[src*=\"googleads\"]",
         "iframe[src*=\"adservice\"]",
         "iframe[src*=\"amazon-adsystem\"]",
         "iframe[src*=\"taboola\"]",
         "iframe[src*=\"outbrain\"]",
         "iframe[src*=\"adnxs\"]",
+        "iframe[src*=\"criteo\"]",
+        "iframe[src*=\"pubmatic\"]",
+        "iframe[src*=\"rubiconproject\"]",
+        "iframe[src*=\"openx\"]",
+        "iframe[src*=\"smartadserver\"]",
+        "iframe[src*=\"connatix\"]",
+        "iframe[src*=\"aniview\"]",
+        "iframe[src*=\"brid.tv\"]",
+        "iframe[src*=\"primis\"]",
         "iframe[src*=\"clmbtech\"]",
         "iframe[id*=\"google_ads\"]",
+        "amp-ad",
+        "amp-embed[type=\"adsense\"]",
+        "amp-embed[type=\"doubleclick\"]",
+        "amp-embed[type=\"taboola\"]",
+        "amp-embed[type=\"outbrain\"]",
         "#tads",
         "#tadsb",
         "#bottomads",
@@ -558,32 +628,61 @@ object AdBlocker {
 
     private fun populateDefaultDomains() {
         val defaults = listOf(
+            // Google / DoubleClick / AdSense / Ad Manager
             "doubleclick.net", "googleadservices.com", "googlesyndication.com",
             "adservice.google.com", "pagead2.googlesyndication.com", "googletagservices.com",
             "googletagmanager.com", "google-analytics.com", "analytics.google.com",
-            "admob.com", "ads.google.com", "amazon-adsystem.com", "adnxs.com",
-            "criteo.com", "criteo.net", "taboola.com", "outbrain.com", "rubiconproject.com",
-            "pubmatic.com", "openx.net", "casalemedia.com", "yieldmo.com", "smartadserver.com",
-            "media.net", "sovrn.com", "lijit.com", "sharethrough.com", "sonobi.com",
-            "spotxchange.com", "teads.tv", "teads.com", "tribalfusion.com", "undertone.com",
-            "adblade.com", "adbutler.com", "adform.net", "adfox.ru", "adriver.ru",
-            "adsafeprotected.com", "adserver.org", "adspirit.de", "adsrvr.org", "adsystem.com",
-            "adtarget.io", "adtech.de", "adtechus.com", "advertising.com", "advertserve.com",
-            "adroll.com", "bidswitch.net", "contextweb.com", "exponential.com", "mathtag.com",
-            "mgid.com", "revcontent.com", "indexexchange.com", "gumgum.com", "kargo.com",
-            "liveintent.com", "connatix.com", "aniview.com", "aniview.net", "adzerk.net",
-            "yieldlove.com", "yieldoptimizer.com", "zedo.com", "zemanta.com", "turn.com",
-            "truvid.com", "brid.tv", "primis.tech", "vi-serve.com", "targetspot.com",
-            "dianomi.com", "speakol.com", "simpli.fi", "snigelweb.com", "stackadapt.com",
-            "tapad.com", "trustx.org", "unrulymedia.com", "viglink.com", "applovin.com",
-            "unityads.unity3d.com", "chartboost.com", "inmobi.com", "vungle.com", "ironsrc.com",
-            "adcolony.com", "pangle.io", "mintegral.com", "fyber.com", "tapjoy.com", "mobfox.com",
+            "admob.com", "ads.google.com", "tpc.googlesyndication.com",
+            "googleads.g.doubleclick.net", "securepubads.g.doubleclick.net",
+            "pubads.g.doubleclick.net", "adclick.g.doubleclick.net", "static.doubleclick.net",
+            "ep2.adtrafficquality.google", "fundingchoicesmessages.google.com",
+            // Amazon AdSystem
+            "amazon-adsystem.com", "aax.amazon-adsystem.com", "adsystem.amazon.com",
+            // AppNexus / Xandr / Microsoft
+            "adnxs.com", "ib.adnxs.com", "secure.adnxs.com", "appnexus.com",
+            "bingads.microsoft.com", "clarity.ms",
+            // Criteo, Taboola, Outbrain
+            "criteo.com", "criteo.net", "static.criteo.net", "bidder.criteo.com",
+            "taboola.com", "cdn.taboola.com", "trc.taboola.com", "vid.taboola.com", "taboola.network",
+            "outbrain.com", "widgets.outbrain.com", "log.outbrain.com", "images.outbrain.com",
+            // SSPs, Ad Exchanges & Header Bidding
+            "rubiconproject.com", "fastlane.rubiconproject.com", "pubmatic.com", "openx.net",
+            "casalemedia.com", "yieldmo.com", "smartadserver.com", "media.net", "sovrn.com",
+            "lijit.com", "sharethrough.com", "sonobi.com", "spotxchange.com", "teads.tv", "teads.com",
+            "tribalfusion.com", "undertone.com", "adblade.com", "adbutler.com", "adform.net",
+            "adfox.ru", "adriver.ru", "adsafeprotected.com", "adserver.org", "adspirit.de",
+            "adsrvr.org", "adsystem.com", "adtarget.io", "adtech.de", "adtechus.com",
+            "advertising.com", "advertserve.com", "adroll.com", "bidswitch.net",
+            "contextweb.com", "exponential.com", "mathtag.com", "mgid.com", "revcontent.com",
+            "indexexchange.com", "gumgum.com", "kargo.com", "liveintent.com", "triplelift.com", "3lift.com",
+            // Top Publisher Ad Networks (Mediavine, Raptive/AdThrive, Ezoic, Freestar, Snigel)
+            "mediavine.com", "scripts.mediavine.com", "adthrive.com", "ads.adthrive.com", "raptive.com",
+            "ezoic.com", "ezoic.net", "freestar.com", "a.pub.network", "snigelweb.com",
+            "zergnet.com", "distroscale.com", "seedtag.com", "justpremium.com", "yieldlab.net",
+            // Outstream & Floating Video Ad Injectors
+            "connatix.com", "aniview.com", "aniview.net", "adzerk.net", "yieldlove.com",
+            "yieldoptimizer.com", "zedo.com", "zemanta.com", "turn.com", "truvid.com",
+            "brid.tv", "primis.tech", "vi-serve.com", "targetspot.com", "playwire.com",
+            "interplay.com", "anyclip.com", "minute.ly", "admanmedia.com",
+            "dianomi.com", "speakol.com", "simpli.fi", "stackadapt.com", "tapad.com",
+            "trustx.org", "unrulymedia.com", "viglink.com",
+            // Mobile & In-App Networks
+            "applovin.com", "unityads.unity3d.com", "unityads.unity.com", "chartboost.com",
+            "inmobi.com", "vungle.com", "ironsrc.com", "adcolony.com", "pangle.io",
+            "mintegral.com", "fyber.com", "tapjoy.com", "mobfox.com",
+            // Aggressive Redirects, Popups & Popunders
             "popads.net", "popcash.net", "propellerads.com", "exoclick.com", "trafficjunky.com",
             "adsterra.com", "richads.com", "trafficstars.com", "monetag.com", "hilltopads.com",
             "clickadu.com", "adcash.com", "yllix.com", "bidvertiser.com", "adkernel.com",
             "adtrue.com", "bet365affiliates.com", "revenuehits.com", "ad-maven.com", "admaven.com",
-            "connect.facebook.net", "hotjar.com", "clarity.ms", "scorecardresearch.com",
-            "quantserve.com", "ads.yahoo.com", "analytics.yahoo.com", "gemini.yahoo.com",
+            // Trackers, Analytics & Pixels
+            "connect.facebook.net", "hotjar.com", "scorecardresearch.com", "quantserve.com",
+            "ads.yahoo.com", "analytics.yahoo.com", "gemini.yahoo.com", "moatads.com",
+            "doubleverify.com", "iasds01.com", "adlightning.com", "crwdcntrl.net",
+            "bluekai.com", "demdex.net", "krxd.net", "rlcdn.com", "agkn.com", "chartbeat.com",
+            // Anti-Adblock Script Networks
+            "adrecover.com", "blockthrough.com", "admiral.com", "getadmiral.com",
+            // Regional & Indian Ad Networks
             "colombiaonline.com", "clmbtech.com", "clmbe.com", "adelement.com", "adpushup.com",
             "vserv.com", "vserv.mobi", "jioads.com", "paytmads.com", "tyroo.com", "affinity.com",
             "admagnet.com", "komli.com", "adnetworkindia.com", "adsolut.in", "zapr.in", "silverpush.co"
@@ -882,10 +981,13 @@ object AdBlocker {
         val parts = normalizedHost.split('.')
         if (parts.size <= 2) return false
         val prefix = parts.first()
-        return prefix == "ad" || prefix == "ads" || prefix == "adserver" ||
-                prefix == "adservice" || prefix == "pagead" || prefix == "banner" ||
-                prefix == "banners" || prefix == "track" || prefix == "tracker" ||
-                prefix == "tracking" || prefix == "telemetry" || prefix == "pixel"
+        return prefix == "ad" || prefix == "ads" || prefix.startsWith("ad-") || prefix.startsWith("ads-") ||
+                prefix.endsWith("-ad") || prefix.endsWith("-ads") || prefix == "adserver" ||
+                prefix == "adservice" || prefix == "googleads" || prefix == "pubads" ||
+                prefix == "securepubads" || prefix == "adclick" || prefix == "admanager" ||
+                prefix == "pagead" || prefix == "banner" || prefix == "banners" ||
+                prefix == "track" || prefix == "tracker" || prefix == "tracking" ||
+                prefix == "telemetry" || prefix == "pixel"
     }
 
     private fun matchesTightAdPath(path: String, isThirdParty: Boolean): Boolean {
@@ -905,7 +1007,7 @@ object AdBlocker {
         if (path.contains("/pagead/js/") || path.contains("/pagead/ads") || path.contains("/pagead/lvz")) {
             return true
         }
-        if (path.contains("/gampad/ads") || path.contains("/tag/js/gpt.js")) {
+        if (path.contains("/gampad/ads") || path.contains("/tag/js/gpt.js") || path.contains("/securepubads")) {
             return true
         }
 
@@ -915,7 +1017,10 @@ object AdBlocker {
                 path.contains("/popupad") || path.contains("/advertisement.js") ||
                 path.contains("/adsbygoogle") || path.contains("/pagead/") ||
                 path.contains("amazon-adsystem") || path.contains("doubleclick") ||
-                path.contains("/ad-tag") || path.contains("/ad-frame")
+                path.contains("/ad-tag") || path.contains("/ad-frame") ||
+                path.contains("/adservice/") || path.contains("/adservice.") ||
+                path.contains("/ad-delivery/") || path.contains("/wp-content/plugins/ad-inserter/") ||
+                path.contains("/ads.js") || path.endsWith("/ad.js") || path.contains("/ad.js?")
             ) {
                 return true
             }
@@ -1391,14 +1496,175 @@ object AdBlocker {
                 }
                 injectEarlyStyle();
 
-                // 9. Video Ad Skipper & Fast-Forward Fallback
+                // 9. Active DOM Element Purger
+                var AD_TARGET_SELECTORS = [
+                    'ins.adsbygoogle',
+                    '[data-ad-client]',
+                    '[data-ad-slot]',
+                    '[data-ad-unit]',
+                    '[data-google-query-id]',
+                    '[data-dfp-id]',
+                    '[id^="aswift_"]',
+                    'iframe[name^="aswift_"]',
+                    'iframe[id^="aswift_"]',
+                    'iframe[src*="googleads"]',
+                    'iframe[src*="doubleclick"]',
+                    'iframe[src*="googlesyndication"]',
+                    'iframe[src*="adservice"]',
+                    'iframe[src*="amazon-adsystem"]',
+                    'iframe[src*="taboola"]',
+                    'iframe[src*="outbrain"]',
+                    'iframe[src*="adnxs"]',
+                    'iframe[src*="criteo"]',
+                    'iframe[src*="pubmatic"]',
+                    'iframe[src*="rubiconproject"]',
+                    'iframe[src*="openx"]',
+                    'iframe[src*="smartadserver"]',
+                    'iframe[src*="connatix"]',
+                    'iframe[src*="aniview"]',
+                    'iframe[src*="brid.tv"]',
+                    'iframe[src*="primis"]',
+                    'iframe[id*="google_ads"]',
+                    'div[id^="google_ads_"]',
+                    'div[id^="div-gpt-ad"]',
+                    'div[id^="dfp-ad-"]',
+                    'div[id^="gpt-ad-"]',
+                    'div[id*="gpt_unit_"]',
+                    'div[id*="ad_unit_"]',
+                    'div[id*="ad-slot"]',
+                    'div[class*="ad-slot"]',
+                    'div[class*="ad-banner"]',
+                    'div[class*="ad-wrapper"]',
+                    'div[class*="ad-container"]',
+                    'div[class*="ad_container"]',
+                    'div[class*="ad_wrapper"]',
+                    'div[class*="ad_banner"]',
+                    'div[class*="ad_slot"]',
+                    'div[class*="ads-holder"]',
+                    'div[class*="ad-holder"]',
+                    'div[class*="ad-box"]',
+                    'div[class*="ad_box"]',
+                    'div[class*="ad-space"]',
+                    'div[class*="ad-placeholder"]',
+                    'div[class*="ad-content"]',
+                    'div[class*="ad-sticky"]',
+                    'div[class*="sticky-ad"]',
+                    'div[class*="floating-ad"]',
+                    'div[class*="bottom-ad"]',
+                    'div[class*="top-ad"]',
+                    'div[class*="header-ad"]',
+                    'div[class*="sidebar-ad"]',
+                    'div[class*="footer-ad"]',
+                    'div[class*="interstitial-ad"]',
+                    'div[class*="ad-modal"]',
+                    'div[class*="ad-overlay"]',
+                    'div[class*="ad-popup"]',
+                    'div[class*="ad-unit"]',
+                    'div[class*="advertisement"]',
+                    'div[class*="advert-"]',
+                    'div[class*="sponsored-post"]',
+                    'div[class*="sponsored-content"]',
+                    'div[class*="mediavine-ad"]',
+                    'div[class*="adthrive"]',
+                    'div[class*="ezoic-ad"]',
+                    'div[class*="freestar"]',
+                    'div[id*="mediavine"]',
+                    'div[id*="adthrive"]',
+                    'div[id*="ezoic"]',
+                    'div[id*="freestar"]',
+                    'div[id*="taboola"]',
+                    'div[class*="taboola"]',
+                    'div[id*="outbrain"]',
+                    'div[class*="outbrain"]',
+                    'div[id*="mgid"]',
+                    'div[class*="mgid"]',
+                    'div[id*="revcontent"]',
+                    'div[class*="revcontent"]',
+                    'amp-ad',
+                    'amp-embed[type="adsense"]',
+                    'amp-embed[type="doubleclick"]',
+                    'amp-embed[type="taboola"]',
+                    'amp-embed[type="outbrain"]',
+                    '.trc_related_container',
+                    '.trc_rbox_div',
+                    '.taboola-placeholder',
+                    '.outbrain-placeholder',
+                    '.ad-placement'
+                ];
+
+                function purgeAdElements() {
+                    try {
+                        var selectorStr = AD_TARGET_SELECTORS.join(',');
+                        var nodes = document.querySelectorAll(selectorStr);
+                        for (var i = 0; i < nodes.length; i++) {
+                            var el = nodes[i];
+                            el.style.setProperty('display', 'none', 'important');
+                            el.style.setProperty('visibility', 'hidden', 'important');
+                            el.style.setProperty('height', '0px', 'important');
+                            el.style.setProperty('min-height', '0px', 'important');
+                            el.style.setProperty('max-height', '0px', 'important');
+                            el.style.setProperty('padding', '0px', 'important');
+                            el.style.setProperty('margin', '0px', 'important');
+                            el.style.setProperty('opacity', '0', 'important');
+                            el.style.setProperty('pointer-events', 'none', 'important');
+                            
+                            var parent = el.parentElement;
+                            if (parent && parent.children.length === 1 && parent !== document.body && parent !== document.documentElement) {
+                                var pCls = (parent.className || '').toLowerCase();
+                                var pId = (parent.id || '').toLowerCase();
+                                if (pCls.indexOf('ad') !== -1 || pId.indexOf('ad') !== -1 || pCls.indexOf('banner') !== -1 || pCls.indexOf('sponsor') !== -1) {
+                                    parent.style.setProperty('display', 'none', 'important');
+                                    parent.style.setProperty('height', '0px', 'important');
+                                    parent.style.setProperty('min-height', '0px', 'important');
+                                }
+                            }
+                        }
+                    } catch(e) {}
+                }
+
+                // 10. Sticky & Floating Bottom/Top Ad Cleaner
+                function removeStickyAdBars() {
+                    try {
+                        var fixedNodes = document.querySelectorAll('[style*="fixed"], [style*="sticky"], .sticky, .fixed');
+                        for (var i = 0; i < fixedNodes.length; i++) {
+                            var node = fixedNodes[i];
+                            var tag = (node.className + ' ' + node.id).toLowerCase();
+                            if (tag.indexOf('ad') !== -1 || tag.indexOf('banner') !== -1 || tag.indexOf('sponsor') !== -1 || tag.indexOf('floating') !== -1) {
+                                if (node.querySelector('iframe, ins, [class*="ad"], [id*="ad"]')) {
+                                    node.style.setProperty('display', 'none', 'important');
+                                    node.style.setProperty('height', '0px', 'important');
+                                }
+                            }
+                        }
+                    } catch(e) {}
+                }
+
+                // 11. Anti-Adblock Nag Screen Defuser
+                function defuseAdblockWalls() {
+                    try {
+                        if (document.body && (document.body.style.overflow === 'hidden' || document.documentElement.style.overflow === 'hidden')) {
+                            var overlays = document.querySelectorAll('[class*="adblock"], [id*="adblock"], [class*="ad-block"], [id*="ad-block"], [class*="paywall-overlay"], [id*="sp_message_container"]');
+                            if (overlays.length > 0) {
+                                for (var i = 0; i < overlays.length; i++) {
+                                    overlays[i].style.setProperty('display', 'none', 'important');
+                                }
+                                document.body.style.setProperty('overflow', 'auto', 'important');
+                                if (document.documentElement) {
+                                    document.documentElement.style.setProperty('overflow', 'auto', 'important');
+                                }
+                            }
+                        }
+                    } catch(e) {}
+                }
+
+                // 12. Video Ad Skipper & Fast-Forward Fallback
                 function handleVideoAds() {
                     try {
-                        var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .videoAdUiSkipButton, [id^="skip-button"], .ytp-ad-preview-container');
+                        var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .videoAdUiSkipButton, [id^="skip-button"], .ytp-ad-preview-container, .skip-button');
                         if (skipBtn) skipBtn.click();
 
                         var video = document.querySelector('video');
-                        var isAdPlaying = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay') != null;
+                        var isAdPlaying = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, [class*="ad-video"], [class*="video-ad"]') != null;
                         if (video && isAdPlaying) {
                             video.muted = true;
                             video.playbackRate = 16.0;
@@ -1412,16 +1678,25 @@ object AdBlocker {
                 function collapseAds() {
                     if (window.__velocityAdBlockDisabled) return;
                     injectEarlyStyle();
+                    purgeAdElements();
+                    removeStickyAdBars();
+                    defuseAdblockWalls();
                     handleVideoAds();
                 }
 
                 collapseAds();
 
-                // 10. Dynamic MutationObserver for Chromium Compositor
+                // 13. Dynamic Throttled MutationObserver for Chromium Compositor
                 if (window.MutationObserver && !window._velocityObserverAttached) {
                     window._velocityObserverAttached = true;
+                    var isThrottled = false;
                     var observer = new MutationObserver(function() {
-                        collapseAds();
+                        if (isThrottled) return;
+                        isThrottled = true;
+                        window.requestAnimationFrame(function() {
+                            isThrottled = false;
+                            collapseAds();
+                        });
                     });
                     var root = document.documentElement || document.body || document;
                     if (root) {

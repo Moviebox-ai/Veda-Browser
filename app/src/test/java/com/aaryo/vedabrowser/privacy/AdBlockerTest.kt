@@ -91,6 +91,7 @@ class AdBlockerTest {
         assertTrue(AdBlocker.isAdOrTracker("https://securepubads.g.doubleclick.net/gampad/ads"))
         assertTrue(AdBlocker.isAdOrTracker("https://www.googletagservices.com/tag/js/gpt.js"))
         assertTrue(AdBlocker.isAdOrTracker("https://adservice.google.com/adsid/integrator.sync.js"))
+        assertTrue(AdBlocker.isAdOrTracker("https://tpc.googlesyndication.com/sodar/sodar2.js"))
 
         // Major ad networks
         assertTrue(AdBlocker.isAdOrTracker("https://aax.amazon-adsystem.com/e/dtb/bid"))
@@ -102,6 +103,15 @@ class AdBlockerTest {
         assertTrue(AdBlocker.isAdOrTracker("https://jsc.mgid.com/site/123.js"))
         assertTrue(AdBlocker.isAdOrTracker("https://cdn.adpushup.com/123/adpushup.js"))
         assertTrue(AdBlocker.isAdOrTracker("https://inmobi.com/ad/loader.js"))
+
+        // Leading web publisher & blog ad networks
+        assertTrue(AdBlocker.isAdOrTracker("https://scripts.mediavine.com/tags/test.js"))
+        assertTrue(AdBlocker.isAdOrTracker("https://ads.adthrive.com/sites/123/ads.min.js"))
+        assertTrue(AdBlocker.isAdOrTracker("https://g.ezoic.net/ezoic/ezoic.js"))
+        assertTrue(AdBlocker.isAdOrTracker("https://a.pub.network/mysite-com/cls.js"))
+        assertTrue(AdBlocker.isAdOrTracker("https://adengine.snigelweb.com/service.js"))
+        assertTrue(AdBlocker.isAdOrTracker("https://cdns.connatix.com/connatix.player.js"))
+        assertTrue(AdBlocker.isAdOrTracker("https://live.primis.tech/live/liveView.php"))
     }
 
     @Test
@@ -332,5 +342,9 @@ class AdBlockerTest {
         assertTrue(script.contains("navigator.sendBeacon"))
         assertTrue(script.contains("window.open"))
         assertTrue(script.contains("window.canRunAds = true"))
+        assertTrue(script.contains("purgeAdElements"))
+        assertTrue(script.contains("removeStickyAdBars"))
+        assertTrue(script.contains("defuseAdblockWalls"))
+        assertTrue(script.contains("aswift_"))
     }
 }
