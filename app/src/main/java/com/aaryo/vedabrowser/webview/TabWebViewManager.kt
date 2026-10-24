@@ -79,11 +79,31 @@ class TabWebViewManager {
 
     private val webViewMap = mutableMapOf<String, WebView>()
     private val tabStateBundles = mutableMapOf<String, Bundle>()
+    private var spareWebView: WebView? = null
 
     fun getWebView(tabId: String): WebView? = webViewMap[tabId]
 
     init {
         setupServiceWorkerAdBlocker()
+    }
+
+    /**
+     * Pre-warms an unattached spare WebView in memory to eliminate cold start
+     * inflation delays when opening a new tab.
+     */
+    fun warmupSpareWebView(context: Context, settings: BrowserSettings) {
+        if (spareWebView != null) return
+        try {
+            val webView = WebView(context).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            }
+            applyWebSettings(webView, settings, isDesktopMode = false, isIncognito = false)
+            spareWebView = webView
+        } catch (_: Throwable) {
+        }
     }
 
     private fun setupServiceWorkerAdBlocker() {
@@ -131,9 +151,19 @@ class TabWebViewManager {
             return existing
         }
 
-        com.aaryo.vedabrowser.VedaApplication.cleanCorruptedVariationsSeeds(context)
+        // Replenish spare WebView in background during idle
+        try {
+            android.os.Looper.myQueue().addIdleHandler {
+                warmupSpareWebView(context, settings)
+                false
+            }
+        } catch (_: Throwable) {
+        }
 
-        val webView = WebView(context).apply {
+        // Utilize pre-warmed spare WebView if available to achieve instant 0-second tab startup
+        val webView = (spareWebView?.also {
+            spareWebView = null
+        } ?: WebView(context)).apply {
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -234,7 +264,7 @@ class TabWebViewManager {
             }
         }
 
-        // Inject cosmetic ad block at document start
+        // Inject cosmetic ad block, anti-fingerprinting, and real-time telemetry at document start
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             try {
                 androidx.webkit.WebViewCompat.addDocumentStartJavaScript(
@@ -242,6 +272,18 @@ class TabWebViewManager {
                     AdBlocker.getCosmeticDocumentStartScript(),
                     setOf("*")
                 )
+                androidx.webkit.WebViewCompat.addDocumentStartJavaScript(
+                    webView,
+                    com.aaryo.vedabrowser.performance.ChromiumWebMessageBridge.TELEMETRY_SCRIPT,
+                    setOf("*")
+                )
+                if (settings.antiFingerprintingEnabled) {
+                    androidx.webkit.WebViewCompat.addDocumentStartJavaScript(
+                        webView,
+                        com.aaryo.vedabrowser.privacy.AntiFingerprintingEngine.getAntiFingerprintScript(),
+                        setOf("*")
+                    )
+                }
             } catch (_: Throwable) {
             }
         }
@@ -399,6 +441,11 @@ class TabWebViewManager {
         val idsToDestroy = onlyIncognitoTabIds ?: webViewMap.keys.toSet()
         for (id in idsToDestroy) {
             destroyWebView(id)
+        }
+
+        if (onlyIncognitoTabIds == null) {
+            spareWebView?.destroy()
+            spareWebView = null
         }
 
         if (onlyIncognitoTabIds != null && !WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {

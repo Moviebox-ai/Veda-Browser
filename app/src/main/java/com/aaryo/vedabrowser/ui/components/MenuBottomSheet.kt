@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -396,6 +397,15 @@ fun VelocityMenuSheet(
                             onClick = {
                                 onDismiss()
                                 onMenuAction("TRANSLATE")
+                            }
+                        )
+                        MenuItemRow(
+                            icon = Icons.Default.PictureInPictureAlt,
+                            title = "Picture-in-Picture",
+                            badge = "PiP",
+                            onClick = {
+                                onDismiss()
+                                onMenuAction("PIP_MODE")
                             }
                         )
                         MenuItemRow(

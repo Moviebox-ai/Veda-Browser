@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
@@ -185,6 +186,15 @@ fun SettingsScreen(
                 title = "Strict Ad & Tracking Shield",
                 checked = settings.adBlockStrictMode,
                 onCheckedChange = { onUpdateSettings(settings.copy(adBlockStrictMode = it)) }
+            )
+
+            // Anti-Fingerprint Cloaking Switch
+            SettingsSwitchRow(
+                icon = Icons.Default.Fingerprint,
+                iconBg = Color(0xFF6366F1),
+                title = "Anti-Fingerprint Shield",
+                checked = settings.antiFingerprintingEnabled,
+                onCheckedChange = { onUpdateSettings(settings.copy(antiFingerprintingEnabled = it)) }
             )
 
             // 5. Filter Lists & Live Updates
@@ -517,6 +527,18 @@ fun SettingsScreen(
                             Switch(
                                 checked = settings.safeBrowsingEnabled,
                                 onCheckedChange = { onUpdateSettings(settings.copy(safeBrowsingEnabled = it)) },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF3B82F6))
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Anti-Fingerprint Shield", color = Color.White, fontSize = 14.sp)
+                            Switch(
+                                checked = settings.antiFingerprintingEnabled,
+                                onCheckedChange = { onUpdateSettings(settings.copy(antiFingerprintingEnabled = it)) },
                                 colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF3B82F6))
                             )
                         }

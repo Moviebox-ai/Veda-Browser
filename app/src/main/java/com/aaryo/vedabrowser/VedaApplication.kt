@@ -10,6 +10,7 @@ class VedaApplication : Application() {
         super.onCreate()
         cleanCorruptedVariationsSeeds(this)
         com.aaryo.vedabrowser.webview.ChromiumEngineManager.initializeEngine(this)
+        com.aaryo.vedabrowser.performance.ChromiumPrewarmer.initialize(this)
         com.aaryo.vedabrowser.privacy.AdBlocker.initialize(this)
     }
 

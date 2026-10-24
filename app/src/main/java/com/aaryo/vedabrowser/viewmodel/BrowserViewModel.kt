@@ -116,6 +116,13 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     private val _customViewState = MutableStateFlow<CustomViewState?>(null)
     val customViewState: StateFlow<CustomViewState?> = _customViewState.asStateFlow()
 
+    private val _isInPipMode = MutableStateFlow(false)
+    val isInPipMode: StateFlow<Boolean> = _isInPipMode.asStateFlow()
+
+    fun setInPipMode(inPip: Boolean) {
+        _isInPipMode.value = inPip
+    }
+
     // Find in page state
     private val _isFindInPageVisible = MutableStateFlow(false)
     val isFindInPageVisible: StateFlow<Boolean> = _isFindInPageVisible.asStateFlow()
@@ -507,6 +514,14 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
                 repository.incrementShieldStats(adsCount = 1)
             }
         }
+    }
+
+    fun onMetricsReceived(tabId: String, metrics: com.aaryo.vedabrowser.model.PagePerformanceMetrics) {
+        updateTab(tabId) { it.copy(performanceMetrics = metrics) }
+    }
+
+    fun speculativelyWarmUrl(url: String) {
+        com.aaryo.vedabrowser.performance.ChromiumPrewarmer.speculativeWarmUrl(url)
     }
 
     fun toggleDesktopMode(tabId: String) {

@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
@@ -151,7 +152,106 @@ fun ShieldDialog(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Anti-Fingerprinting Cloaking Banner
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Fingerprint,
+                        contentDescription = null,
+                        tint = VelocityCyan,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Anti-Fingerprint Cloaking Active",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            text = "Canvas, WebGL & Audio noise cloaking",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // Real-Time Chromium Engine & HTTP/3 Speed Metrics
+            tab?.performanceMetrics?.let { metrics ->
+                Spacer(modifier = Modifier.height(10.dp))
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "⚡ Chromium Engine Performance",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = VelocityCyan
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(
+                                text = metrics.protocol,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 11.sp,
+                                color = if (metrics.protocol.contains("HTTP/3") || metrics.protocol.contains("QUIC")) {
+                                    androidx.compose.ui.graphics.Color(0xFF10B981)
+                                } else {
+                                    VelocityCyan
+                                }
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(text = "Total Load", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(text = "${metrics.totalLoadTimeMs} ms", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                            Column {
+                                Text(text = "TTFB (First Byte)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(text = "${metrics.ttfbMs} ms", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                            Column {
+                                Text(text = "DNS Lookup", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(text = "${metrics.dnsTimeMs} ms", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                            Column {
+                                Text(text = "Pre-warmed V8", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    text = if (metrics.isPrewarmed) "0-Sec Ready" else "Cold",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = androidx.compose.ui.graphics.Color(0xFF10B981)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
 
             Text(
                 text = "Lifetime Shield Metrics",

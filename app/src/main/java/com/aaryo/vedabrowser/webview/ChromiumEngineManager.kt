@@ -79,13 +79,21 @@ object ChromiumEngineManager {
 
     /**
      * Optimizes a WebView instance with full Chromium hardware acceleration,
-     * HTML5 storage, V8 execution, and modern Chromium WebSettings.
+     * HTML5 storage, V8 execution, offscreen pre-rastering, and modern Chromium WebSettings.
      */
     fun optimizeChromiumSettings(
         webView: WebView,
         enableHardwareAcceleration: Boolean = true,
         enableSafeBrowsing: Boolean = true
     ) {
+        // High-Priority Renderer: ensure Chromium render process is never killed prematurely in background
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_BOUND, true)
+            } catch (_: Throwable) {
+            }
+        }
+
         // Enable GPU Hardware Acceleration for Chromium compositor
         if (enableHardwareAcceleration) {
             webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
@@ -107,6 +115,12 @@ object ChromiumEngineManager {
             domStorageEnabled = true
             databaseEnabled = true
 
+            // Chromium Offscreen Pre-Rastering: pre-renders tiles offscreen to prevent blank checkerboard while scrolling
+            try {
+                offscreenPreRaster = true
+            } catch (_: Throwable) {
+            }
+
             // HTML5 Geolocation API support
             setGeolocationEnabled(true)
 
@@ -119,6 +133,9 @@ object ChromiumEngineManager {
             setSupportZoom(true)
             builtInZoomControls = true
             displayZoomControls = false
+
+            // Default high-performance cache mode (uses HTTP cache headers, 304 Not Modified, QUIC/HTTP/3 session resumption)
+            cacheMode = WebSettings.LOAD_DEFAULT
 
             // Security defaults: disallow raw file:// schema access
             allowFileAccess = false

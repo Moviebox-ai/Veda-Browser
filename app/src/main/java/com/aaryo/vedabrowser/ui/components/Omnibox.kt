@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Close
@@ -83,6 +84,7 @@ fun Omnibox(
     onOpenSsl: () -> Unit,
     onOpenExtensions: () -> Unit = {},
     onGoHome: () -> Unit = {},
+    onSpeculativeWarm: (String) -> Unit = {},
     onMenuAction: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -190,7 +192,12 @@ fun Omnibox(
 
                         BasicTextField(
                             value = inputText,
-                            onValueChange = { inputText = it },
+                            onValueChange = {
+                                inputText = it
+                                if (it.length > 2) {
+                                    onSpeculativeWarm(it)
+                                }
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .focusRequester(focusRequester)
@@ -306,6 +313,40 @@ fun Omnibox(
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = VelocityCyan
+                                )
+                            }
+                        }
+                    }
+
+                    // Real-Time Chromium Speed & HTTP/3 Indicator
+                    if (tab != null && !tab.isNewTab && tab.performanceMetrics != null && !isEditing) {
+                        val metrics = tab.performanceMetrics
+                        val isHttp3 = metrics.protocol.contains("HTTP/3", ignoreCase = true) || metrics.protocol.contains("QUIC", ignoreCase = true)
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (isHttp3) Color(0xFF10B981).copy(alpha = 0.2f)
+                                    else Color(0xFF38BDF8).copy(alpha = 0.15f)
+                                )
+                                .clickable { onOpenShield() }
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Bolt,
+                                    contentDescription = "Chromium Performance",
+                                    tint = if (isHttp3) Color(0xFF10B981) else Color(0xFF38BDF8),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(1.dp))
+                                Text(
+                                    text = if (metrics.totalLoadTimeMs > 0) "${metrics.totalLoadTimeMs}ms" else if (isHttp3) "H3" else "Fast",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isHttp3) Color(0xFF10B981) else Color(0xFF38BDF8)
                                 )
                             }
                         }

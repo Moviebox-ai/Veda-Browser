@@ -16,6 +16,7 @@ data class BrowserSettings(
     val blockThirdPartyCookies: Boolean = true,
     val httpsOnlyMode: Boolean = true,
     val safeBrowsingEnabled: Boolean = true,
+    val antiFingerprintingEnabled: Boolean = true,
     val desktopSiteDefault: Boolean = false,
     val clearDataOnExit: Boolean = false,
     val forceDarkWebContent: Boolean = false,

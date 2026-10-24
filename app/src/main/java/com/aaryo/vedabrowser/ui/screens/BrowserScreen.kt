@@ -7,14 +7,23 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PictureInPictureAlt
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -23,6 +32,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import com.aaryo.vedabrowser.MainActivity
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.aaryo.vedabrowser.security.CertificateInfo
 import com.aaryo.vedabrowser.ui.components.FindInPageBar
@@ -73,6 +85,7 @@ fun BrowserScreen(
     val isFindInPageVisible by viewModel.isFindInPageVisible.collectAsState()
     val findInPageQuery by viewModel.findInPageQuery.collectAsState()
     val toastMessage by viewModel.toastMessage.collectAsState()
+    val isInPipMode by viewModel.isInPipMode.collectAsState()
 
     val extensions by viewModel.extensions.collectAsState()
     val extensionsGlobalEnabled by viewModel.extensionsGlobalEnabled.collectAsState()
@@ -144,7 +157,7 @@ fun BrowserScreen(
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Top Omnibox / Address Bar (Only shown on real web pages matching Screen 7; Home Page has center search matching Screen 2)
-                if (activeTab != null && !activeTab.isNewTab) {
+                if (!isInPipMode && activeTab != null && !activeTab.isNewTab) {
                     Omnibox(
                         tab = activeTab,
                         tabCount = tabs.size,
@@ -157,6 +170,7 @@ fun BrowserScreen(
                         onOpenSsl = { viewModel.openSheet(SheetType.SSL_CERTIFICATE) },
                         onOpenExtensions = { viewModel.openSheet(SheetType.EXTENSIONS) },
                         onGoHome = { viewModel.navigateToHome() },
+                        onSpeculativeWarm = { viewModel.speculativelyWarmUrl(it) },
                         onMenuAction = { action ->
                             when (action) {
                                 "OPEN_MENU" -> viewModel.openSheet(SheetType.MENU)
@@ -169,6 +183,7 @@ fun BrowserScreen(
                                 "EXTENSIONS" -> viewModel.openSheet(SheetType.EXTENSIONS)
                                 "TOGGLE_DESKTOP" -> activeTab.id.let { viewModel.toggleDesktopMode(it) }
                                 "FIND_IN_PAGE" -> viewModel.setFindInPageVisible(true)
+                                "PIP_MODE" -> (context as? MainActivity)?.enterPipMode()
                                 "SHIELD" -> viewModel.openSheet(SheetType.SHIELD_INFO)
                                 "SETTINGS" -> viewModel.openSheet(SheetType.SETTINGS)
                                 "AI_ASSISTANT" -> viewModel.openSheet(SheetType.AI_ASSISTANT)
@@ -196,7 +211,7 @@ fun BrowserScreen(
 
                 // Optional Find In Page floating bar
                 AnimatedVisibility(
-                    visible = isFindInPageVisible,
+                    visible = !isInPipMode && isFindInPageVisible,
                     enter = fadeIn(),
                     exit = fadeOut()
                 ) {
@@ -255,6 +270,9 @@ fun BrowserScreen(
                                         viewModel.onNavigationStateChanged(activeTab.id, canBack, canFwd)
                                     },
                                     onTrackerBlocked = { viewModel.onTrackerBlocked(activeTab.id) },
+                                    onMetricsReceived = { metrics ->
+                                        viewModel.onMetricsReceived(activeTab.id, metrics)
+                                    },
                                     onExtensionsCountChanged = { count ->
                                         viewModel.onExtensionsCountUpdated(activeTab.id, count)
                                     },
@@ -300,11 +318,49 @@ fun BrowserScreen(
                         factory = { customView.view },
                         modifier = Modifier.fillMaxSize()
                     )
+
+                    if (!isInPipMode) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .statusBarsPadding()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = { viewModel.hideCustomView() },
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Close Fullscreen Video",
+                                    tint = Color.White
+                                )
+                            }
+
+                            IconButton(
+                                onClick = { (context as? MainActivity)?.enterPipMode() },
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PictureInPictureAlt,
+                                    contentDescription = "Enter Picture-in-Picture",
+                                    tint = Color.White
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
-            // Secondary Sheet Overlays
-            when (activeSheet) {
+            // Secondary Sheet Overlays & Dialogs (Hidden in Picture-in-Picture mode)
+            if (!isInPipMode) {
+                when (activeSheet) {
                 SheetType.TAB_SWITCHER -> {
                     TabSwitcherScreen(
                         tabs = tabs,
@@ -384,6 +440,7 @@ fun BrowserScreen(
                                 "SETTINGS" -> viewModel.openSheet(SheetType.SETTINGS)
                                 "TAB_SWITCHER" -> viewModel.openSheet(SheetType.TAB_SWITCHER)
                                 "FIND_IN_PAGE" -> viewModel.setFindInPageVisible(true)
+                                "PIP_MODE" -> (context as? MainActivity)?.enterPipMode()
                                 "TRANSLATE" -> viewModel.translateCurrentPage()
                                 "RATE_APP" -> viewModel.showToast("Thanks for rating Veda Browser! ★★★★★")
                                 "SHIELD" -> viewModel.openSheet(SheetType.SHIELD_INFO)
@@ -537,4 +594,5 @@ fun BrowserScreen(
             }
         }
     }
+}
 }

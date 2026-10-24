@@ -63,6 +63,7 @@ fun WebViewContainer(
     onItemBlocked: (isTracker: Boolean) -> Unit = {},
     onExtensionsCountChanged: (Int) -> Unit = {},
     onInterceptUserscript: (String) -> Unit = {},
+    onMetricsReceived: (com.aaryo.vedabrowser.model.PagePerformanceMetrics) -> Unit = {},
     onDownloadStart: (String, String, String, String) -> Unit,
     onOpenNewTabRequested: (String) -> Unit,
     onShowCustomView: (View, WebChromeClient.CustomViewCallback) -> Unit,
@@ -87,6 +88,7 @@ fun WebViewContainer(
     val currentOnNavChanged by rememberUpdatedState(onNavigationStateChanged)
     val currentOnTrackerBlocked by rememberUpdatedState(onTrackerBlocked)
     val currentOnItemBlocked by rememberUpdatedState(onItemBlocked)
+    val currentOnMetricsReceived by rememberUpdatedState(onMetricsReceived)
     val currentOnDownloadStart by rememberUpdatedState(onDownloadStart)
     val currentOnOpenNewTab by rememberUpdatedState(onOpenNewTabRequested)
     val currentOnShowCustomView by rememberUpdatedState(onShowCustomView)
@@ -117,6 +119,23 @@ fun WebViewContainer(
         isDesktopMode = tab.isDesktopMode,
         gmBridge = gmBridge
     )
+
+    // Modern Zero-Lag Web Message Listener Bridge
+    val webMessageBridge = androidx.compose.runtime.remember(tab.id) {
+        com.aaryo.vedabrowser.performance.ChromiumWebMessageBridge(
+            tabId = tab.id,
+            onTrackerBlocked = { isTracker ->
+                currentOnTrackerBlocked()
+            },
+            onMetricsReceived = { metrics ->
+                currentOnMetricsReceived(metrics)
+            }
+        )
+    }
+
+    LaunchedEffect(webView) {
+        webMessageBridge.attachToWebView(webView)
+    }
 
     // Handle Find in Page
     LaunchedEffect(findInPageQuery) {
@@ -361,6 +380,12 @@ fun WebViewContainer(
                             } else {
                                 AdBlocker.removeCosmeticAdBlock(view)
                             }
+                            if (currentSettings.antiFingerprintingEnabled) {
+                                view.evaluateJavascript(
+                                    com.aaryo.vedabrowser.privacy.AntiFingerprintingEngine.getAntiFingerprintScript(),
+                                    null
+                                )
+                            }
                         }
 
                         if (url != null && view != null && currentGmBridge != null) {
@@ -441,6 +466,12 @@ fun WebViewContainer(
                                 currentOnExtensionsCountChanged(matchingCount)
                             }
                         }
+
+                        // Trigger real-time Chromium performance and navigation timing telemetry
+                        view?.evaluateJavascript(
+                            com.aaryo.vedabrowser.performance.ChromiumWebMessageBridge.TELEMETRY_SCRIPT,
+                            null
+                        )
 
                         if (currentSettings.doNotTrackEnabled) {
                             view?.evaluateJavascript(
