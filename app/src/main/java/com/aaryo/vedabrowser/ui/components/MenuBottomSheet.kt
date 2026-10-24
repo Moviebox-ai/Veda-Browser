@@ -52,7 +52,6 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.StarBorder
-import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -305,15 +304,6 @@ fun VelocityMenuSheet(
                             onClick = {
                                 onDismiss()
                                 onMenuAction("NEW_INCOGNITO_TAB")
-                            }
-                        )
-                        MenuItemRow(
-                            icon = Icons.Default.Tab,
-                            title = "Recent Tabs",
-                            badge = if (tabCount > 1) "$tabCount tabs" else "1 tab",
-                            onClick = {
-                                onDismiss()
-                                onMenuAction("TAB_SWITCHER")
                             }
                         )
 

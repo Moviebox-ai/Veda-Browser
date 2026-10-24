@@ -21,18 +21,15 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -253,137 +250,6 @@ fun Omnibox(
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp)
                             )
-                        }
-                    }
-
-                    // Velocity Shield Badge
-                    if (tab != null && tab.adBlockEnabled) {
-                        val totalBlocked = tab.blockedAdsCount + tab.blockedTrackersCount
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    if (totalBlocked > 0) VelocityBlue.copy(alpha = 0.2f)
-                                    else Color.Transparent
-                                )
-                                .clickable { onOpenShield() }
-                                .padding(horizontal = 4.dp, vertical = 2.dp)
-                                .testTag("shield_button"),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Shield,
-                                    contentDescription = "Veda Shield",
-                                    tint = if (totalBlocked > 0) VelocityCyan else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                if (totalBlocked > 0) {
-                                    Spacer(modifier = Modifier.width(2.dp))
-                                    Text(
-                                        text = "$totalBlocked",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = VelocityCyan
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Active Extensions Badge
-                    if (tab != null && !tab.isNewTab && tab.activeExtensionsCount > 0) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(VelocityCyan.copy(alpha = 0.2f))
-                                .clickable { onOpenExtensions() }
-                                .padding(horizontal = 5.dp, vertical = 2.dp)
-                                .testTag("extensions_badge_button"),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Extension,
-                                    contentDescription = "Active Extensions",
-                                    tint = VelocityCyan,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                                Spacer(modifier = Modifier.width(2.dp))
-                                Text(
-                                    text = "${tab.activeExtensionsCount}",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = VelocityCyan
-                                )
-                            }
-                        }
-                    }
-
-                    // Real-Time Chromium Speed & HTTP/3 Indicator
-                    if (tab != null && !tab.isNewTab && !isEditing) {
-                        val metrics = tab.performanceMetrics
-                        val isHttp3 = metrics?.protocol?.let { it.contains("HTTP/3", ignoreCase = true) || it.contains("QUIC", ignoreCase = true) } ?: true
-                        val badgeText = if (metrics != null && metrics.totalLoadTimeMs > 0) {
-                            if (isHttp3) "⚡ H3 • ${metrics.totalLoadTimeMs}ms" else "⚡ ${metrics.totalLoadTimeMs}ms"
-                        } else if (tab.isLoading) {
-                            "⚡ 0s Pre-warmed"
-                        } else if (isHttp3) {
-                            "⚡ HTTP/3"
-                        } else {
-                            "⚡ Fast"
-                        }
-
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(
-                                    if (isHttp3) Color(0xFF10B981).copy(alpha = 0.2f)
-                                    else Color(0xFF38BDF8).copy(alpha = 0.18f)
-                                )
-                                .clickable { onOpenPerformanceHud() }
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                                .testTag("speed_indicator_badge"),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = badgeText,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isHttp3) Color(0xFF10B981) else Color(0xFF38BDF8)
-                            )
-                        }
-                    }
-
-                    // Media Sniffer In-Capsule Indicator
-                    if (tab != null && !tab.isNewTab && !isEditing && tab.sniffedMediaCount > 0) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(VelocityCyan.copy(alpha = 0.22f))
-                                .clickable { onOpenMediaSniffer() }
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                                .testTag("media_sniffer_capsule_badge"),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.VideoLibrary,
-                                    contentDescription = "Media Streams Detected",
-                                    tint = VelocityCyan,
-                                    modifier = Modifier.size(11.dp)
-                                )
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = "${tab.sniffedMediaCount}",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = VelocityCyan
-                                )
-                            }
                         }
                     }
                 }
