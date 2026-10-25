@@ -184,6 +184,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     // In-app download notification banner
     private val _downloadBanner = MutableStateFlow<DownloadItem?>(null)
     val downloadBanner: StateFlow<DownloadItem?> = _downloadBanner.asStateFlow()
+    private val dismissedDownloadBannerIds = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
     // Non-resumable download restart alert dialog state
     private val _nonResumableDownloadPrompt = MutableStateFlow<DownloadItem?>(null)
@@ -197,6 +198,9 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     val showStoragePermissionDialog: StateFlow<Boolean> = _showStoragePermissionDialog.asStateFlow()
 
     fun dismissDownloadBanner() {
+        _downloadBanner.value?.let { current ->
+            dismissedDownloadBannerIds.add(current.id)
+        }
         _downloadBanner.value = null
     }
 
@@ -255,6 +259,12 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         // Collect real-time download progress and completions for in-app banner
         viewModelScope.launch {
             RealDownloadManager.liveProgressFlow.collect { item ->
+                if (dismissedDownloadBannerIds.contains(item.id)) {
+                    if (item.status == DownloadStatus.PAUSED && !item.supportsResume) {
+                        _nonResumableDownloadPrompt.value = item
+                    }
+                    return@collect
+                }
                 val current = _downloadBanner.value
                 if (current == null || current.id == item.id || current.status != DownloadStatus.COMPLETED) {
                     _downloadBanner.value = item
@@ -266,6 +276,9 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         }
         viewModelScope.launch {
             RealDownloadManager.liveCompleteFlow.collect { item ->
+                if (dismissedDownloadBannerIds.contains(item.id)) {
+                    return@collect
+                }
                 _downloadBanner.value = item
                 delay(8000)
                 if (_downloadBanner.value?.id == item.id) {
@@ -686,6 +699,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
             mimeType = item.mimeType,
             userAgent = userAgent,
             onDownloadStarted = { downloadItem ->
+                dismissedDownloadBannerIds.remove(downloadItem.id)
                 viewModelScope.launch { repository.addOrUpdateDownload(downloadItem) }
                 showToast("Downloading to Internal Storage/Veda Browser: ${downloadItem.fileName}")
             },
@@ -920,6 +934,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
             mimeType = mimeType,
             userAgent = userAgent,
             onDownloadStarted = { item ->
+                dismissedDownloadBannerIds.remove(item.id)
                 viewModelScope.launch { repository.addOrUpdateDownload(item) }
                 showToast("Downloading to Internal Storage/Veda Browser: ${item.fileName}")
             },
@@ -943,6 +958,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun resumeDownload(item: DownloadItem, forceRestart: Boolean = false) {
+        dismissedDownloadBannerIds.remove(item.id)
         realDownloadManager.resumeDownload(item.id, forceRestart)
         if (forceRestart) {
             _nonResumableDownloadPrompt.value = null
@@ -954,6 +970,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     fun removeDownload(item: DownloadItem) {
         viewModelScope.launch {
+            dismissedDownloadBannerIds.remove(item.id)
             realDownloadManager.cancelDownload(item.id)
             repository.removeDownload(item.id)
             if (_downloadBanner.value?.id == item.id) {

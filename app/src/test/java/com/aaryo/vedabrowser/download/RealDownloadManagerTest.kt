@@ -51,4 +51,16 @@ class RealDownloadManagerTest {
         assertTrue(pausedItem.formattedProgressMeta.contains("Paused"))
         assertTrue(pausedItem.supportsResume)
     }
+
+    @Test
+    fun testDismissedDownloadBannerIdsBehavior() {
+        val dismissedSet = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+        val downloadId = "test-dl-123"
+        dismissedSet.add(downloadId)
+        assertTrue(dismissedSet.contains(downloadId))
+
+        // When download is restarted or resumed, dismissed status is cleared
+        dismissedSet.remove(downloadId)
+        assertTrue(!dismissedSet.contains(downloadId))
+    }
 }

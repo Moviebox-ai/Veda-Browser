@@ -51,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.aaryo.vedabrowser.security.CertificateInfo
@@ -187,7 +188,7 @@ fun BrowserScreen(
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {},
         contentWindowInsets = WindowInsets.navigationBars,
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
@@ -730,19 +731,32 @@ fun BrowserScreen(
                 )
             }
 
-            // In-app animated download notification banner
+            // Top notification overlays (In-app animated download banner & in-app notifications at top)
             if (!isInPipMode) {
-                DownloadBanner(
-                    item = downloadBanner,
-                    onOpen = { item -> viewModel.openDownloadedFile(item) },
-                    onViewAll = { viewModel.openSheet(SheetType.DOWNLOADS) },
-                    onDismiss = { viewModel.dismissDownloadBanner() },
-                    onPause = { item -> viewModel.pauseDownload(item) },
-                    onResume = { item -> viewModel.resumeDownload(item) },
+                Column(
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 12.dp)
-                )
+                        .align(Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(top = 4.dp)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    DownloadBanner(
+                        item = downloadBanner,
+                        onOpen = { item -> viewModel.openDownloadedFile(item) },
+                        onViewAll = { viewModel.openSheet(SheetType.DOWNLOADS) },
+                        onDismiss = { viewModel.dismissDownloadBanner() },
+                        onPause = { item -> viewModel.pauseDownload(item) },
+                        onResume = { item -> viewModel.resumeDownload(item) }
+                    )
+
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .testTag("top_snackbar_host")
+                    )
+                }
             }
         }
     }

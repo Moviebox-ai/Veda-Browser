@@ -65,8 +65,8 @@ fun DownloadBanner(
 ) {
     AnimatedVisibility(
         visible = item != null,
-        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+        enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+        exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
         modifier = modifier
     ) {
         if (item == null) return@AnimatedVisibility
