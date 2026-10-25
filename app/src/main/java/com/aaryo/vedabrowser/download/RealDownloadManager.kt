@@ -121,7 +121,9 @@ class RealDownloadManager(private val context: Context) {
             fileName = sanitizedName,
             url = url,
             mimeType = resolvedMime,
-            status = DownloadStatus.DOWNLOADING
+            status = DownloadStatus.DOWNLOADING,
+            localFilePath = destinationFile.absolutePath,
+            userAgent = userAgent
         )
 
         onDownloadStarted(item)
@@ -149,10 +151,25 @@ class RealDownloadManager(private val context: Context) {
         return downloadIdLong
     }
 
+    fun pauseDownload(downloadId: String) {
+        DownloadForegroundService.pauseDownload(context, downloadId)
+    }
+
+    fun resumeDownload(downloadId: String, forceRestart: Boolean = false) {
+        DownloadForegroundService.resumeDownload(context, downloadId, forceRestart)
+    }
+
     fun cancelDownload(downloadId: Long) {
-        DownloadForegroundService.cancelDownload(context, downloadId.toString())
+        cancelDownload(downloadId.toString())
         try {
             downloadManager.remove(downloadId)
+        } catch (_: Exception) {}
+    }
+
+    fun cancelDownload(downloadId: String) {
+        DownloadForegroundService.cancelDownload(context, downloadId)
+        try {
+            downloadId.toLongOrNull()?.let { downloadManager.remove(it) }
         } catch (_: Exception) {}
     }
 

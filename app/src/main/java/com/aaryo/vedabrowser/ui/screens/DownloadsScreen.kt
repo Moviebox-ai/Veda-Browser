@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
@@ -71,6 +73,8 @@ import com.aaryo.vedabrowser.model.DownloadStatus
 fun DownloadsScreen(
     downloads: List<DownloadItem>,
     onOpenDownload: (DownloadItem) -> Unit,
+    onPauseDownload: (DownloadItem) -> Unit = {},
+    onResumeDownload: (DownloadItem, Boolean) -> Unit = { _, _ -> },
     onShareDownload: (DownloadItem) -> Unit = {},
     onRemoveDownload: (DownloadItem) -> Unit = {},
     onClearAll: () -> Unit,
@@ -84,6 +88,7 @@ fun DownloadsScreen(
     var selectedFilterIndex by remember { mutableIntStateOf(0) }
     val filters = listOf("All", "Images", "Videos", "Documents")
     var showClearConfirmDialog by remember { mutableStateOf(false) }
+    var itemToRestartPrompt by remember { mutableStateOf<DownloadItem?>(null) }
 
     // Filter real items based on selected category
     val filteredList = remember(downloads, selectedFilterIndex) {
@@ -114,6 +119,37 @@ fun DownloadsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showClearConfirmDialog = false }) {
+                    Text("Cancel", color = Color(0xFF94A3B8))
+                }
+            },
+            containerColor = Color(0xFF13192B)
+        )
+    }
+
+    // Server non-resumable confirmation dialog
+    if (itemToRestartPrompt != null) {
+        val nonResumableItem = itemToRestartPrompt!!
+        AlertDialog(
+            onDismissRequest = { itemToRestartPrompt = null },
+            title = { Text("Resume Not Supported", color = Color.White) },
+            text = {
+                Text(
+                    "The server hosting \"${nonResumableItem.fileName}\" does not support resuming interrupted downloads.\n\nWould you like to restart downloading this file from the beginning?",
+                    color = Color(0xFF94A3B8)
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        itemToRestartPrompt = null
+                        onResumeDownload(nonResumableItem, true)
+                    }
+                ) {
+                    Text("Restart from Beginning", color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { itemToRestartPrompt = null }) {
                     Text("Cancel", color = Color(0xFF94A3B8))
                 }
             },
@@ -302,6 +338,14 @@ fun DownloadsScreen(
                         RealDownloadRow(
                             item = item,
                             onClick = { onOpenDownload(item) },
+                            onPause = { onPauseDownload(item) },
+                            onResume = {
+                                if (!item.supportsResume) {
+                                    itemToRestartPrompt = item
+                                } else {
+                                    onResumeDownload(item, false)
+                                }
+                            },
                             onShare = { onShareDownload(item) },
                             onRemove = { onRemoveDownload(item) }
                         )
@@ -316,18 +360,30 @@ fun DownloadsScreen(
 private fun RealDownloadRow(
     item: DownloadItem,
     onClick: () -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
     onShare: () -> Unit,
     onRemove: () -> Unit
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
     val (iconBg, iconVector) = getCategoryVisuals(item.category)
+    val isDownloading = item.status == DownloadStatus.DOWNLOADING
+    val isPaused = item.status == DownloadStatus.PAUSED
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() }
+            .clickable {
+                if (item.status == DownloadStatus.COMPLETED) {
+                    onClick()
+                } else if (isPaused) {
+                    onResume()
+                } else if (isDownloading) {
+                    onPause()
+                }
+            }
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -365,14 +421,16 @@ private fun RealDownloadRow(
                 text = item.formattedProgressMeta,
                 color = when (item.status) {
                     DownloadStatus.DOWNLOADING -> Color(0xFF38BDF8)
+                    DownloadStatus.PAUSED -> Color(0xFFF59E0B)
                     DownloadStatus.FAILED -> Color(0xFFEF4444)
                     else -> Color(0xFF94A3B8)
                 },
                 fontSize = 12.sp
             )
 
-            if (item.status == DownloadStatus.DOWNLOADING) {
+            if (isDownloading || isPaused) {
                 Spacer(modifier = Modifier.height(6.dp))
+                val barColor = if (isPaused) Color(0xFFF59E0B) else Color(0xFF3B82F6)
                 if (item.totalBytes > 0) {
                     LinearProgressIndicator(
                         progress = { item.progress },
@@ -380,7 +438,7 @@ private fun RealDownloadRow(
                             .fillMaxWidth(0.92f)
                             .height(3.dp)
                             .clip(RoundedCornerShape(2.dp)),
-                        color = Color(0xFF3B82F6),
+                        color = barColor,
                         trackColor = Color(0xFF1E283C)
                     )
                 } else {
@@ -389,18 +447,35 @@ private fun RealDownloadRow(
                             .fillMaxWidth(0.92f)
                             .height(3.dp)
                             .clip(RoundedCornerShape(2.dp)),
-                        color = Color(0xFF3B82F6),
+                        color = barColor,
                         trackColor = Color(0xFF1E283C)
                     )
                 }
             }
         }
 
-        Box {
-            if (item.status == DownloadStatus.DOWNLOADING) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (isDownloading) {
+                // Pause button
+                IconButton(
+                    onClick = onPause,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .testTag("download_row_pause_btn_${item.id}")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Pause,
+                        contentDescription = "Pause download",
+                        tint = Color(0xFF38BDF8),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                // Cancel button
                 IconButton(
                     onClick = onRemove,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier
+                        .size(36.dp)
+                        .testTag("download_row_cancel_btn_${item.id}")
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
@@ -409,10 +484,41 @@ private fun RealDownloadRow(
                         modifier = Modifier.size(20.dp)
                     )
                 }
+            } else if (isPaused) {
+                // Resume button
+                IconButton(
+                    onClick = onResume,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .testTag("download_row_resume_btn_${item.id}")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Resume download",
+                        tint = Color(0xFFF59E0B),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                // Delete button
+                IconButton(
+                    onClick = onRemove,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .testTag("download_row_delete_btn_${item.id}")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteOutline,
+                        contentDescription = "Delete download",
+                        tint = Color(0xFFEF4444),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             } else {
                 IconButton(
                     onClick = { menuExpanded = true },
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier
+                        .size(36.dp)
+                        .testTag("download_row_menu_btn_${item.id}")
                 ) {
                     Icon(
                         imageVector = Icons.Default.MoreVert,

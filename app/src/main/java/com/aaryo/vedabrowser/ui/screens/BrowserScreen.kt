@@ -22,12 +22,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PictureInPictureAlt
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.font.FontWeight
+import com.aaryo.vedabrowser.model.DownloadItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -80,6 +85,7 @@ fun BrowserScreen(
     val history by viewModel.history.collectAsState()
     val downloads by viewModel.downloads.collectAsState()
     val downloadBanner by viewModel.downloadBanner.collectAsState()
+    val nonResumablePrompt by viewModel.nonResumableDownloadPrompt.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val shieldStats by viewModel.shieldStats.collectAsState()
     val sslWarningState by viewModel.sslWarningState.collectAsState()
@@ -425,6 +431,8 @@ fun BrowserScreen(
                     DownloadsScreen(
                         downloads = downloads,
                         onOpenDownload = { viewModel.openDownloadedFile(it) },
+                        onPauseDownload = { viewModel.pauseDownload(it) },
+                        onResumeDownload = { item, forceRestart -> viewModel.resumeDownload(item, forceRestart) },
                         onShareDownload = { viewModel.shareDownloadedFile(it) },
                         onRemoveDownload = { viewModel.removeDownload(it) },
                         onClearAll = { viewModel.clearDownloads() },
@@ -641,6 +649,36 @@ fun BrowserScreen(
                 )
             }
 
+            // Non-resumable download alert dialog
+            val currentPromptItem: DownloadItem? = nonResumablePrompt
+            if (currentPromptItem != null) {
+                AlertDialog(
+                    onDismissRequest = { viewModel.dismissNonResumablePrompt() },
+                    title = { Text("Resume Not Supported", color = Color.White) },
+                    text = {
+                        Text(
+                            "The server hosting \"${currentPromptItem.fileName}\" does not support resuming interrupted downloads.\n\nWould you like to restart downloading this file from the beginning?",
+                            color = Color(0xFF94A3B8)
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                viewModel.resumeDownload(currentPromptItem, forceRestart = true)
+                            }
+                        ) {
+                            Text("Restart from Beginning", color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { viewModel.dismissNonResumablePrompt() }) {
+                            Text("Cancel", color = Color(0xFF94A3B8))
+                        }
+                    },
+                    containerColor = Color(0xFF13192B)
+                )
+            }
+
             // In-app animated download notification banner
             if (!isInPipMode) {
                 DownloadBanner(
@@ -648,6 +686,8 @@ fun BrowserScreen(
                     onOpen = { item -> viewModel.openDownloadedFile(item) },
                     onViewAll = { viewModel.openSheet(SheetType.DOWNLOADS) },
                     onDismiss = { viewModel.dismissDownloadBanner() },
+                    onPause = { item -> viewModel.pauseDownload(item) },
+                    onResume = { item -> viewModel.resumeDownload(item) },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 12.dp)

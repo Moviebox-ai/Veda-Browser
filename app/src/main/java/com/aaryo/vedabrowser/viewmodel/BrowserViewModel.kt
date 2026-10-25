@@ -177,8 +177,16 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     private val _downloadBanner = MutableStateFlow<DownloadItem?>(null)
     val downloadBanner: StateFlow<DownloadItem?> = _downloadBanner.asStateFlow()
 
+    // Non-resumable download restart alert dialog state
+    private val _nonResumableDownloadPrompt = MutableStateFlow<DownloadItem?>(null)
+    val nonResumableDownloadPrompt: StateFlow<DownloadItem?> = _nonResumableDownloadPrompt.asStateFlow()
+
     fun dismissDownloadBanner() {
         _downloadBanner.value = null
+    }
+
+    fun dismissNonResumablePrompt() {
+        _nonResumableDownloadPrompt.value = null
     }
 
     init {
@@ -188,6 +196,9 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
                 val current = _downloadBanner.value
                 if (current == null || current.id == item.id || current.status != DownloadStatus.COMPLETED) {
                     _downloadBanner.value = item
+                }
+                if (item.status == DownloadStatus.PAUSED && !item.supportsResume) {
+                    _nonResumableDownloadPrompt.value = item
                 }
             }
         }
@@ -864,10 +875,31 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         realDownloadManager.shareDownloadedFile(item)
     }
 
+    fun pauseDownload(item: DownloadItem) {
+        realDownloadManager.pauseDownload(item.id)
+        showToast("Download paused: ${item.fileName}")
+    }
+
+    fun resumeDownload(item: DownloadItem, forceRestart: Boolean = false) {
+        realDownloadManager.resumeDownload(item.id, forceRestart)
+        if (forceRestart) {
+            _nonResumableDownloadPrompt.value = null
+            showToast("Restarting download: ${item.fileName}")
+        } else {
+            showToast("Resuming download: ${item.fileName}")
+        }
+    }
+
     fun removeDownload(item: DownloadItem) {
         viewModelScope.launch {
-            item.id.toLongOrNull()?.let { realDownloadManager.cancelDownload(it) }
+            realDownloadManager.cancelDownload(item.id)
             repository.removeDownload(item.id)
+            if (_downloadBanner.value?.id == item.id) {
+                _downloadBanner.value = null
+            }
+            if (_nonResumableDownloadPrompt.value?.id == item.id) {
+                _nonResumableDownloadPrompt.value = null
+            }
             showToast("Download removed")
         }
     }

@@ -5,6 +5,7 @@ import java.util.UUID
 
 enum class DownloadStatus {
     DOWNLOADING,
+    PAUSED,
     COMPLETED,
     FAILED,
     CANCELLED
@@ -19,7 +20,9 @@ data class DownloadItem(
     val downloadedBytes: Long = 0,
     val status: DownloadStatus = DownloadStatus.DOWNLOADING,
     val timestamp: Long = System.currentTimeMillis(),
-    val localFilePath: String? = null
+    val localFilePath: String? = null,
+    val userAgent: String? = null,
+    val supportsResume: Boolean = true
 ) {
     val progress: Float
         get() = if (totalBytes > 0) (downloadedBytes.toFloat() / totalBytes).coerceIn(0f, 1f) else 0f
@@ -50,6 +53,13 @@ data class DownloadItem(
                     "${formatBytes(downloadedBytes)} • Downloading"
                 } else {
                     "Starting download…"
+                }
+            }
+            DownloadStatus.PAUSED -> {
+                if (totalBytes > 0) {
+                    "${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)} • Paused"
+                } else {
+                    "${formatBytes(downloadedBytes)} • Paused"
                 }
             }
             DownloadStatus.COMPLETED -> "${formattedSize} • Completed"

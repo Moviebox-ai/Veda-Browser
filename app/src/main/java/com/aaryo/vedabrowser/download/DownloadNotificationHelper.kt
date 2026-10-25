@@ -54,20 +54,30 @@ object DownloadNotificationHelper {
         activeCount: Int,
         latestFileName: String,
         downloadedBytes: Long,
-        totalBytes: Long
+        totalBytes: Long,
+        downloadId: String? = null,
+        isPaused: Boolean = false
     ): Notification {
         initChannels(context)
 
         val percent = if (totalBytes > 0) ((downloadedBytes * 100) / totalBytes).toInt().coerceIn(0, 100) else 0
         val isIndeterminate = totalBytes <= 0L
 
-        val title = if (activeCount > 1) {
+        val title = if (isPaused) {
+            "Paused: $latestFileName"
+        } else if (activeCount > 1) {
             "Downloading $activeCount files"
         } else {
             "Downloading $latestFileName"
         }
 
-        val contentText = if (totalBytes > 0) {
+        val contentText = if (isPaused) {
+            if (totalBytes > 0) {
+                "${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)} • Paused"
+            } else {
+                "${formatBytes(downloadedBytes)} • Paused"
+            }
+        } else if (totalBytes > 0) {
             "${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)} ($percent%)"
         } else {
             "${formatBytes(downloadedBytes)} downloaded"
@@ -84,18 +94,106 @@ object DownloadNotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        return NotificationCompat.Builder(context, CHANNEL_ACTIVE_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_download)
+        val builder = NotificationCompat.Builder(context, CHANNEL_ACTIVE_ID)
+            .setSmallIcon(if (isPaused) android.R.drawable.ic_media_pause else android.R.drawable.stat_sys_download)
             .setContentTitle(title)
             .setContentText(contentText)
             .setSubText("Veda Browser")
-            .setProgress(100, percent, isIndeterminate)
-            .setOngoing(true)
+            .setProgress(100, percent, if (isPaused) false else isIndeterminate)
+            .setOngoing(!isPaused)
             .setOnlyAlertOnce(true)
             .setContentIntent(pendingMainIntent)
-            .setColor(0xFF00E5FF.toInt())
+            .setColor(if (isPaused) 0xFFF59E0B.toInt() else 0xFF00E5FF.toInt())
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
+
+        // Notification Action Buttons
+        if (downloadId != null) {
+            if (isPaused) {
+                // Resume Action Button
+                val resumeIntent = Intent(context, DownloadForegroundService::class.java).apply {
+                    action = DownloadForegroundService.ACTION_RESUME_DOWNLOAD
+                    putExtra(DownloadForegroundService.EXTRA_DOWNLOAD_ID, downloadId)
+                }
+                val pendingResume = PendingIntent.getService(
+                    context,
+                    downloadId.hashCode() + 101,
+                    resumeIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                val resumeAction = NotificationCompat.Action.Builder(
+                    android.R.drawable.ic_media_play,
+                    "Resume",
+                    pendingResume
+                ).build()
+                builder.addAction(resumeAction)
+            } else {
+                // Pause Action Button
+                val pauseIntent = Intent(context, DownloadForegroundService::class.java).apply {
+                    action = DownloadForegroundService.ACTION_PAUSE_DOWNLOAD
+                    putExtra(DownloadForegroundService.EXTRA_DOWNLOAD_ID, downloadId)
+                }
+                val pendingPause = PendingIntent.getService(
+                    context,
+                    downloadId.hashCode() + 102,
+                    pauseIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                val pauseAction = NotificationCompat.Action.Builder(
+                    android.R.drawable.ic_media_pause,
+                    "Pause",
+                    pendingPause
+                ).build()
+                builder.addAction(pauseAction)
+            }
+
+            // Cancel Action Button
+            val cancelIntent = Intent(context, DownloadForegroundService::class.java).apply {
+                action = DownloadForegroundService.ACTION_CANCEL_DOWNLOAD
+                putExtra(DownloadForegroundService.EXTRA_DOWNLOAD_ID, downloadId)
+            }
+            val pendingCancel = PendingIntent.getService(
+                context,
+                downloadId.hashCode() + 103,
+                cancelIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val cancelAction = NotificationCompat.Action.Builder(
+                android.R.drawable.ic_menu_close_clear_cancel,
+                "Cancel",
+                pendingCancel
+            ).build()
+            builder.addAction(cancelAction)
+        }
+
+        return builder.build()
+    }
+
+    fun showPausedNotification(
+        context: Context,
+        downloadId: String,
+        fileName: String,
+        downloadedBytes: Long,
+        totalBytes: Long
+    ) {
+        initChannels(context)
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notification = buildForegroundNotification(
+            context = context,
+            activeCount = 1,
+            latestFileName = fileName,
+            downloadedBytes = downloadedBytes,
+            totalBytes = totalBytes,
+            downloadId = downloadId,
+            isPaused = true
+        )
+        val notifId = (downloadId.hashCode() and 0x7FFFFFFF)
+        notificationManager.notify(notifId, notification)
+    }
+
+    fun cancelNotification(context: Context, downloadId: String) {
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notifId = (downloadId.hashCode() and 0x7FFFFFFF)
+        notificationManager.cancel(notifId)
     }
 
     fun showCompletionNotification(

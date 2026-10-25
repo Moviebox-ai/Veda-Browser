@@ -36,4 +36,19 @@ class RealDownloadManagerTest {
         // Ensure folder is named exactly "Veda Browser" for direct internal storage root
         assertTrue(!folder.contains("Download"))
     }
+
+    @Test
+    fun testPausedStatusProgressMeta() {
+        val pausedItem = com.aaryo.vedabrowser.model.DownloadItem(
+            fileName = "tutorial.mp4",
+            url = "https://example.com/tutorial.mp4",
+            downloadedBytes = 50L * 1024 * 1024,
+            totalBytes = 100L * 1024 * 1024,
+            status = com.aaryo.vedabrowser.model.DownloadStatus.PAUSED,
+            supportsResume = true
+        )
+        assertEquals(com.aaryo.vedabrowser.model.DownloadStatus.PAUSED, pausedItem.status)
+        assertTrue(pausedItem.formattedProgressMeta.contains("Paused"))
+        assertTrue(pausedItem.supportsResume)
+    }
 }
