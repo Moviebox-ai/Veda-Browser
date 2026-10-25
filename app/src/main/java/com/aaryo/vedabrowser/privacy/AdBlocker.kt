@@ -120,38 +120,13 @@ object AdBlocker {
         "iframe[id^=\"aswift_\"]",
         "iframe[name^=\"aswift_\"]",
         "[class^=\"ad-container\"]",
-        "[class*=\"ad-container\"]",
         "[class^=\"ad-wrapper\"]",
-        "[class*=\"ad-wrapper\"]",
         "[class^=\"ad-slot\"]",
-        "[class*=\"ad-slot\"]",
         "[class^=\"ad-banner\"]",
-        "[class*=\"ad-banner\"]",
         "[class^=\"ad_banner\"]",
-        "[class*=\"ad_banner\"]",
-        "[class*=\"ad_container\"]",
-        "[class*=\"ad_wrapper\"]",
-        "[class*=\"ad_slot\"]",
-        "[class*=\"ads-holder\"]",
-        "[class*=\"ad-holder\"]",
-        "[class*=\"ad-box\"]",
-        "[class*=\"ad_box\"]",
-        "[class*=\"ad-space\"]",
-        "[class*=\"ad-placeholder\"]",
-        "[class*=\"ad-content\"]",
-        "[class*=\"ad-sticky\"]",
-        "[class*=\"sticky-ad\"]",
-        "[class*=\"floating-ad\"]",
-        "[class*=\"bottom-ad\"]",
-        "[class*=\"top-ad\"]",
-        "[class*=\"header-ad\"]",
-        "[class*=\"sidebar-ad\"]",
-        "[class*=\"footer-ad\"]",
-        "[class*=\"interstitial-ad\"]",
-        "[class*=\"ad-modal\"]",
-        "[class*=\"ad-overlay\"]",
-        "[class*=\"ad-popup\"]",
-        "[class*=\"ad-unit\"]",
+        "[class^=\"ad_container\"]",
+        "[class^=\"ad_wrapper\"]",
+        "[class^=\"ad_slot\"]",
         "[class^=\"sponsored-post\"]",
         "[class*=\"sponsored-post\"]",
         "[class*=\"sponsored-content\"]",
@@ -174,7 +149,6 @@ object AdBlocker {
         "[data-ad-slot]",
         "[data-ad-client]",
         "[data-ad-unit]",
-        "[data-ad]",
         "[data-google-query-id]",
         "[data-dfp-id]",
         ".ad-placement",
@@ -970,7 +944,8 @@ object AdBlocker {
             if (rawPath.isNotEmpty()) "/${rawPath.substringBefore('?')}" else ""
         }
 
-        if (matchesTightAdPath(path, is3p)) {
+        // 12. Tightly tuned ad path rules (apply to scripts, xhr, and subdocuments; avoid blocking legitimate image assets)
+        if (resType != ResourceType.IMAGE && matchesTightAdPath(path, is3p)) {
             return true
         }
 
@@ -982,12 +957,10 @@ object AdBlocker {
         if (parts.size <= 2) return false
         val prefix = parts.first()
         return prefix == "ad" || prefix == "ads" || prefix.startsWith("ad-") || prefix.startsWith("ads-") ||
-                prefix.endsWith("-ad") || prefix.endsWith("-ads") || prefix == "adserver" ||
-                prefix == "adservice" || prefix == "googleads" || prefix == "pubads" ||
+                prefix == "adserver" || prefix == "adservice" || prefix == "googleads" || prefix == "pubads" ||
                 prefix == "securepubads" || prefix == "adclick" || prefix == "admanager" ||
-                prefix == "pagead" || prefix == "banner" || prefix == "banners" ||
-                prefix == "track" || prefix == "tracker" || prefix == "tracking" ||
-                prefix == "telemetry" || prefix == "pixel"
+                prefix == "pagead" || prefix == "track" || prefix == "tracker" || prefix == "tracking" ||
+                prefix == "telemetry"
     }
 
     private fun matchesTightAdPath(path: String, isThirdParty: Boolean): Boolean {
@@ -999,7 +972,7 @@ object AdBlocker {
             path.endsWith("/prebid.js") || path.contains("/prebid.js?") ||
             path.endsWith("/adsbygoogle.js") || path.contains("/adsbygoogle.js?") ||
             path.endsWith("/show_ads.js") || path.contains("/show_ads.js?") ||
-            path.startsWith("/tr/") || path == "/tr" || path.contains("/tr?") || path.contains("/tr/?")
+            path == "/tr" || path == "/tr/" || path.startsWith("/tr/?") || path.startsWith("/tr?id=")
         ) {
             return true
         }
@@ -1532,42 +1505,32 @@ object AdBlocker {
                     'div[id*="gpt_unit_"]',
                     'div[id*="ad_unit_"]',
                     'div[id*="ad-slot"]',
-                    'div[class*="ad-slot"]',
-                    'div[class*="ad-banner"]',
-                    'div[class*="ad-wrapper"]',
-                    'div[class*="ad-container"]',
-                    'div[class*="ad_container"]',
-                    'div[class*="ad_wrapper"]',
-                    'div[class*="ad_banner"]',
-                    'div[class*="ad_slot"]',
-                    'div[class*="ads-holder"]',
-                    'div[class*="ad-holder"]',
-                    'div[class*="ad-box"]',
-                    'div[class*="ad_box"]',
-                    'div[class*="ad-space"]',
-                    'div[class*="ad-placeholder"]',
-                    'div[class*="ad-content"]',
-                    'div[class*="ad-sticky"]',
-                    'div[class*="sticky-ad"]',
-                    'div[class*="floating-ad"]',
-                    'div[class*="bottom-ad"]',
-                    'div[class*="top-ad"]',
-                    'div[class*="header-ad"]',
-                    'div[class*="sidebar-ad"]',
-                    'div[class*="footer-ad"]',
-                    'div[class*="interstitial-ad"]',
-                    'div[class*="ad-modal"]',
-                    'div[class*="ad-overlay"]',
-                    'div[class*="ad-popup"]',
-                    'div[class*="ad-unit"]',
-                    'div[class*="advertisement"]',
-                    'div[class*="advert-"]',
-                    'div[class*="sponsored-post"]',
-                    'div[class*="sponsored-content"]',
-                    'div[class*="mediavine-ad"]',
-                    'div[class*="adthrive"]',
-                    'div[class*="ezoic-ad"]',
-                    'div[class*="freestar"]',
+                    '.ad-slot',
+                    '.ad-banner',
+                    '.ad-wrapper',
+                    '.ad-container',
+                    '.ad_container',
+                    '.ad_wrapper',
+                    '.ad_banner',
+                    '.ad_slot',
+                    '.ads-holder',
+                    '.ad-holder',
+                    '.ad-box',
+                    '.ad_box',
+                    '.ad-space',
+                    '.sticky-ad',
+                    '.floating-ad',
+                    '.interstitial-ad',
+                    '.ad-modal',
+                    '.ad-overlay',
+                    '.ad-popup',
+                    '.advertisement',
+                    '.sponsored-post',
+                    '.sponsored-content',
+                    '.mediavine-ad',
+                    '.adthrive',
+                    '.ezoic-ad',
+                    '.freestar',
                     'div[id*="mediavine"]',
                     'div[id*="adthrive"]',
                     'div[id*="ezoic"]',
@@ -1598,6 +1561,10 @@ object AdBlocker {
                         var nodes = document.querySelectorAll(selectorStr);
                         for (var i = 0; i < nodes.length; i++) {
                             var el = nodes[i];
+                            // NEVER hide real image/media elements
+                            if (el.tagName === 'IMG' || el.tagName === 'PICTURE' || el.tagName === 'SOURCE' || el.tagName === 'VIDEO' || el.tagName === 'CANVAS') {
+                                continue;
+                            }
                             el.style.setProperty('display', 'none', 'important');
                             el.style.setProperty('visibility', 'hidden', 'important');
                             el.style.setProperty('height', '0px', 'important');
@@ -1607,34 +1574,19 @@ object AdBlocker {
                             el.style.setProperty('margin', '0px', 'important');
                             el.style.setProperty('opacity', '0', 'important');
                             el.style.setProperty('pointer-events', 'none', 'important');
-                            
-                            var parent = el.parentElement;
-                            if (parent && parent.children.length === 1 && parent !== document.body && parent !== document.documentElement) {
-                                var pCls = (parent.className || '').toLowerCase();
-                                var pId = (parent.id || '').toLowerCase();
-                                if (pCls.indexOf('ad') !== -1 || pId.indexOf('ad') !== -1 || pCls.indexOf('banner') !== -1 || pCls.indexOf('sponsor') !== -1) {
-                                    parent.style.setProperty('display', 'none', 'important');
-                                    parent.style.setProperty('height', '0px', 'important');
-                                    parent.style.setProperty('min-height', '0px', 'important');
-                                }
-                            }
                         }
                     } catch(e) {}
                 }
 
-                // 10. Sticky & Floating Bottom/Top Ad Cleaner
+                // 10. Sticky & Floating Bottom/Top Ad Cleaner (targeted specifically to ad banners)
                 function removeStickyAdBars() {
                     try {
-                        var fixedNodes = document.querySelectorAll('[style*="fixed"], [style*="sticky"], .sticky, .fixed');
-                        for (var i = 0; i < fixedNodes.length; i++) {
-                            var node = fixedNodes[i];
-                            var tag = (node.className + ' ' + node.id).toLowerCase();
-                            if (tag.indexOf('ad') !== -1 || tag.indexOf('banner') !== -1 || tag.indexOf('sponsor') !== -1 || tag.indexOf('floating') !== -1) {
-                                if (node.querySelector('iframe, ins, [class*="ad"], [id*="ad"]')) {
-                                    node.style.setProperty('display', 'none', 'important');
-                                    node.style.setProperty('height', '0px', 'important');
-                                }
-                            }
+                        var stickyAds = document.querySelectorAll('.sticky-ad, .floating-ad, .ad-sticky, [id*="sticky-ad"]');
+                        for (var i = 0; i < stickyAds.length; i++) {
+                            var node = stickyAds[i];
+                            if (node.tagName === 'IMG' || node.tagName === 'PICTURE') continue;
+                            node.style.setProperty('display', 'none', 'important');
+                            node.style.setProperty('height', '0px', 'important');
                         }
                     } catch(e) {}
                 }

@@ -138,13 +138,18 @@ object ChromiumEngineManager {
             builtInZoomControls = true
             displayZoomControls = false
 
+            // Explicit image loading configuration
+            loadsImagesAutomatically = true
+            blockNetworkImage = false
+            blockNetworkLoads = false
+
             // Default high-performance cache mode (uses HTTP cache headers, 304 Not Modified, QUIC/HTTP/3 session resumption)
             cacheMode = WebSettings.LOAD_DEFAULT
 
             // Security defaults: disallow raw file:// schema access
             allowFileAccess = false
             allowContentAccess = true
-            mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
 
             // Enable multi-window / popup handling
             setSupportMultipleWindows(true)

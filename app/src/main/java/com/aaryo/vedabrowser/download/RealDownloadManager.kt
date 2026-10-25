@@ -8,6 +8,7 @@ import android.os.Environment
 import android.webkit.CookieManager
 import android.webkit.MimeTypeMap
 import android.widget.Toast
+import androidx.core.content.FileProvider
 import com.aaryo.vedabrowser.model.DownloadItem
 import com.aaryo.vedabrowser.model.DownloadStatus
 import com.aaryo.vedabrowser.util.FilenameSanitizer
@@ -19,6 +20,10 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 class RealDownloadManager(private val context: Context) {
+
+    companion object {
+        const val VEDA_DOWNLOADS_FOLDER = "Veda Browser"
+    }
 
     private val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
     private val scope = CoroutineScope(Dispatchers.IO)
@@ -33,12 +38,23 @@ class RealDownloadManager(private val context: Context) {
     ): Long {
         val sanitizedName = FilenameSanitizer.sanitize(rawFileName)
 
+        // Ensure the dedicated "Veda Browser" folder exists directly in internal storage root
+        val internalStorageDir = Environment.getExternalStorageDirectory()
+        val vedaFolder = File(internalStorageDir, VEDA_DOWNLOADS_FOLDER)
+        if (!vedaFolder.exists()) {
+            try {
+                vedaFolder.mkdirs()
+            } catch (_: Exception) {
+            }
+        }
+        val destinationFile = File(vedaFolder, sanitizedName)
+
         val request = try {
             DownloadManager.Request(Uri.parse(url)).apply {
                 setTitle(sanitizedName)
-                setDescription("Downloading file via Velocity")
+                setDescription("Downloading file to Veda Browser")
                 setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, sanitizedName)
+                setDestinationUri(Uri.fromFile(destinationFile))
 
                 val cookie = CookieManager.getInstance().getCookie(url)
                 if (!cookie.isNullOrEmpty()) {
@@ -54,11 +70,33 @@ class RealDownloadManager(private val context: Context) {
                 }
             }
         } catch (e: Exception) {
-            Toast.makeText(context, "Cannot download: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-            return -1L
+            // Fallback to direct streaming downloader into internal storage
+            return downloadDirectly(
+                url = url,
+                destinationFile = destinationFile,
+                sanitizedName = sanitizedName,
+                mimeType = mimeType,
+                userAgent = userAgent,
+                onDownloadStarted = onDownloadStarted,
+                onProgressUpdate = onProgressUpdate
+            )
         }
 
-        val downloadId = downloadManager.enqueue(request)
+        val downloadId = try {
+            downloadManager.enqueue(request)
+        } catch (_: Exception) {
+            // If DownloadManager system service disallows custom URI on this Android API,
+            // stream directly into internal storage / Veda Browser/
+            return downloadDirectly(
+                url = url,
+                destinationFile = destinationFile,
+                sanitizedName = sanitizedName,
+                mimeType = mimeType,
+                userAgent = userAgent,
+                onDownloadStarted = onDownloadStarted,
+                onProgressUpdate = onProgressUpdate
+            )
+        }
 
         val item = DownloadItem(
             id = downloadId.toString(),
@@ -70,6 +108,95 @@ class RealDownloadManager(private val context: Context) {
 
         onDownloadStarted(item)
         trackProgress(downloadId, item, onProgressUpdate)
+        return downloadId
+    }
+
+    private fun downloadDirectly(
+        url: String,
+        destinationFile: File,
+        sanitizedName: String,
+        mimeType: String?,
+        userAgent: String?,
+        onDownloadStarted: (DownloadItem) -> Unit,
+        onProgressUpdate: (DownloadItem) -> Unit
+    ): Long {
+        val downloadId = System.currentTimeMillis()
+        val item = DownloadItem(
+            id = downloadId.toString(),
+            fileName = sanitizedName,
+            url = url,
+            mimeType = mimeType ?: guessMimeType(sanitizedName),
+            status = DownloadStatus.DOWNLOADING
+        )
+        onDownloadStarted(item)
+
+        scope.launch {
+            try {
+                val connection = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+                    connectTimeout = 15000
+                    readTimeout = 30000
+                    instanceFollowRedirects = true
+                    userAgent?.let { setRequestProperty("User-Agent", it) }
+                    val cookie = CookieManager.getInstance().getCookie(url)
+                    if (!cookie.isNullOrEmpty()) {
+                        setRequestProperty("Cookie", cookie)
+                    }
+                    setRequestProperty("DNT", "1")
+                }
+                connection.connect()
+
+                val responseCode = connection.responseCode
+                if (responseCode in 200..299) {
+                    val totalBytes = connection.contentLengthLong
+                    var bytesReadSoFar = 0L
+
+                    connection.inputStream.use { input ->
+                        java.io.FileOutputStream(destinationFile).use { output ->
+                            val buffer = ByteArray(8192)
+                            var read: Int
+                            var lastUpdate = System.currentTimeMillis()
+
+                            while (input.read(buffer).also { read = it } != -1 && isActive) {
+                                output.write(buffer, 0, read)
+                                bytesReadSoFar += read
+                                val now = System.currentTimeMillis()
+                                if (now - lastUpdate > 500) {
+                                    lastUpdate = now
+                                    onProgressUpdate(
+                                        item.copy(
+                                            downloadedBytes = bytesReadSoFar,
+                                            totalBytes = if (totalBytes > 0) totalBytes else bytesReadSoFar,
+                                            status = DownloadStatus.DOWNLOADING
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    try {
+                        android.media.MediaScannerConnection.scanFile(
+                            context,
+                            arrayOf(destinationFile.absolutePath),
+                            arrayOf(mimeType ?: guessMimeType(sanitizedName)),
+                            null
+                        )
+                    } catch (_: Exception) {}
+
+                    onProgressUpdate(
+                        item.copy(
+                            downloadedBytes = bytesReadSoFar,
+                            totalBytes = if (totalBytes > 0) totalBytes else bytesReadSoFar,
+                            status = DownloadStatus.COMPLETED
+                        )
+                    )
+                } else {
+                    onProgressUpdate(item.copy(status = DownloadStatus.FAILED))
+                }
+            } catch (_: Exception) {
+                onProgressUpdate(item.copy(status = DownloadStatus.FAILED))
+            }
+        }
         return downloadId
     }
 
@@ -96,6 +223,17 @@ class RealDownloadManager(private val context: Context) {
                     val itemStatus = when (status) {
                         DownloadManager.STATUS_SUCCESSFUL -> {
                             isFinished = true
+                            try {
+                                val destFile = File(File(Environment.getExternalStorageDirectory(), VEDA_DOWNLOADS_FOLDER), initialItem.fileName)
+                                if (destFile.exists()) {
+                                    android.media.MediaScannerConnection.scanFile(
+                                        context,
+                                        arrayOf(destFile.absolutePath),
+                                        arrayOf(initialItem.mimeType),
+                                        null
+                                    )
+                                }
+                            } catch (_: Exception) {}
                             DownloadStatus.COMPLETED
                         }
                         DownloadManager.STATUS_FAILED -> {
@@ -125,14 +263,52 @@ class RealDownloadManager(private val context: Context) {
         downloadManager.remove(downloadId)
     }
 
-    fun openDownloadedFile(item: DownloadItem) {
+    fun getDownloadedFile(fileName: String): File? {
+        // 1. Primary: /storage/emulated/0/Veda Browser/ (Internal Storage root)
+        val internalStorage = Environment.getExternalStorageDirectory()
+        val internalFile = File(File(internalStorage, VEDA_DOWNLOADS_FOLDER), fileName)
+        if (internalFile.exists()) return internalFile
+
+        // 2. Fallback: Download/Veda Browser/
+        val publicDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val vedaFile = File(File(publicDownloads, VEDA_DOWNLOADS_FOLDER), fileName)
+        if (vedaFile.exists()) return vedaFile
+
+        // 3. Fallback: Download/
+        val legacyFile = File(publicDownloads, fileName)
+        if (legacyFile.exists()) return legacyFile
+
+        return null
+    }
+
+    private fun getUriForDownloadedItem(item: DownloadItem): Uri? {
         val downloadId = item.id.toLongOrNull()
-        val uri = if (downloadId != null) {
-            downloadManager.getUriForDownloadedFile(downloadId)
-        } else {
-            val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), item.fileName)
-            if (file.exists()) Uri.fromFile(file) else null
+        if (downloadId != null) {
+            val dmUri = try {
+                downloadManager.getUriForDownloadedFile(downloadId)
+            } catch (_: Exception) {
+                null
+            }
+            if (dmUri != null) return dmUri
         }
+
+        val file = getDownloadedFile(item.fileName)
+        if (file != null && file.exists()) {
+            return try {
+                FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+            } catch (_: Exception) {
+                Uri.fromFile(file)
+            }
+        }
+        return null
+    }
+
+    fun openDownloadedFile(item: DownloadItem) {
+        val uri = getUriForDownloadedItem(item)
 
         if (uri == null) {
             Toast.makeText(context, "Downloaded file not found on disk", Toast.LENGTH_SHORT).show()
@@ -153,13 +329,7 @@ class RealDownloadManager(private val context: Context) {
     }
 
     fun shareDownloadedFile(item: DownloadItem) {
-        val downloadId = item.id.toLongOrNull()
-        val uri = if (downloadId != null) {
-            downloadManager.getUriForDownloadedFile(downloadId)
-        } else {
-            val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), item.fileName)
-            if (file.exists()) Uri.fromFile(file) else null
-        }
+        val uri = getUriForDownloadedItem(item)
 
         if (uri == null) {
             Toast.makeText(context, "File not available for sharing", Toast.LENGTH_SHORT).show()

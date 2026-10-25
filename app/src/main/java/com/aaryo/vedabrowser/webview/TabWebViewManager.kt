@@ -336,6 +336,10 @@ class TabWebViewManager {
             enableSafeBrowsing = settings.safeBrowsingEnabled
         )
         webView.settings.apply {
+            loadsImagesAutomatically = true
+            blockNetworkImage = false
+            blockNetworkLoads = false
+            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             javaScriptEnabled = settings.javaScriptEnabled
             textZoom = settings.textZoomPercent
             javaScriptCanOpenWindowsAutomatically = true
@@ -371,8 +375,7 @@ class TabWebViewManager {
 
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(settings.cookiesEnabled)
-        val allowThirdParty = !settings.blockThirdPartyCookies && !isIncognito && settings.cookiesEnabled
-        cookieManager.setAcceptThirdPartyCookies(webView, allowThirdParty)
+        cookieManager.setAcceptThirdPartyCookies(webView, !isIncognito && settings.cookiesEnabled)
     }
 
     fun injectDesktopViewport(webView: WebView) {
@@ -402,13 +405,19 @@ class TabWebViewManager {
 
         if (webViewMap.isEmpty()) return
         for ((_, webView) in webViewMap) {
-            webView.settings.javaScriptEnabled = settings.javaScriptEnabled
-            webView.settings.textZoom = settings.textZoomPercent
-            webView.settings.javaScriptCanOpenWindowsAutomatically = true
-            webView.settings.setSupportMultipleWindows(true)
-            if (settings.desktopSiteDefault) {
-                webView.settings.userAgentString = DESKTOP_USER_AGENT
-                injectDesktopViewport(webView)
+            webView.settings.apply {
+                loadsImagesAutomatically = true
+                blockNetworkImage = false
+                blockNetworkLoads = false
+                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                javaScriptEnabled = settings.javaScriptEnabled
+                textZoom = settings.textZoomPercent
+                javaScriptCanOpenWindowsAutomatically = true
+                setSupportMultipleWindows(true)
+                if (settings.desktopSiteDefault) {
+                    userAgentString = DESKTOP_USER_AGENT
+                    injectDesktopViewport(webView)
+                }
             }
             if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
                 WebSettingsCompat.setAlgorithmicDarkeningAllowed(
@@ -417,8 +426,7 @@ class TabWebViewManager {
                 )
             }
             try {
-                val allow3p = !settings.blockThirdPartyCookies && settings.cookiesEnabled
-                cookieManager.setAcceptThirdPartyCookies(webView, allow3p)
+                cookieManager.setAcceptThirdPartyCookies(webView, settings.cookiesEnabled)
             } catch (_: Throwable) {
             }
         }

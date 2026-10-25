@@ -36,6 +36,7 @@ import com.aaryo.vedabrowser.model.Extension
 import com.aaryo.vedabrowser.model.RunAt
 import com.aaryo.vedabrowser.model.Tab
 import com.aaryo.vedabrowser.privacy.AdBlocker
+import com.aaryo.vedabrowser.privacy.ResourceType
 import com.aaryo.vedabrowser.security.CertificateHelper
 import com.aaryo.vedabrowser.security.CertificateInfo
 import com.aaryo.vedabrowser.security.IntentValidator
@@ -365,6 +366,15 @@ fun WebViewContainer(
 
                         val resType = AdBlocker.detectResourceType(reqUrl, headers, request.isForMainFrame)
 
+                        // Special protection for images: unless the host is an explicitly blocked ad host or ad network,
+                        // do not block image resources to prevent breaking normal website photos, icons, and media.
+                        if (resType == ResourceType.IMAGE) {
+                            val reqHost = request.url?.host?.removePrefix("www.")?.lowercase() ?: ""
+                            if (!AdBlocker.isHostBlocked(reqHost) && !AdBlocker.isHostThirdPartyBlocked(reqHost)) {
+                                return super.shouldInterceptRequest(view, request)
+                            }
+                        }
+
                         if (currentAdBlockEnabled && AdBlocker.isAdOrTracker(reqUrl, siteHost, resType, headers)) {
                             android.os.Handler(android.os.Looper.getMainLooper()).post {
                                 currentOnTrackerBlocked()
@@ -405,6 +415,12 @@ fun WebViewContainer(
                         if (url != null && currentAdBlockEnabled) {
                             val currentSiteHost = try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
                             val resType = AdBlocker.detectResourceType(url)
+                            if (resType == ResourceType.IMAGE) {
+                                val reqHost = try { Uri.parse(url).host?.removePrefix("www.")?.lowercase() } catch (_: Exception) { null } ?: ""
+                                if (!AdBlocker.isHostBlocked(reqHost) && !AdBlocker.isHostThirdPartyBlocked(reqHost)) {
+                                    return super.shouldInterceptRequest(view, url)
+                                }
+                            }
                             if (AdBlocker.isAdOrTracker(url, currentSiteHost, resType)) {
                                 android.os.Handler(android.os.Looper.getMainLooper()).post {
                                     currentOnTrackerBlocked()
@@ -418,7 +434,13 @@ fun WebViewContainer(
                     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                         super.onPageStarted(view, url, favicon)
                         currentOnClearMedia()
-                        url?.let { currentOnPageStarted(it) }
+                        url?.let {
+                            currentOnPageStarted(it)
+                            val navHost = try { Uri.parse(it).host } catch (_: Exception) { null }
+                            if (!navHost.isNullOrBlank()) {
+                                activePageHost = navHost
+                            }
+                        }
                         favicon?.let { currentOnFaviconReceived(it) }
                         currentOnNavChanged(view?.canGoBack() == true, view?.canGoForward() == true)
 
