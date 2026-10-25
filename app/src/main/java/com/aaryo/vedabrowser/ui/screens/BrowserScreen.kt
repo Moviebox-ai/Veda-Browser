@@ -18,6 +18,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -30,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -731,15 +733,15 @@ fun BrowserScreen(
                 )
             }
 
-            // Top notification overlays (In-app animated download banner & in-app notifications at top)
+            // Top notification overlays (In-app animated download banner card ONLY)
             if (!isInPipMode) {
-                Column(
+                Box(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .statusBarsPadding()
                         .padding(top = 4.dp)
                         .fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    contentAlignment = Alignment.TopCenter
                 ) {
                     DownloadBanner(
                         item = downloadBanner,
@@ -749,14 +751,27 @@ fun BrowserScreen(
                         onPause = { item -> viewModel.pauseDownload(item) },
                         onResume = { item -> viewModel.resumeDownload(item) }
                     )
-
-                    SnackbarHost(
-                        hostState = snackbarHostState,
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                            .testTag("top_snackbar_host")
-                    )
                 }
+
+                // Non-intrusive bottom snackbar for non-download system notifications (e.g., Bookmarks, URL copied)
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .testTag("app_snackbar_host"),
+                    snackbar = { snackbarData ->
+                        Snackbar(
+                            snackbarData = snackbarData,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                            containerColor = Color(0xFF1E293B),
+                            contentColor = Color.White,
+                            actionColor = Color(0xFF38BDF8),
+                            dismissActionContentColor = Color(0xFF94A3B8)
+                        )
+                    }
+                )
             }
         }
     }

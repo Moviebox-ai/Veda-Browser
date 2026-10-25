@@ -245,7 +245,6 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
                     startDownload(pending.url, pending.contentDisposition, pending.mimeType, pending.userAgent)
                 }
                 _pendingDownloadRequest.value = null
-                showToast("Storage permission granted. Starting download...")
             }
         } else {
             if (pending != null) {
@@ -701,7 +700,6 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
             onDownloadStarted = { downloadItem ->
                 dismissedDownloadBannerIds.remove(downloadItem.id)
                 viewModelScope.launch { repository.addOrUpdateDownload(downloadItem) }
-                showToast("Downloading to Internal Storage/Veda Browser: ${downloadItem.fileName}")
             },
             onProgressUpdate = { downloadItem ->
                 viewModelScope.launch { repository.addOrUpdateDownload(downloadItem) }
@@ -936,7 +934,6 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
             onDownloadStarted = { item ->
                 dismissedDownloadBannerIds.remove(item.id)
                 viewModelScope.launch { repository.addOrUpdateDownload(item) }
-                showToast("Downloading to Internal Storage/Veda Browser: ${item.fileName}")
             },
             onProgressUpdate = { item ->
                 viewModelScope.launch { repository.addOrUpdateDownload(item) }
@@ -954,7 +951,6 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     fun pauseDownload(item: DownloadItem) {
         realDownloadManager.pauseDownload(item.id)
-        showToast("Download paused: ${item.fileName}")
     }
 
     fun resumeDownload(item: DownloadItem, forceRestart: Boolean = false) {
@@ -962,9 +958,6 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         realDownloadManager.resumeDownload(item.id, forceRestart)
         if (forceRestart) {
             _nonResumableDownloadPrompt.value = null
-            showToast("Restarting download: ${item.fileName}")
-        } else {
-            showToast("Resuming download: ${item.fileName}")
         }
     }
 
