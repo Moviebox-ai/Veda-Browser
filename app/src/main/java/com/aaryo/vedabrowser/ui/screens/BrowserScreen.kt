@@ -44,6 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.aaryo.vedabrowser.security.CertificateInfo
+import com.aaryo.vedabrowser.ui.components.DownloadBanner
 import com.aaryo.vedabrowser.ui.components.FindInPageBar
 import com.aaryo.vedabrowser.ui.components.Omnibox
 import com.aaryo.vedabrowser.ui.components.VelocityMenuSheet
@@ -78,6 +79,7 @@ fun BrowserScreen(
     val bookmarks by viewModel.bookmarks.collectAsState()
     val history by viewModel.history.collectAsState()
     val downloads by viewModel.downloads.collectAsState()
+    val downloadBanner by viewModel.downloadBanner.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val shieldStats by viewModel.shieldStats.collectAsState()
     val sslWarningState by viewModel.sslWarningState.collectAsState()
@@ -636,6 +638,19 @@ fun BrowserScreen(
                         }
                         viewModel.setWebPermission(null)
                     }
+                )
+            }
+
+            // In-app animated download notification banner
+            if (!isInPipMode) {
+                DownloadBanner(
+                    item = downloadBanner,
+                    onOpen = { item -> viewModel.openDownloadedFile(item) },
+                    onViewAll = { viewModel.openSheet(SheetType.DOWNLOADS) },
+                    onDismiss = { viewModel.dismissDownloadBanner() },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 12.dp)
                 )
             }
         }

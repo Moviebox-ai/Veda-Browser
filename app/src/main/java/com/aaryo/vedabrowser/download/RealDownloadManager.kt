@@ -17,18 +17,31 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableSharedFlow
 import java.io.File
 
 class RealDownloadManager(private val context: Context) {
 
     companion object {
         const val VEDA_DOWNLOADS_FOLDER = "Veda Browser"
+
+        val liveProgressFlow = MutableSharedFlow<DownloadItem>(extraBufferCapacity = 64)
+        val liveCompleteFlow = MutableSharedFlow<DownloadItem>(extraBufferCapacity = 16)
+
+        fun dispatchDownloadProgress(item: DownloadItem) {
+            liveProgressFlow.tryEmit(item)
+        }
+
+        fun dispatchDownloadComplete(item: DownloadItem) {
+            liveCompleteFlow.tryEmit(item)
+        }
     }
 
     private val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
     private val scope = CoroutineScope(Dispatchers.IO)
 
     init {
+        DownloadNotificationHelper.initChannels(context)
         // Automatically migrate any legacy files from Download/Veda Browser to Internal Storage/Veda Browser
         scope.launch {
             migrateLegacyDownloadsIfAny()
@@ -94,224 +107,53 @@ class RealDownloadManager(private val context: Context) {
         onProgressUpdate: (DownloadItem) -> Unit
     ): Long {
         val sanitizedName = FilenameSanitizer.sanitize(rawFileName)
+        val resolvedMime = mimeType?.takeIf { it.isNotEmpty() && it != "application/octet-stream" }
+            ?: guessMimeType(sanitizedName)
 
-        // Ensure destination file is placed directly in Internal Storage/Veda Browser/
         val vedaFolder = getInternalStorageVedaFolder()
         val destinationFile = File(vedaFolder, sanitizedName)
 
-        val request = try {
-            DownloadManager.Request(Uri.parse(url)).apply {
-                setTitle(sanitizedName)
-                setDescription("Downloading to Internal Storage/Veda Browser")
-                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                setDestinationUri(Uri.fromFile(destinationFile))
-
-                val cookie = CookieManager.getInstance().getCookie(url)
-                if (!cookie.isNullOrEmpty()) {
-                    addRequestHeader("Cookie", cookie)
-                }
-                if (!userAgent.isNullOrEmpty()) {
-                    addRequestHeader("User-Agent", userAgent)
-                }
-                addRequestHeader("DNT", "1")
-
-                if (!mimeType.isNullOrEmpty() && mimeType != "application/octet-stream") {
-                    setMimeType(mimeType)
-                }
-            }
-        } catch (e: Exception) {
-            // Fallback to direct streaming downloader into internal storage
-            return downloadDirectly(
-                url = url,
-                destinationFile = destinationFile,
-                sanitizedName = sanitizedName,
-                mimeType = mimeType,
-                userAgent = userAgent,
-                onDownloadStarted = onDownloadStarted,
-                onProgressUpdate = onProgressUpdate
-            )
-        }
-
-        val downloadId = try {
-            downloadManager.enqueue(request)
-        } catch (_: Exception) {
-            // If DownloadManager system service disallows custom URI on this Android API,
-            // stream directly into internal storage / Veda Browser/
-            return downloadDirectly(
-                url = url,
-                destinationFile = destinationFile,
-                sanitizedName = sanitizedName,
-                mimeType = mimeType,
-                userAgent = userAgent,
-                onDownloadStarted = onDownloadStarted,
-                onProgressUpdate = onProgressUpdate
-            )
-        }
+        val downloadIdLong = System.currentTimeMillis()
+        val downloadId = downloadIdLong.toString()
 
         val item = DownloadItem(
-            id = downloadId.toString(),
+            id = downloadId,
             fileName = sanitizedName,
             url = url,
-            mimeType = mimeType ?: guessMimeType(sanitizedName),
+            mimeType = resolvedMime,
             status = DownloadStatus.DOWNLOADING
         )
 
         onDownloadStarted(item)
-        trackProgress(downloadId, item, onProgressUpdate)
-        return downloadId
-    }
 
-    private fun downloadDirectly(
-        url: String,
-        destinationFile: File,
-        sanitizedName: String,
-        mimeType: String?,
-        userAgent: String?,
-        onDownloadStarted: (DownloadItem) -> Unit,
-        onProgressUpdate: (DownloadItem) -> Unit
-    ): Long {
-        val downloadId = System.currentTimeMillis()
-        val item = DownloadItem(
-            id = downloadId.toString(),
-            fileName = sanitizedName,
+        // Delegate to Foreground Service for reliable background download and status bar notifications
+        DownloadForegroundService.startDownload(
+            context = context,
+            downloadId = downloadId,
             url = url,
-            mimeType = mimeType ?: guessMimeType(sanitizedName),
-            status = DownloadStatus.DOWNLOADING
+            fileName = sanitizedName,
+            mimeType = resolvedMime,
+            userAgent = userAgent,
+            destinationPath = destinationFile.absolutePath
         )
-        onDownloadStarted(item)
 
+        // Stream live progress updates to caller
         scope.launch {
-            try {
-                val connection = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
-                    connectTimeout = 15000
-                    readTimeout = 30000
-                    instanceFollowRedirects = true
-                    userAgent?.let { setRequestProperty("User-Agent", it) }
-                    val cookie = CookieManager.getInstance().getCookie(url)
-                    if (!cookie.isNullOrEmpty()) {
-                        setRequestProperty("Cookie", cookie)
-                    }
-                    setRequestProperty("DNT", "1")
-                }
-                connection.connect()
-
-                val responseCode = connection.responseCode
-                if (responseCode in 200..299) {
-                    val totalBytes = connection.contentLengthLong
-                    var bytesReadSoFar = 0L
-
-                    connection.inputStream.use { input ->
-                        java.io.FileOutputStream(destinationFile).use { output ->
-                            val buffer = ByteArray(8192)
-                            var read: Int
-                            var lastUpdate = System.currentTimeMillis()
-
-                            while (input.read(buffer).also { read = it } != -1 && isActive) {
-                                output.write(buffer, 0, read)
-                                bytesReadSoFar += read
-                                val now = System.currentTimeMillis()
-                                if (now - lastUpdate > 500) {
-                                    lastUpdate = now
-                                    onProgressUpdate(
-                                        item.copy(
-                                            downloadedBytes = bytesReadSoFar,
-                                            totalBytes = if (totalBytes > 0) totalBytes else bytesReadSoFar,
-                                            status = DownloadStatus.DOWNLOADING
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    try {
-                        android.media.MediaScannerConnection.scanFile(
-                            context,
-                            arrayOf(destinationFile.absolutePath),
-                            arrayOf(mimeType ?: guessMimeType(sanitizedName)),
-                            null
-                        )
-                    } catch (_: Exception) {}
-
-                    onProgressUpdate(
-                        item.copy(
-                            downloadedBytes = bytesReadSoFar,
-                            totalBytes = if (totalBytes > 0) totalBytes else bytesReadSoFar,
-                            status = DownloadStatus.COMPLETED
-                        )
-                    )
-                } else {
-                    onProgressUpdate(item.copy(status = DownloadStatus.FAILED))
-                }
-            } catch (_: Exception) {
-                onProgressUpdate(item.copy(status = DownloadStatus.FAILED))
-            }
-        }
-        return downloadId
-    }
-
-    private fun trackProgress(
-        downloadId: Long,
-        initialItem: DownloadItem,
-        onProgressUpdate: (DownloadItem) -> Unit
-    ) {
-        scope.launch {
-            var isFinished = false
-            while (isActive && !isFinished) {
-                delay(800)
-                val query = DownloadManager.Query().setFilterById(downloadId)
-                val cursor = downloadManager.query(query)
-                if (cursor != null && cursor.moveToFirst()) {
-                    val bytesDownloadedIndex = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
-                    val bytesTotalIndex = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
-                    val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
-
-                    val downloadedBytes = if (bytesDownloadedIndex >= 0) cursor.getLong(bytesDownloadedIndex) else 0L
-                    val totalBytes = if (bytesTotalIndex >= 0) cursor.getLong(bytesTotalIndex) else 0L
-                    val status = if (statusIndex >= 0) cursor.getInt(statusIndex) else -1
-
-                    val itemStatus = when (status) {
-                        DownloadManager.STATUS_SUCCESSFUL -> {
-                            isFinished = true
-                            val destFile = getDownloadedFile(initialItem.fileName)
-                                ?: File(getInternalStorageVedaFolder(), initialItem.fileName)
-                            try {
-                                if (destFile.exists()) {
-                                    android.media.MediaScannerConnection.scanFile(
-                                        context,
-                                        arrayOf(destFile.absolutePath),
-                                        arrayOf(initialItem.mimeType),
-                                        null
-                                    )
-                                }
-                            } catch (_: Exception) {}
-                            DownloadStatus.COMPLETED
-                        }
-                        DownloadManager.STATUS_FAILED -> {
-                            isFinished = true
-                            DownloadStatus.FAILED
-                        }
-                        DownloadManager.STATUS_PAUSED -> DownloadStatus.DOWNLOADING
-                        else -> DownloadStatus.DOWNLOADING
-                    }
-
-                    val updated = initialItem.copy(
-                        downloadedBytes = downloadedBytes,
-                        totalBytes = if (totalBytes > 0) totalBytes else initialItem.totalBytes,
-                        status = itemStatus
-                    )
-                    onProgressUpdate(updated)
-                    cursor.close()
-                } else {
-                    cursor?.close()
-                    break
+            liveProgressFlow.collect { updatedItem ->
+                if (updatedItem.id == downloadId) {
+                    onProgressUpdate(updatedItem)
                 }
             }
         }
+
+        return downloadIdLong
     }
 
     fun cancelDownload(downloadId: Long) {
-        downloadManager.remove(downloadId)
+        DownloadForegroundService.cancelDownload(context, downloadId.toString())
+        try {
+            downloadManager.remove(downloadId)
+        } catch (_: Exception) {}
     }
 
     fun getDownloadedFile(fileName: String): File? {

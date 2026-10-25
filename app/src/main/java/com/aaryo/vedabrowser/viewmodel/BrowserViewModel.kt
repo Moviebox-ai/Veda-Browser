@@ -39,7 +39,9 @@ import java.net.URLEncoder
 import com.aaryo.vedabrowser.ui.dialogs.SslWarningState
 import com.aaryo.vedabrowser.ui.dialogs.WebPermissionState
 import com.aaryo.vedabrowser.webview.TabWebViewManager
+import com.aaryo.vedabrowser.model.DownloadStatus
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -171,7 +173,34 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage.asStateFlow()
 
+    // In-app download notification banner
+    private val _downloadBanner = MutableStateFlow<DownloadItem?>(null)
+    val downloadBanner: StateFlow<DownloadItem?> = _downloadBanner.asStateFlow()
+
+    fun dismissDownloadBanner() {
+        _downloadBanner.value = null
+    }
+
     init {
+        // Collect real-time download progress and completions for in-app banner
+        viewModelScope.launch {
+            RealDownloadManager.liveProgressFlow.collect { item ->
+                val current = _downloadBanner.value
+                if (current == null || current.id == item.id || current.status != DownloadStatus.COMPLETED) {
+                    _downloadBanner.value = item
+                }
+            }
+        }
+        viewModelScope.launch {
+            RealDownloadManager.liveCompleteFlow.collect { item ->
+                _downloadBanner.value = item
+                delay(8000)
+                if (_downloadBanner.value?.id == item.id) {
+                    _downloadBanner.value = null
+                }
+            }
+        }
+
         // Schedule weekly automatic background filter list updates
         FilterListUpdateWorker.scheduleWeeklyUpdate(application)
 
