@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
@@ -33,6 +36,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.text.font.FontWeight
 import com.aaryo.vedabrowser.model.DownloadItem
+import com.aaryo.vedabrowser.ui.dialogs.StoragePermissionDialog
+import com.aaryo.vedabrowser.util.StoragePermissionHelper
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -96,6 +101,25 @@ fun BrowserScreen(
     val findInPageQuery by viewModel.findInPageQuery.collectAsState()
     val toastMessage by viewModel.toastMessage.collectAsState()
     val isInPipMode by viewModel.isInPipMode.collectAsState()
+    val showStoragePermissionDialog by viewModel.showStoragePermissionDialog.collectAsState()
+
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val isGranted = permissions[Manifest.permission.WRITE_EXTERNAL_STORAGE] == true ||
+            permissions.values.any { it }
+        viewModel.onStoragePermissionResult(isGranted)
+    }
+
+    val requestStorageAccess: () -> Unit = {
+        if (StoragePermissionHelper.isStoragePermissionRequired() &&
+            !StoragePermissionHelper.hasStoragePermission(context)
+        ) {
+            viewModel.setShowStoragePermissionDialog(true)
+        } else {
+            viewModel.onStoragePermissionResult(true)
+        }
+    }
 
     val extensions by viewModel.extensions.collectAsState()
     val extensionsGlobalEnabled by viewModel.extensionsGlobalEnabled.collectAsState()
@@ -309,7 +333,12 @@ fun BrowserScreen(
                                         viewModel.fetchAndPromptUserscript(url)
                                     },
                                     onDownloadStart = { url, disposition, mime, ua ->
-                                        viewModel.startDownload(url, disposition, mime, ua)
+                                        if (StoragePermissionHelper.hasStoragePermission(context)) {
+                                            viewModel.startDownload(url, disposition, mime, ua)
+                                        } else {
+                                            viewModel.preparePendingDownload(url, disposition, mime, ua)
+                                            requestStorageAccess()
+                                        }
                                     },
                                     onOpenNewTabRequested = { targetUrl ->
                                         viewModel.createNewTab(
@@ -597,7 +626,14 @@ fun BrowserScreen(
                 SheetType.MEDIA_SNIFFER -> {
                     MediaSnifferBottomSheet(
                         mediaItems = currentTabMedia,
-                        onDownload = { item -> viewModel.downloadSniffedMedia(item) },
+                        onDownload = { item ->
+                            if (StoragePermissionHelper.hasStoragePermission(context)) {
+                                viewModel.downloadSniffedMedia(item)
+                            } else {
+                                viewModel.preparePendingSniffedMedia(item)
+                                requestStorageAccess()
+                            }
+                        },
                         onCopyUrl = { url -> viewModel.copyMediaUrl(url) },
                         onRescan = { viewModel.rescanMediaForActiveTab() },
                         onDismiss = { viewModel.closeSheet() }
@@ -676,6 +712,21 @@ fun BrowserScreen(
                         }
                     },
                     containerColor = Color(0xFF13192B)
+                )
+            }
+
+            // Storage permission explanation dialog
+            if (showStoragePermissionDialog) {
+                StoragePermissionDialog(
+                    onConfirm = {
+                        viewModel.setShowStoragePermissionDialog(false)
+                        storagePermissionLauncher.launch(
+                            StoragePermissionHelper.getRequiredStoragePermissions()
+                        )
+                    },
+                    onDismiss = {
+                        viewModel.setShowStoragePermissionDialog(false)
+                    }
                 )
             }
 

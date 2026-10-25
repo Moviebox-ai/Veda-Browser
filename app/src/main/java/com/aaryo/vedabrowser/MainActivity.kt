@@ -28,6 +28,14 @@ class MainActivity : ComponentActivity() {
         // Notifications enabled or denied by user
     }
 
+    private val requestStoragePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.WRITE_EXTERNAL_STORAGE] == true ||
+            permissions.values.any { it }
+        viewModel.onStoragePermissionResult(granted)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         VedaApplication.cleanCorruptedVariationsSeeds(this)
         super.onCreate(savedInstanceState)
@@ -36,6 +44,14 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
+        if (com.aaryo.vedabrowser.util.StoragePermissionHelper.isStoragePermissionRequired()) {
+            if (!com.aaryo.vedabrowser.util.StoragePermissionHelper.hasStoragePermission(this)) {
+                requestStoragePermissionLauncher.launch(
+                    com.aaryo.vedabrowser.util.StoragePermissionHelper.getRequiredStoragePermissions()
+                )
             }
         }
 

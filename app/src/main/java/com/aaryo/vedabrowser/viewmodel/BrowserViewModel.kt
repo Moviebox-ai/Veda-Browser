@@ -77,6 +77,14 @@ data class CustomViewState(
     val callback: WebChromeClient.CustomViewCallback
 )
 
+data class PendingDownloadRequest(
+    val url: String,
+    val contentDisposition: String = "",
+    val mimeType: String = "",
+    val userAgent: String = "",
+    val sniffedItem: SniffedMediaItem? = null
+)
+
 class BrowserViewModel(application: Application) : AndroidViewModel(application) {
 
     val repository = BrowserRepository(application)
@@ -181,12 +189,66 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     private val _nonResumableDownloadPrompt = MutableStateFlow<DownloadItem?>(null)
     val nonResumableDownloadPrompt: StateFlow<DownloadItem?> = _nonResumableDownloadPrompt.asStateFlow()
 
+    // Storage permission request & rationale states
+    private val _pendingDownloadRequest = MutableStateFlow<PendingDownloadRequest?>(null)
+    val pendingDownloadRequest: StateFlow<PendingDownloadRequest?> = _pendingDownloadRequest.asStateFlow()
+
+    private val _showStoragePermissionDialog = MutableStateFlow(false)
+    val showStoragePermissionDialog: StateFlow<Boolean> = _showStoragePermissionDialog.asStateFlow()
+
     fun dismissDownloadBanner() {
         _downloadBanner.value = null
     }
 
     fun dismissNonResumablePrompt() {
         _nonResumableDownloadPrompt.value = null
+    }
+
+    fun preparePendingDownload(url: String, contentDisposition: String, mimeType: String, userAgent: String) {
+        _pendingDownloadRequest.value = PendingDownloadRequest(
+            url = url,
+            contentDisposition = contentDisposition,
+            mimeType = mimeType,
+            userAgent = userAgent
+        )
+    }
+
+    fun preparePendingSniffedMedia(item: SniffedMediaItem) {
+        _pendingDownloadRequest.value = PendingDownloadRequest(
+            url = item.url,
+            contentDisposition = "",
+            mimeType = item.mimeType,
+            userAgent = "",
+            sniffedItem = item
+        )
+    }
+
+    fun setShowStoragePermissionDialog(show: Boolean) {
+        _showStoragePermissionDialog.value = show
+        if (!show && _pendingDownloadRequest.value != null) {
+            _pendingDownloadRequest.value = null
+        }
+    }
+
+    fun onStoragePermissionResult(granted: Boolean) {
+        val pending = _pendingDownloadRequest.value
+        _showStoragePermissionDialog.value = false
+        if (granted) {
+            if (pending != null) {
+                if (pending.sniffedItem != null) {
+                    downloadSniffedMedia(pending.sniffedItem)
+                } else {
+                    startDownload(pending.url, pending.contentDisposition, pending.mimeType, pending.userAgent)
+                }
+                _pendingDownloadRequest.value = null
+                showToast("Storage permission granted. Starting download...")
+            }
+        } else {
+            if (pending != null) {
+                _pendingDownloadRequest.value = null
+                showToast("Storage permission denied. Cannot save file.")
+            }
+        }
     }
 
     init {

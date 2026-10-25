@@ -61,17 +61,35 @@ class RealDownloadManager(private val context: Context) {
             } catch (_: Exception) {
             }
         }
-        if (!vedaFolder.exists() || !vedaFolder.canWrite()) {
-            val appInternalFolder = File(context.filesDir, VEDA_DOWNLOADS_FOLDER)
-            if (!appInternalFolder.exists()) {
-                try {
-                    appInternalFolder.mkdirs()
-                } catch (_: Exception) {
-                }
-            }
-            return appInternalFolder
+        if (vedaFolder.exists() && vedaFolder.canWrite()) {
+            return vedaFolder
         }
-        return vedaFolder
+
+        val publicDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val publicVedaFolder = File(publicDownloads, VEDA_DOWNLOADS_FOLDER)
+        if (!publicVedaFolder.exists()) {
+            try {
+                publicVedaFolder.mkdirs()
+            } catch (_: Exception) {
+            }
+        }
+        if (publicVedaFolder.exists() && publicVedaFolder.canWrite()) {
+            return publicVedaFolder
+        }
+
+        val externalFiles = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+        if (externalFiles != null && externalFiles.canWrite()) {
+            return externalFiles
+        }
+
+        val appInternalFolder = File(context.filesDir, VEDA_DOWNLOADS_FOLDER)
+        if (!appInternalFolder.exists()) {
+            try {
+                appInternalFolder.mkdirs()
+            } catch (_: Exception) {
+            }
+        }
+        return appInternalFolder
     }
 
     private fun migrateLegacyDownloadsIfAny() {
