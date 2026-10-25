@@ -3,4 +3,8 @@
     <external-path name="root" path="." />
     <external-path name="veda_browser" path="Veda Browser/" />
     <external-path name="downloads" path="Download/" />
+    <files-path name="internal_files" path="." />
+    <files-path name="internal_veda" path="Veda Browser/" />
+    <external-files-path name="external_files" path="." />
 </paths>
+

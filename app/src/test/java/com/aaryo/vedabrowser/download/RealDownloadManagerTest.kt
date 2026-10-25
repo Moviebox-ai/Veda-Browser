@@ -28,4 +28,12 @@ class RealDownloadManagerTest {
         assertTrue(relativeSubPath.startsWith("Veda Browser"))
         assertNotNull(sanitized)
     }
+
+    @Test
+    fun testInternalStorageFolderNaming() {
+        val folder = RealDownloadManager.VEDA_DOWNLOADS_FOLDER
+        assertEquals("Veda Browser", folder)
+        // Ensure folder is named exactly "Veda Browser" for direct internal storage root
+        assertTrue(!folder.contains("Download"))
+    }
 }

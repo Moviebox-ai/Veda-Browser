@@ -585,7 +585,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
             userAgent = userAgent,
             onDownloadStarted = { downloadItem ->
                 viewModelScope.launch { repository.addOrUpdateDownload(downloadItem) }
-                showToast("Downloading to Veda Browser: ${downloadItem.fileName}")
+                showToast("Downloading to Internal Storage/Veda Browser: ${downloadItem.fileName}")
             },
             onProgressUpdate = { downloadItem ->
                 viewModelScope.launch { repository.addOrUpdateDownload(downloadItem) }
@@ -819,7 +819,7 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
             userAgent = userAgent,
             onDownloadStarted = { item ->
                 viewModelScope.launch { repository.addOrUpdateDownload(item) }
-                showToast("Downloading to Veda Browser: ${item.fileName}")
+                showToast("Downloading to Internal Storage/Veda Browser: ${item.fileName}")
             },
             onProgressUpdate = { item ->
                 viewModelScope.launch { repository.addOrUpdateDownload(item) }

@@ -28,6 +28,63 @@ class RealDownloadManager(private val context: Context) {
     private val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
     private val scope = CoroutineScope(Dispatchers.IO)
 
+    init {
+        // Automatically migrate any legacy files from Download/Veda Browser to Internal Storage/Veda Browser
+        scope.launch {
+            migrateLegacyDownloadsIfAny()
+        }
+    }
+
+    /**
+     * Resolves the dedicated "Veda Browser" folder directly in Internal Storage root.
+     * Path: /storage/emulated/0/Veda Browser/
+     */
+    fun getInternalStorageVedaFolder(): File {
+        val internalStorageRoot = Environment.getExternalStorageDirectory()
+        val vedaFolder = File(internalStorageRoot, VEDA_DOWNLOADS_FOLDER)
+        if (!vedaFolder.exists()) {
+            try {
+                vedaFolder.mkdirs()
+            } catch (_: Exception) {
+            }
+        }
+        if (!vedaFolder.exists() || !vedaFolder.canWrite()) {
+            val appInternalFolder = File(context.filesDir, VEDA_DOWNLOADS_FOLDER)
+            if (!appInternalFolder.exists()) {
+                try {
+                    appInternalFolder.mkdirs()
+                } catch (_: Exception) {
+                }
+            }
+            return appInternalFolder
+        }
+        return vedaFolder
+    }
+
+    private fun migrateLegacyDownloadsIfAny() {
+        try {
+            val publicDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val legacyFolder = File(publicDownloads, VEDA_DOWNLOADS_FOLDER)
+            if (legacyFolder.exists() && legacyFolder.isDirectory) {
+                val targetDir = getInternalStorageVedaFolder()
+                legacyFolder.listFiles()?.forEach { file ->
+                    try {
+                        val targetFile = File(targetDir, file.name)
+                        if (!targetFile.exists()) {
+                            file.copyTo(targetFile, overwrite = true)
+                        }
+                        file.delete()
+                    } catch (_: Exception) {
+                    }
+                }
+                if (legacyFolder.list().isNullOrEmpty()) {
+                    legacyFolder.delete()
+                }
+            }
+        } catch (_: Exception) {
+        }
+    }
+
     fun enqueueDownload(
         url: String,
         rawFileName: String?,
@@ -38,21 +95,14 @@ class RealDownloadManager(private val context: Context) {
     ): Long {
         val sanitizedName = FilenameSanitizer.sanitize(rawFileName)
 
-        // Ensure the dedicated "Veda Browser" folder exists directly in internal storage root
-        val internalStorageDir = Environment.getExternalStorageDirectory()
-        val vedaFolder = File(internalStorageDir, VEDA_DOWNLOADS_FOLDER)
-        if (!vedaFolder.exists()) {
-            try {
-                vedaFolder.mkdirs()
-            } catch (_: Exception) {
-            }
-        }
+        // Ensure destination file is placed directly in Internal Storage/Veda Browser/
+        val vedaFolder = getInternalStorageVedaFolder()
         val destinationFile = File(vedaFolder, sanitizedName)
 
         val request = try {
             DownloadManager.Request(Uri.parse(url)).apply {
                 setTitle(sanitizedName)
-                setDescription("Downloading file to Veda Browser")
+                setDescription("Downloading to Internal Storage/Veda Browser")
                 setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 setDestinationUri(Uri.fromFile(destinationFile))
 
@@ -223,8 +273,9 @@ class RealDownloadManager(private val context: Context) {
                     val itemStatus = when (status) {
                         DownloadManager.STATUS_SUCCESSFUL -> {
                             isFinished = true
+                            val destFile = getDownloadedFile(initialItem.fileName)
+                                ?: File(getInternalStorageVedaFolder(), initialItem.fileName)
                             try {
-                                val destFile = File(File(Environment.getExternalStorageDirectory(), VEDA_DOWNLOADS_FOLDER), initialItem.fileName)
                                 if (destFile.exists()) {
                                     android.media.MediaScannerConnection.scanFile(
                                         context,
@@ -264,17 +315,33 @@ class RealDownloadManager(private val context: Context) {
     }
 
     fun getDownloadedFile(fileName: String): File? {
-        // 1. Primary: /storage/emulated/0/Veda Browser/ (Internal Storage root)
+        // 1. Primary: Direct folder in Internal Storage root (/storage/emulated/0/Veda Browser/)
+        val primaryFolder = getInternalStorageVedaFolder()
+        val primaryFile = File(primaryFolder, fileName)
+        if (primaryFile.exists()) return primaryFile
+
         val internalStorage = Environment.getExternalStorageDirectory()
         val internalFile = File(File(internalStorage, VEDA_DOWNLOADS_FOLDER), fileName)
         if (internalFile.exists()) return internalFile
 
-        // 2. Fallback: Download/Veda Browser/
-        val publicDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        val vedaFile = File(File(publicDownloads, VEDA_DOWNLOADS_FOLDER), fileName)
-        if (vedaFile.exists()) return vedaFile
+        // 2. Internal app files: context.filesDir/Veda Browser/
+        val appInternalFile = File(File(context.filesDir, VEDA_DOWNLOADS_FOLDER), fileName)
+        if (appInternalFile.exists()) return appInternalFile
 
-        // 3. Fallback: Download/
+        // 3. Fallback: If still in Download/Veda Browser/, migrate it to Internal Storage
+        val publicDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val legacyVedaFile = File(File(publicDownloads, VEDA_DOWNLOADS_FOLDER), fileName)
+        if (legacyVedaFile.exists()) {
+            try {
+                legacyVedaFile.copyTo(primaryFile, overwrite = true)
+                legacyVedaFile.delete()
+                return primaryFile
+            } catch (_: Exception) {
+                return legacyVedaFile
+            }
+        }
+
+        // 4. Fallback: Download/
         val legacyFile = File(publicDownloads, fileName)
         if (legacyFile.exists()) return legacyFile
 
