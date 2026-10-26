@@ -274,6 +274,13 @@ fun WebViewContainer(
                                 urlString
                             }
 
+                            // If direct file download URL, trigger download instead of page navigation
+                            if (isDownloadableUrl(cleanUrl)) {
+                                val ua = view?.settings?.userAgentString ?: ""
+                                currentOnDownloadStart(cleanUrl, "", "application/octet-stream", ua)
+                                return true
+                            }
+
                             // If Open Links in New Tab is enabled and this is a main-frame navigation to a new/next page:
                             if (currentSettings.openLinksInNewTab && isForMainFrame) {
                                 val currentUri = try { Uri.parse(currentTab.url) } catch (_: Exception) { null }
@@ -671,25 +678,15 @@ fun WebViewContainer(
                                 }
                                 return true
                             }
-                            val hitTest = view?.hitTestResult
-                            val targetUrl = hitTest?.extra ?: ""
-                            val siteHost = try { Uri.parse(currentTab.url).host } catch (_: Exception) { null }
-
-                            if (currentAdBlockEnabled && targetUrl.isNotEmpty() && AdBlocker.isAdOrTracker(targetUrl, siteHost)) {
-                                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                    currentOnTrackerBlocked()
-                                }
-                                return true
-                            }
-                            if (targetUrl.isNotEmpty()) {
-                                currentOnOpenNewTab(targetUrl)
-                                return true
-                            }
-
-                            // Intercept window.open popups via transport WebView
+                            val parentUa = view?.settings?.userAgentString ?: ""
                             val tempWebView = WebView(view?.context ?: return false).apply {
                                 this.settings.javaScriptEnabled = true
                                 this.settings.domStorageEnabled = true
+                                this.settings.userAgentString = parentUa
+                                setDownloadListener { dlUrl, userAgent, contentDisposition, mimetype, _ ->
+                                    currentOnDownloadStart(dlUrl, contentDisposition, mimetype ?: "application/octet-stream", userAgent ?: parentUa)
+                                    post { destroy() }
+                                }
                                 webViewClient = object : WebViewClient() {
                                     private var isDispatched = false
 
@@ -701,6 +698,8 @@ fun WebViewContainer(
                                             android.os.Handler(android.os.Looper.getMainLooper()).post {
                                                 currentOnTrackerBlocked()
                                             }
+                                        } else if (isDownloadableUrl(url)) {
+                                            currentOnDownloadStart(url, "", "application/octet-stream", parentUa)
                                         } else {
                                             currentOnOpenNewTab(url)
                                         }
@@ -821,4 +820,21 @@ fun WebViewContainer(
         },
         modifier = modifier.fillMaxSize()
     )
+}
+
+private val DOWNLOADABLE_EXTENSIONS = setOf(
+    // Video
+    ".mp4", ".mkv", ".avi", ".mov", ".flv", ".wmv", ".webm", ".3gp", ".ts", ".m4v", ".mpg", ".mpeg",
+    // Audio
+    ".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus", ".wma",
+    // Packages & Archives
+    ".apk", ".xapk", ".apks", ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".iso", ".bin", ".dmg", ".exe", ".msi",
+    // Documents & Torrents
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".torrent", ".epub"
+)
+
+private fun isDownloadableUrl(url: String?): Boolean {
+    if (url.isNullOrBlank()) return false
+    val clean = url.substringBefore('?').substringBefore('#').lowercase()
+    return DOWNLOADABLE_EXTENSIONS.any { clean.endsWith(it) }
 }
