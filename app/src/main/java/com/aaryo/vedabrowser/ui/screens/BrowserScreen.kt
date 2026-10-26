@@ -467,6 +467,7 @@ fun BrowserScreen(
                         onResumeDownload = { item, forceRestart -> viewModel.resumeDownload(item, forceRestart) },
                         onShareDownload = { viewModel.shareDownloadedFile(it) },
                         onRemoveDownload = { viewModel.removeDownload(it) },
+                        onOpenFolder = { viewModel.openDownloadsFolder() },
                         onClearAll = { viewModel.clearDownloads() },
                         onDismiss = { viewModel.closeSheet() }
                     )
@@ -723,9 +724,14 @@ fun BrowserScreen(
                 StoragePermissionDialog(
                     onConfirm = {
                         viewModel.setShowStoragePermissionDialog(false)
-                        storagePermissionLauncher.launch(
-                            StoragePermissionHelper.getRequiredStoragePermissions()
-                        )
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                            StoragePermissionHelper.requestAllFilesAccess(context)
+                            viewModel.onStoragePermissionResult(true)
+                        } else {
+                            storagePermissionLauncher.launch(
+                                StoragePermissionHelper.getRequiredStoragePermissions()
+                            )
+                        }
                     },
                     onDismiss = {
                         viewModel.setShowStoragePermissionDialog(false)

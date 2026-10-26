@@ -77,6 +77,7 @@ fun DownloadsScreen(
     onResumeDownload: (DownloadItem, Boolean) -> Unit = { _, _ -> },
     onShareDownload: (DownloadItem) -> Unit = {},
     onRemoveDownload: (DownloadItem) -> Unit = {},
+    onOpenFolder: () -> Unit = {},
     onClearAll: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
@@ -245,7 +246,9 @@ fun DownloadsScreen(
                     shape = RoundedCornerShape(10.dp),
                     color = Color(0xFF0F172A),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenFolder() }
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -266,7 +269,7 @@ fun DownloadsScreen(
                             )
                         }
                         Spacer(modifier = Modifier.width(12.dp))
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "Save folder: Internal Storage/Veda Browser",
                                 color = Color.White,
@@ -279,6 +282,12 @@ fun DownloadsScreen(
                                 fontSize = 11.sp
                             )
                         }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                            contentDescription = "Open in File Manager",
+                            tint = Color(0xFF64748B),
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
                 }
             }

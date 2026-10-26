@@ -407,6 +407,8 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
     fun openSheet(sheet: SheetType) {
         if (sheet == SheetType.TAB_SWITCHER) {
             captureCurrentTabThumbnail()
+        } else if (sheet == SheetType.DOWNLOADS) {
+            realDownloadManager.triggerStorageMigration()
         }
         _activeSheet.value = sheet
     }
@@ -945,6 +947,10 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
         realDownloadManager.openDownloadedFile(item)
     }
 
+    fun openDownloadsFolder() {
+        realDownloadManager.openDownloadsFolderInFileManager()
+    }
+
     fun shareDownloadedFile(item: DownloadItem) {
         realDownloadManager.shareDownloadedFile(item)
     }
@@ -1137,6 +1143,10 @@ class BrowserViewModel(application: Application) : AndroidViewModel(application)
 
     fun dismissToast() {
         _toastMessage.value = null
+    }
+
+    fun onActivityResume() {
+        realDownloadManager.triggerStorageMigration()
     }
 
     fun onActivityStop() {

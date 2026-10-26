@@ -63,4 +63,27 @@ class RealDownloadManagerTest {
         dismissedSet.remove(downloadId)
         assertTrue(!dismissedSet.contains(downloadId))
     }
+
+    @Test
+    fun testPublicDownloadSubPath() {
+        val relative = "Download" + File.separator + RealDownloadManager.VEDA_DOWNLOADS_FOLDER
+        assertEquals("Download${File.separator}Veda Browser", relative)
+    }
+
+    @Test
+    fun testCategoryDetectionForBinAndMediaFiles() {
+        val videoItem = com.aaryo.vedabrowser.model.DownloadItem(
+            fileName = "Dhoomakethu (2026).mp4",
+            url = "https://example.com/video.mp4",
+            mimeType = "video/mp4"
+        )
+        assertEquals("video", videoItem.category)
+
+        val binItem = com.aaryo.vedabrowser.model.DownloadItem(
+            fileName = "Legend of the White Dragon 2026 www.bin",
+            url = "https://example.com/stream.bin",
+            mimeType = "video/mp4"
+        )
+        assertEquals("video", binItem.category)
+    }
 }

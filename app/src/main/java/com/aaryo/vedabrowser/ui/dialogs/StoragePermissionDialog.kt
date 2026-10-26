@@ -44,7 +44,7 @@ fun StoragePermissionDialog(
         },
         text = {
             Text(
-                text = "Veda Browser needs permission to access your device storage so that downloaded files can be saved directly to your device.",
+                text = "Veda Browser needs storage access to save downloaded files directly to \"/storage/emulated/0/Veda Browser\" in your phone's Internal Storage.",
                 fontSize = 14.sp,
                 lineHeight = 20.sp
             )
