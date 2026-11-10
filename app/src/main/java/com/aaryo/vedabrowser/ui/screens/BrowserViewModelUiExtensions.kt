@@ -8,11 +8,9 @@ import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import androidx.lifecycle.viewModelScope
 import com.aaryo.vedabrowser.R
-import com.aaryo.vedabrowser.data.BrowserRepository
 import com.aaryo.vedabrowser.model.Extension
 import com.aaryo.vedabrowser.model.QuickDialShortcut
 import com.aaryo.vedabrowser.model.SavedCredential
-import com.aaryo.vedabrowser.model.RunAt
 import com.aaryo.vedabrowser.extension.UserscriptParser
 import com.aaryo.vedabrowser.viewmodel.BrowserViewModel
 import com.aaryo.vedabrowser.viewmodel.CustomViewState
@@ -48,6 +46,10 @@ fun BrowserViewModel.setCustomView(view: View, callback: WebChromeClient.CustomV
 fun BrowserViewModel.setFindInPageVisible(visible: Boolean) {
     setPrivateState("_isFindInPageVisible", visible)
     if (!visible) setFindInPageQuery("")
+}
+
+fun BrowserViewModel.setFindInPageQuery(query: String) {
+    setPrivateState("_findInPageQuery", query)
 }
 
 fun BrowserViewModel.navigateToHome() {
