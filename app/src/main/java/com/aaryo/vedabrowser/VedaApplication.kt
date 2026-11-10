@@ -11,7 +11,8 @@ class VedaApplication : Application() {
         cleanCorruptedVariationsSeeds(this)
         com.aaryo.vedabrowser.webview.ChromiumEngineManager.initializeEngine(this)
         com.aaryo.vedabrowser.performance.ChromiumPrewarmer.initialize(this)
-        com.aaryo.vedabrowser.privacy.AdBlocker.initialize(this)
+        // AdBlocker is initialized by BrowserViewModel after persisted settings are loaded.
+        // Initializing it here would lock it to defaults before the user's filter preferences are known.
     }
 
     companion object {
